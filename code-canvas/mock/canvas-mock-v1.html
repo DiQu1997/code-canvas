@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code Canvas — 形态 mock v1</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #111418; color: #c9d1d9;
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+
+  #vp { position: fixed; inset: 0; overflow: hidden; cursor: grab; }
+  #vp.dragging { cursor: grabbing; }
+  #world { position: absolute; width: 1800px; height: 1400px; transform-origin: 0 0;
+    transition: transform .55s cubic-bezier(.22,.9,.26,1);
+    background-image: radial-gradient(circle, #1c212a 1px, transparent 1px);
+    background-size: 28px 28px; }
+  #world.notrans { transition: none; }
+
+  /* ---- storyline regions (Blueprint comment-box style) ---- */
+  .region { position: absolute; border-radius: 18px; border: 1.5px dashed; z-index: 0; }
+  .regionA { background: rgba(76,141,255,.05); border-color: rgba(76,141,255,.32); }
+  .regionB { background: rgba(63,185,120,.05); border-color: rgba(63,185,120,.32); }
+  .rlabel { position: absolute; top: -12px; left: 20px; padding: 2px 12px; font-size: 11px;
+    border-radius: 99px; background: #151a20; letter-spacing: .5px; }
+  .regionA > .rlabel { color: #79a8ff; border: 1px solid rgba(76,141,255,.45); }
+  .regionB > .rlabel { color: #56c98a; border: 1px solid rgba(63,185,120,.45); }
+
+  /* ---- code cards ---- */
+  .card { position: absolute; background: #1b2027; border: 1px solid #39414d; border-radius: 10px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.38); z-index: 2; transition: opacity .35s; }
+  .card .hdr { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #232a33;
+    border-bottom: 1px solid #333b47; border-radius: 10px 10px 0 0; cursor: pointer; white-space: nowrap; }
+  .card.collapsed .hdr { border-bottom: none; border-radius: 10px; }
+  .card.collapsed .body { display: none; }
+  .chev { color: #6f7d90; font-size: 9px; width: 10px; }
+  .fname { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px;
+    color: #e3e9f2; font-weight: 600; }
+  .file { margin-left: auto; color: #5d6875; font-size: 10px; padding-left: 14px; }
+  .body { padding: 8px 0; }
+  .ln { white-space: pre; font: 12px/1.75 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    padding: 0 14px 0 10px; }
+  .ln .no { display: inline-block; width: 16px; text-align: right; margin-right: 12px;
+    color: #4d5663; user-select: none; }
+  .ln.hot { background: rgba(88,166,255,.10); box-shadow: inset 2px 0 0 #58a6ff; }
+  .kw { color: #ff7b72; } .fn { color: #d2a8ff; } .str { color: #a5d6ff; }
+  .num { color: #79c0ff; } .cmt { color: #7d8590; }
+  .card.dim { opacity: .32; }
+
+  /* ---- intra-function logical blocks (fold to an outline) ---- */
+  .blk { border-left: 3px solid var(--bc); background: var(--bt); margin: 3px 0 3px 8px;
+    border-radius: 0 6px 6px 0; }
+  .blk .ln { padding-left: 6px; }
+  .bbar { display: flex; align-items: baseline; gap: 7px; padding: 3px 10px 3px 7px;
+    cursor: pointer; font-size: 10.5px; line-height: 1.7; white-space: nowrap; }
+  .bbar:hover { background: rgba(255,255,255,.035); }
+  .bchev { color: var(--bc); font-size: 8px; }
+  .bname { color: var(--bc); font-weight: 600; }
+  .bsum { color: #8b95a5; }
+  .brange { margin-left: auto; color: #566070; font-size: 9.5px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .blk.folded > .bcode { display: none; }
+
+  /* ---- line-anchored notes ---- */
+  .note { position: absolute; width: 250px; background: #26221a; border: 1px solid #55492f;
+    border-left: 3px solid #b08d3f; border-radius: 8px; padding: 9px 12px; font-size: 11.5px;
+    line-height: 1.65; color: #d0c3a2; z-index: 4; transition: opacity .35s; }
+  .note .tag { font-size: 9.5px; color: #8f7d52; margin-bottom: 3px; letter-spacing: 1px; }
+  .note.hot { border-color: #c8a45a; border-left-color: #e0b45c; color: #ecdfbc;
+    box-shadow: 0 0 0 1px rgba(200,164,90,.35), 0 8px 20px rgba(0,0,0,.45); }
+  .note.dim { opacity: .32; }
+
+  /* background flavor: domain knowledge, not code intent */
+  .note.bg { background: #1b2330; border-color: #324459; border-left-color: #57a6c8;
+    color: #a4bfd2; }
+  .note.bg .tag { color: #5c86a0; }
+  .note.bg.hot { border-color: #57a6c8; border-left-color: #6fc0e0; color: #cfe4f2;
+    box-shadow: 0 0 0 1px rgba(87,166,200,.32), 0 8px 20px rgba(0,0,0,.45); }
+
+  .rblurb { position: absolute; top: 12px; left: 22px; font-size: 11px; opacity: .78;
+    letter-spacing: .3px; }
+  .regionA > .rblurb { color: #6f94c8; }
+  .regionB > .rblurb { color: #5da887; }
+
+  /* ---- wires ---- */
+  #wires { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: visible; }
+  .wire { fill: none; transition: opacity .3s; }
+  .wire.call { stroke: #8fa0b5; stroke-width: 1.6; }
+  .wire.data { stroke: #dfa23e; stroke-width: 1.6; }
+  .wire.off { opacity: .09; }
+  .wire.on.call { stroke: #dbe6f4; stroke-width: 2.6; }
+  .wire.on.data { stroke: #ffc46b; stroke-width: 2.6; }
+  .port.call { fill: #8fa0b5; } .port.data { fill: #dfa23e; }
+  .port.on.call { fill: #dbe6f4; } .port.on.data { fill: #ffc46b; }
+  .port.off { opacity: .09; }
+  .leader { stroke: #8f7d52; stroke-width: 1; stroke-dasharray: 3 4; opacity: .75; fill: none; }
+  .leader.off { opacity: .12; }
+  .wlabel { font: 10.5px -apple-system, sans-serif; fill: #dfa23e; }
+  .wlabel.on { fill: #ffc46b; font-weight: 600; }
+  .wlabel.off { opacity: .09; }
+
+  /* ---- chrome ---- */
+  #topbar { position: fixed; top: 14px; left: 18px; z-index: 10; }
+  #topbar h1 { font-size: 14px; font-weight: 600; color: #e3e9f2; margin-bottom: 6px; }
+  #topbar h1 small { color: #6b7684; font-weight: 400; margin-left: 8px; }
+  .legend { display: flex; gap: 16px; font-size: 11px; color: #9aa4b2; align-items: center; }
+  .sw { display: inline-block; width: 22px; height: 0; border-top: 2px solid; margin-right: 5px;
+    vertical-align: middle; }
+  #hint { position: fixed; top: 16px; right: 18px; z-index: 10; font-size: 11px; color: #5d6875;
+    text-align: right; line-height: 1.7; }
+
+  #bar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 10;
+    display: flex; align-items: center; gap: 14px; padding: 11px 16px;
+    background: rgba(18,22,28,.93); border: 1px solid #313945; border-radius: 14px;
+    max-width: min(880px, 95vw); backdrop-filter: blur(6px); }
+  .navbtn { background: #2a323d; border: 1px solid #3c4653; color: #c9d1d9; border-radius: 8px;
+    width: 32px; height: 32px; cursor: pointer; font-size: 13px; flex: none; }
+  .navbtn:hover { background: #333d4a; }
+  .navbtn:disabled { opacity: .35; cursor: default; }
+  #dots { display: flex; gap: 6px; flex: none; }
+  .dot { width: 7px; height: 7px; border-radius: 99px; background: #3c4653; cursor: pointer; }
+  .dot.cur { background: #79a8ff; }
+  #stext { min-width: 0; }
+  #stitle { font-weight: 600; font-size: 13px; color: #e3e9f2; margin-bottom: 2px; }
+  #scap { font-size: 12px; color: #98a2b0; line-height: 1.5; max-width: 560px; }
+</style>
+</head>
+<body>
+
+<div id="vp">
+  <div id="world">
+
+    <!-- storyline regions -->
+    <div class="region regionA" id="regA" style="left:300px; top:180px; width:460px; height:700px;">
+      <span class="rlabel">故事线 A · 请求主流程</span>
+      <span class="rblurb">请求的进与出：命中早退，未命中回源</span>
+    </div>
+    <div class="region regionB" id="regB" style="left:940px; top:150px; width:810px; height:500px;">
+      <span class="rlabel">故事线 B · 缓存子系统</span>
+      <span class="rblurb">key 的生成与存取——命中率与新鲜度都在这里决定</span>
+    </div>
+
+    <!-- canvas-level background: lit at overview, fades once you step in -->
+    <div class="note bg" id="note0" data-step="0" style="left:40px; top:120px; width:260px;">
+      <div class="tag">背景 · 这是什么</div>
+      一个 HTTP 缓存中间件：请求先查缓存，命中直接返回；未命中回源、写回再返回。
+      读懂它只需要三个问题——key 怎么算、命中走哪条路、未命中怎么写回。
+      下面的三步故事线正好各答一个。
+    </div>
+
+    <!-- concept-level background note (teal), lit at step 1 -->
+    <div class="note bg" id="note3" data-step="1" style="left:660px; top:105px; width:250px;">
+      <div class="tag">背景 · HTTP Vary</div>
+      Vary 头声明同一 URL 会因哪些请求头返回不同内容——所以这些头必须参与
+      key，否则会把 A 的响应错发给 B。
+    </div>
+
+    <!-- notes (line-anchored) -->
+    <div class="note" id="note1" data-step="2" style="left:70px; top:300px;">
+      <div class="tag">NOTE · handler.py:6</div>
+      命中直接返回：完全绕过 upstream。这个 early return 就是缓存存在的意义。
+    </div>
+    <div class="note" id="note2" data-step="3" style="left:70px; top:430px;">
+      <div class="tag">NOTE · handler.py:8</div>
+      ttl 由请求方声明——新鲜度是调用方的决定，缓存只负责执行。
+    </div>
+
+    <!-- focal card: expanded, line-level ports -->
+    <div class="card" id="card-handler" style="left:360px; top:250px; width:340px;">
+      <div class="hdr"><span class="chev">▾</span><span class="fname">handle_request(req)</span><span class="file">server/handler.py</span></div>
+      <div class="body">
+        <div class="ln" id="hr-L1"><span class="no">1</span><span class="kw">def</span> <span class="fn">handle_request</span>(req):</div>
+        <div class="ln" id="hr-L2"><span class="no">2</span>    key = <span class="fn">cache_key</span>(req)</div>
+        <div class="ln" id="hr-L3"><span class="no">3</span>    cached = <span class="fn">get_cached</span>(key)</div>
+        <div class="ln" id="hr-L4"><span class="no">4</span>    <span class="kw">if</span> cached <span class="kw">is not</span> <span class="kw">None</span>:</div>
+        <div class="ln" id="hr-L5"><span class="no">5</span>        metrics.<span class="fn">hit</span>()</div>
+        <div class="ln" id="hr-L6"><span class="no">6</span>        <span class="kw">return</span> cached</div>
+        <div class="ln" id="hr-L7"><span class="no">7</span>    resp = <span class="fn">fetch_upstream</span>(req)</div>
+        <div class="ln" id="hr-L8"><span class="no">8</span>    <span class="fn">store</span>(key, resp, ttl=req.ttl)</div>
+        <div class="ln" id="hr-L9"><span class="no">9</span>    <span class="kw">return</span> resp</div>
+      </div>
+    </div>
+
+    <!-- collapsed cards: click header to expand real code -->
+    <div class="card collapsed" id="card-fetch" style="left:430px; top:680px; width:300px;">
+      <div class="hdr"><span class="chev">▸</span><span class="fname">fetch_upstream(req)</span><span class="file">server/upstream.py</span></div>
+      <div class="body">
+        <div class="ln" id="fu-L1"><span class="no">1</span><span class="kw">def</span> <span class="fn">fetch_upstream</span>(req):</div>
+        <div class="ln" id="fu-L2"><span class="no">2</span>    conn = pool.<span class="fn">acquire</span>(req.host)</div>
+        <div class="ln" id="fu-L3"><span class="no">3</span>    <span class="kw">try</span>:</div>
+        <div class="ln" id="fu-L4"><span class="no">4</span>        <span class="kw">return</span> conn.<span class="fn">send</span>(req)</div>
+        <div class="ln" id="fu-L5"><span class="no">5</span>    <span class="kw">finally</span>:</div>
+        <div class="ln" id="fu-L6"><span class="no">6</span>        pool.<span class="fn">release</span>(conn)</div>
+      </div>
+    </div>
+
+    <div class="card collapsed" id="card-cachekey" style="left:955px; top:200px; width:375px;">
+      <div class="hdr"><span class="chev">▸</span><span class="fname">cache_key(req)</span><span class="file">server/keys.py</span></div>
+      <div class="body">
+        <div class="ln" id="ck-L1"><span class="no">1</span><span class="kw">def</span> <span class="fn">cache_key</span>(req):</div>
+        <div class="ln" id="ck-L2"><span class="no">2</span>    parts = [req.method, req.path]</div>
+        <div class="ln" id="ck-L3"><span class="no">3</span>    <span class="kw">for</span> h <span class="kw">in</span> <span class="fn">sorted</span>(req.vary_headers):</div>
+        <div class="ln" id="ck-L4"><span class="no">4</span>        parts.<span class="fn">append</span>(req.headers.<span class="fn">get</span>(h, <span class="str">""</span>))</div>
+        <div class="ln" id="ck-L5"><span class="no">5</span>    <span class="kw">return</span> <span class="str">"v1:"</span> + <span class="fn">sha1</span>(<span class="str">"|"</span>.<span class="fn">join</span>(parts))</div>
+      </div>
+    </div>
+
+    <div class="card collapsed" id="card-get" style="left:1385px; top:290px; width:360px;">
+      <div class="hdr"><span class="chev">▸</span><span class="fname">get_cached(key)</span><span class="file">server/cache.py</span></div>
+      <div class="body">
+        <div class="ln" id="gc-L1"><span class="no">1</span><span class="kw">def</span> <span class="fn">get_cached</span>(key):</div>
+        <div class="ln" id="gc-L2"><span class="no">2</span>    entry = _table.<span class="fn">get</span>(key)</div>
+        <div class="ln" id="gc-L3"><span class="no">3</span>    <span class="kw">if</span> entry <span class="kw">is None or</span> entry.<span class="fn">expired</span>():</div>
+        <div class="ln" id="gc-L4"><span class="no">4</span>        <span class="kw">return</span> <span class="kw">None</span></div>
+        <div class="ln" id="gc-L5"><span class="no">5</span>    <span class="kw">return</span> entry.value</div>
+      </div>
+    </div>
+
+    <div class="card collapsed" id="card-store" style="left:1385px; top:500px; width:360px;">
+      <div class="hdr"><span class="chev">▸</span><span class="fname">store(key, resp, ttl)</span><span class="file">server/cache.py</span></div>
+      <div class="body">
+        <div class="ln" id="st-L1"><span class="no">1</span><span class="kw">def</span> <span class="fn">store</span>(key, resp, ttl):</div>
+        <div class="ln" id="st-L2"><span class="no">2</span>    _table[key] = <span class="fn">Entry</span>(resp, <span class="fn">now</span>() + ttl)</div>
+        <div class="ln" id="st-L3"><span class="no">3</span>    <span class="fn">_evict_if_needed</span>()</div>
+      </div>
+    </div>
+
+    <!-- long nested function: card body is a fold-out outline of logical blocks -->
+    <div class="card" id="card-evict" style="left:1300px; top:720px; width:410px;">
+      <div class="hdr"><span class="chev">▾</span><span class="fname">_evict_if_needed()</span><span class="file">server/cache.py</span></div>
+      <div class="body">
+        <div class="ln" id="ev-L1"><span class="no">1</span><span class="kw">def</span> <span class="fn">_evict_if_needed</span>():</div>
+        <div class="blk folded" style="--bc:#5a9cf8; --bt:rgba(90,156,248,.05);">
+          <div class="bbar"><span class="bchev">▸</span><span class="bname">水位检查</span><span class="bsum">低于高水位就什么都不做</span><span class="brange">2–4</span></div>
+          <div class="bcode">
+            <div class="ln" id="ev-L2"><span class="no">2</span>    <span class="kw">if</span> _table.<span class="fn">size</span>() &lt; HIGH_WATER:</div>
+            <div class="ln" id="ev-L3"><span class="no">3</span>        <span class="kw">return</span></div>
+            <div class="ln" id="ev-L4"><span class="no">4</span>    target = _table.<span class="fn">size</span>() - LOW_WATER</div>
+          </div>
+        </div>
+        <div class="blk folded" style="--bc:#a78bfa; --bt:rgba(167,139,250,.05);">
+          <div class="bbar"><span class="bchev">▸</span><span class="bname">全表扫描打分</span><span class="bsum">锁一个 shard 扫一个</span><span class="brange">5–15</span></div>
+          <div class="bcode">
+            <div class="ln" id="ev-L5"><span class="no">5</span>    victims = []</div>
+            <div class="ln" id="ev-L6"><span class="no">6</span>    <span class="kw">for</span> shard <span class="kw">in</span> _table.<span class="fn">shards</span>():</div>
+            <div class="ln" id="ev-L7"><span class="no">7</span>        <span class="kw">with</span> shard.<span class="fn">lock</span>():</div>
+            <div class="ln" id="ev-L8"><span class="no">8</span>            <span class="kw">for</span> key, e <span class="kw">in</span> shard.<span class="fn">items</span>():</div>
+            <div class="blk folded" style="--bc:#f472b6; --bt:rgba(244,114,182,.05);">
+              <div class="bbar"><span class="bchev">▸</span><span class="bname">单个 entry 打分</span><span class="bsum">过期白送；越冷越大越先死</span><span class="brange">9–15</span></div>
+              <div class="bcode">
+                <div class="ln" id="ev-L9"><span class="no">9</span>                <span class="kw">if</span> e.<span class="fn">expired</span>():</div>
+                <div class="ln" id="ev-L10"><span class="no">10</span>                    victims.<span class="fn">append</span>((INF, key))</div>
+                <div class="ln" id="ev-L11"><span class="no">11</span>                    <span class="kw">continue</span></div>
+                <div class="ln" id="ev-L12"><span class="no">12</span>                score = <span class="fn">now</span>() - e.last_used</div>
+                <div class="ln" id="ev-L13"><span class="no">13</span>                <span class="kw">if</span> e.size &gt; BIG_OBJECT:</div>
+                <div class="ln" id="ev-L14"><span class="no">14</span>                    score *= <span class="num">2</span></div>
+                <div class="ln" id="ev-L15"><span class="no">15</span>                victims.<span class="fn">append</span>((score, key))</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="blk folded" style="--bc:#4cc38a; --bt:rgba(76,195,138,.05);">
+          <div class="bbar"><span class="bchev">▸</span><span class="bname">收割</span><span class="bsum">分数最高的 target 个删掉</span><span class="brange">16–19</span></div>
+          <div class="bcode">
+            <div class="ln" id="ev-L16"><span class="no">16</span>    victims.<span class="fn">sort</span>(reverse=<span class="kw">True</span>)</div>
+            <div class="ln" id="ev-L17"><span class="no">17</span>    <span class="kw">for</span> _, key <span class="kw">in</span> victims[:target]:</div>
+            <div class="ln" id="ev-L18"><span class="no">18</span>        _table.<span class="fn">delete</span>(key)</div>
+            <div class="ln" id="ev-L19"><span class="no">19</span>    metrics.<span class="fn">evicted</span>(target)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <svg id="wires" width="1800" height="1400" viewBox="0 0 1800 1400"></svg>
+  </div>
+</div>
+
+<div id="topbar">
+  <h1>Code Canvas <small>形态 mock v1 · 手工排版</small></h1>
+  <div class="legend">
+    <span><span class="sw" style="border-color:#8fa0b5"></span>调用 / 执行</span>
+    <span><span class="sw" style="border-color:#dfa23e"></span>数据流</span>
+    <span><span class="sw" style="border-color:#b08d3f; border-top-style:dashed"></span>行注释引线</span>
+    <span style="color:#6b7684">色块 = 故事线区域</span>
+  </div>
+</div>
+
+<div id="hint">拖拽平移 · 滚轮缩放<br>点击卡片标题展开 / 收起代码<br>◀ ▶ 或 ←→ 沿故事线走</div>
+
+<div id="bar">
+  <button class="navbtn" id="prev">◀</button>
+  <div id="dots"></div>
+  <button class="navbtn" id="next">▶</button>
+  <div id="stext">
+    <div id="stitle"></div>
+    <div id="scap"></div>
+  </div>
+</div>
+
+<script>
+const vp = document.getElementById('vp');
+const world = document.getElementById('world');
+const svg = document.getElementById('wires');
+
+/* ---------- wires: curated, typed ---------- */
+const WIRES = [
+  { id:'w-key',   kind:'call', fromCard:'card-handler',  from:{ line:'hr-L2', side:'right' },
+    toCard:'card-cachekey', to:{ card:'card-cachekey', side:'left', slot:'call' } },
+  { id:'w-get',   kind:'call', fromCard:'card-handler',  from:{ line:'hr-L3', side:'right' },
+    toCard:'card-get',      to:{ card:'card-get', side:'left', slot:'call' } },
+  { id:'w-fetch', kind:'call', fromCard:'card-handler',  from:{ line:'hr-L7', side:'left' },
+    toCard:'card-fetch',    to:{ card:'card-fetch', side:'left', slot:'call' } },
+  { id:'w-store', kind:'call', fromCard:'card-handler',  from:{ line:'hr-L8', side:'right' },
+    toCard:'card-store',    to:{ card:'card-store', side:'left', slot:'call' } },
+  { id:'d-key1',  kind:'data', fromCard:'card-cachekey', from:{ card:'card-cachekey', line:'ck-L5', side:'right' },
+    toCard:'card-get',      to:{ card:'card-get', side:'left', slot:'data' }, label:'key' },
+  { id:'d-key2',  kind:'data', fromCard:'card-cachekey', from:{ card:'card-cachekey', line:'ck-L5', side:'right' },
+    toCard:'card-store',    to:{ card:'card-store', side:'left', slot:'data' }, label:'key' },
+  { id:'d-resp',  kind:'data', fromCard:'card-fetch',    from:{ card:'card-fetch', line:'fu-L4', side:'right' },
+    toCard:'card-store',    to:{ card:'card-store', side:'left', slot:'data' }, label:'resp' },
+  { id:'w-evict', kind:'call', fromCard:'card-store',    from:{ line:'st-L3', card:'card-store', side:'left' },
+    toCard:'card-evict',    to:{ card:'card-evict', side:'left', slot:'call' } },
+];
+const LEADERS = [
+  { note:'note1', line:'hr-L6' },
+  { note:'note2', line:'hr-L8' },
+  { note:'note3', line:'ck-L3' },
+];
+
+/* ---------- storyline steps: camera path + progressive lighting ---------- */
+const STEPS = [
+  { title:'总览',
+    caption:'一次带缓存的请求处理。左边是请求主流程，右边是缓存子系统。灰线 = 调用，琥珀线 = 数据流。可以自由拖拽查看，或用 ▶ 沿故事线走。',
+    fit:true },
+  { title:'① 请求如何变成 key',
+    caption:'第一步把请求归一化成缓存键（cache_key 已展开）。第 3 行先对 vary_headers 排序——保证同一请求永远得到同一个 key。两根琥珀线预告了 key 接下来的去向。',
+    wires:['w-key','d-key1','d-key2'], expand:['card-cachekey'], lines:['hr-L2'],
+    cam:{ x:820, y:380, s:1.0 } },
+  { title:'② 命中路径',
+    caption:'拿 key 查表，命中就直接返回。注意左侧点亮的行注释：这个 early return 绕过了整个下半段，是缓存存在的意义。',
+    wires:['w-get','d-key1'], lines:['hr-L3','hr-L4','hr-L5','hr-L6'],
+    cam:{ x:860, y:380, s:0.9 } },
+  { title:'③ 未命中：回源并写回',
+    caption:'回源拿到 resp，连同 key 一起写回。两根琥珀线在 store 汇合——「这个值从哪来」在文本里要人肉追踪变量，在图上是一眼的事。',
+    wires:['w-fetch','w-store','d-key2','d-resp'], lines:['hr-L7','hr-L8','hr-L9'],
+    cam:{ x:860, y:565, s:0.9 } },
+  { title:'④ 后台淘汰：长函数先读大纲',
+    caption:'store 写完顺手检查水位。_evict_if_needed 是个 19 行的嵌套函数——先读三根色条组成的大纲，点条展开代码；「单个 entry 打分」里还能再展一层。层级：卡片 → 块大纲 → 代码。',
+    wires:['w-evict'], expand:['card-store'], lines:['st-L3'],
+    cam:{ x:1250, y:660, s:1.0 } },
+];
+let step = 0;
+
+/* ---------- geometry ---------- */
+function worldPos(el) {
+  let x = 0, y = 0, e = el;
+  while (e && e.id !== 'world') { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+}
+function resolveAnchor(spec) {
+  let el = null, isLine = false;
+  if (spec.line) {
+    const le = document.getElementById(spec.line);
+    if (le && !le.closest('.card').classList.contains('collapsed')) { el = le; isLine = true; }
+  }
+  if (!el) el = spec.card ? document.getElementById(spec.card)
+                          : document.getElementById(spec.line).closest('.card');
+  const p = worldPos(el);
+  const side = spec.side || 'right';
+  const x = side === 'right' ? p.x + p.w : p.x;
+  let y;
+  if (isLine) y = p.y + p.h / 2;
+  else if (spec.slot) {
+    const collapsed = el.classList.contains('collapsed');
+    if (spec.slot === 'data') y = collapsed ? p.y + p.h / 2 + 7 : p.y + Math.min(p.h * 0.62, p.h - 16);
+    else y = collapsed ? p.y + p.h / 2 - 5 : p.y + 16;
+  } else y = p.y + p.h / 2;
+  return { x, y, side };
+}
+function bez(a, c1, c2, b, t) {
+  const u = 1 - t;
+  return { x: u*u*u*a.x + 3*u*u*t*c1.x + 3*u*t*t*c2.x + t*t*t*b.x,
+           y: u*u*u*a.y + 3*u*u*t*c1.y + 3*u*t*t*c2.y + t*t*t*b.y };
+}
+
+/* ---------- draw ---------- */
+/* regions wrap their member cards, whatever is expanded */
+const REGION_CARDS = {
+  regA: ['card-handler', 'card-fetch'],
+  regB: ['card-cachekey', 'card-get', 'card-store', 'card-evict'],
+};
+function fitRegions() {
+  for (const [rid, ids] of Object.entries(REGION_CARDS)) {
+    const r = document.getElementById(rid);
+    let maxB = 0;
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      maxB = Math.max(maxB, el.offsetTop + el.offsetHeight);
+    }
+    r.style.height = (maxB + 28 - r.offsetTop) + 'px';
+  }
+}
+
+const NS = 'http://www.w3.org/2000/svg';
+function drawWires() {
+  fitRegions();
+  svg.innerHTML = '';
+  const active = STEPS[step].wires || null;
+  for (const w of WIRES) {
+    const a = resolveAnchor(w.from), b = resolveAnchor(w.to);
+    const k = Math.min(Math.max(Math.abs(b.x - a.x) * 0.55, Math.abs(b.y - a.y) * 0.25, 30), 170);
+    const c1 = { x: a.x + (a.side === 'right' ? k : -k), y: a.y };
+    const c2 = { x: b.x + (b.side === 'right' ? k : -k), y: b.y };
+    const state = active === null ? '' : (active.includes(w.id) ? ' on' : ' off');
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`);
+    path.setAttribute('class', `wire ${w.kind}${state}`);
+    svg.appendChild(path);
+    for (const pt of [a, b]) {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', pt.x); c.setAttribute('cy', pt.y);
+      c.setAttribute('r', state === ' on' ? 4.5 : 3.5);
+      c.setAttribute('class', `port ${w.kind}${state}`);
+      svg.appendChild(c);
+    }
+    if (w.label) {
+      const m = bez(a, c1, c2, b, 0.5);
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', m.x); t.setAttribute('y', m.y - 7);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('class', `wlabel${state}`);
+      t.textContent = w.label;
+      svg.appendChild(t);
+    }
+  }
+  for (const l of LEADERS) {
+    const noteEl = document.getElementById(l.note);
+    const note = worldPos(noteEl);
+    const b = resolveAnchor({ line: l.line, side: 'left' });
+    const p = document.createElementNS(NS, 'path');
+    const a = { x: note.x + note.w, y: note.y + note.h / 2 };
+    p.setAttribute('d', `M ${a.x} ${a.y} C ${a.x + 34} ${a.y}, ${b.x - 34} ${b.y}, ${b.x} ${b.y}`);
+    p.setAttribute('class', 'leader' + (noteEl.classList.contains('dim') ? ' off' : ''));
+    svg.appendChild(p);
+  }
+}
+
+/* ---------- camera ---------- */
+let cam = { x: 0, y: 0, s: 0.8 };
+function apply(animate = true) {
+  world.classList.toggle('notrans', !animate);
+  world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
+}
+function centerOn(wx, wy, s, animate = true) {
+  cam.s = s;
+  cam.x = innerWidth / 2 - wx * s;
+  cam.y = (innerHeight - 70) / 2 - wy * s;
+  apply(animate);
+}
+function fitAll(animate = true) {
+  const x0 = 20, y0 = 90, x1 = 1755, y1 = 900;
+  const s = Math.min(Math.min(innerWidth / (x1 - x0), (innerHeight - 110) / (y1 - y0)) * 0.96, 1.15);
+  centerOn((x0 + x1) / 2, (y0 + y1) / 2, s, animate);
+}
+
+/* ---------- steps ---------- */
+function setStep(i, animate = true) {
+  step = Math.max(0, Math.min(STEPS.length - 1, i));
+  const s = STEPS[step];
+  (s.expand || []).forEach(id => document.getElementById(id).classList.remove('collapsed'));
+  document.querySelectorAll('.ln.hot').forEach(e => e.classList.remove('hot'));
+  (s.lines || []).forEach(id => document.getElementById(id).classList.add('hot'));
+  const activeCards = new Set();
+  if (s.wires) for (const w of WIRES) if (s.wires.includes(w.id)) { activeCards.add(w.fromCard); activeCards.add(w.toCard); }
+  document.querySelectorAll('.card').forEach(c =>
+    c.classList.toggle('dim', s.wires ? !activeCards.has(c.id) : false));
+  document.querySelectorAll('.note').forEach(n => {
+    const mine = +n.dataset.step === step;
+    n.classList.toggle('hot', mine);
+    n.classList.toggle('dim', step > 0 && !mine);
+  });
+  if (s.fit) fitAll(animate); else centerOn(s.cam.x, s.cam.y, s.cam.s, animate);
+  drawWires();
+  document.getElementById('stitle').textContent = s.title;
+  document.getElementById('scap').textContent = s.caption;
+  document.getElementById('prev').disabled = step === 0;
+  document.getElementById('next').disabled = step === STEPS.length - 1;
+  document.querySelectorAll('.dot').forEach((d, j) => d.classList.toggle('cur', j === step));
+}
+const dots = document.getElementById('dots');
+STEPS.forEach((_, i) => {
+  const d = document.createElement('span');
+  d.className = 'dot';
+  d.onclick = () => setStep(i);
+  dots.appendChild(d);
+});
+document.getElementById('prev').onclick = () => setStep(step - 1);
+document.getElementById('next').onclick = () => setStep(step + 1);
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') setStep(step - 1);
+  if (e.key === 'ArrowRight') setStep(step + 1);
+});
+
+/* ---------- expand / collapse ---------- */
+document.querySelectorAll('.card .hdr').forEach(h => {
+  h.addEventListener('click', () => {
+    const card = h.closest('.card');
+    card.classList.toggle('collapsed');
+    h.querySelector('.chev').textContent = card.classList.contains('collapsed') ? '▸' : '▾';
+    drawWires();
+  });
+});
+
+/* ---------- block fold / unfold ---------- */
+document.querySelectorAll('.bbar').forEach(b => {
+  b.addEventListener('click', e => {
+    e.stopPropagation();
+    const blk = b.parentElement;
+    blk.classList.toggle('folded');
+    b.querySelector('.bchev').textContent = blk.classList.contains('folded') ? '▸' : '▾';
+    drawWires();
+  });
+});
+
+/* ---------- pan / zoom ---------- */
+let drag = null;
+vp.addEventListener('pointerdown', e => {
+  if (e.target.closest('.hdr') || e.target.closest('.bbar') || e.target.closest('#bar')) return;
+  drag = { sx: e.clientX, sy: e.clientY, ox: cam.x, oy: cam.y };
+  vp.classList.add('dragging');
+  vp.setPointerCapture(e.pointerId);
+});
+vp.addEventListener('pointermove', e => {
+  if (!drag) return;
+  cam.x = drag.ox + (e.clientX - drag.sx);
+  cam.y = drag.oy + (e.clientY - drag.sy);
+  apply(false);
+});
+vp.addEventListener('pointerup', () => { drag = null; vp.classList.remove('dragging'); });
+vp.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = Math.exp(-e.deltaY * 0.0012);
+  const ns = Math.min(1.8, Math.max(0.3, cam.s * f));
+  cam.x = e.clientX - (e.clientX - cam.x) * (ns / cam.s);
+  cam.y = e.clientY - (e.clientY - cam.y) * (ns / cam.s);
+  cam.s = ns;
+  apply(false);
+}, { passive: false });
+addEventListener('resize', () => { drawWires(); if (STEPS[step].fit) fitAll(false); });
+
+/* init (#s2 jumps to step 2; trailing x unfolds all blocks — handy for screenshots) */
+const m = location.hash.match(/^#s(\d+)(x?)$/);
+requestAnimationFrame(() => {
+  if (m && m[2]) document.querySelectorAll('.blk').forEach(b => {
+    b.classList.remove('folded');
+    b.querySelector('.bchev').textContent = '▾';
+  });
+  setStep(m ? +m[1] : 0, false);
+});
+</script>
+</body>
+</html>

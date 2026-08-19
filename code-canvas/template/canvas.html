@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code Canvas</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #f6f8fa; color: #1f2328;
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+
+  #vp { position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none; }
+  #vp.dragging { cursor: grabbing; }
+  #world { position: absolute; transform-origin: 0 0;
+    transition: transform .55s cubic-bezier(.22,.9,.26,1);
+    background-image: radial-gradient(circle, #d8dee4 1px, transparent 1px);
+    background-size: 28px 28px; }
+  #world.notrans { transition: none; }
+
+  /* ---- storyline regions ---- */
+  .region { position: absolute; border-radius: 18px; border: 1.5px dashed; z-index: 0; }
+  .rlabel { position: absolute; top: -12px; left: 20px; padding: 2px 12px; font-size: 11px;
+    border-radius: 99px; background: #ffffff; letter-spacing: .5px; border: 1px solid; }
+  .rblurb { position: absolute; top: 12px; left: 22px; font-size: 11px; opacity: .85;
+    letter-spacing: .3px; }
+
+  /* ---- code cards ---- */
+  .card { position: absolute; background: #ffffff; border: 1px solid #d0d7de; border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(31,35,40,.10); z-index: 2; transition: opacity .35s; overflow: hidden; }
+  .card .hdr { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f6f8fa;
+    border-bottom: 1px solid #e4e8ec; border-radius: 10px 10px 0 0; cursor: pointer; white-space: nowrap; }
+  .card.collapsed .hdr { border-bottom: none; border-radius: 10px; }
+  .card.collapsed .body { display: none; }
+  .chev { color: #8c959f; font-size: 9px; width: 10px; flex: none; }
+  .fname { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px;
+    color: #1f2328; font-weight: 600; }
+  .file { margin-left: auto; color: #8c959f; font-size: 10px; padding-left: 14px; }
+  .body { padding: 8px 0; }
+  .ln { white-space: pre; font: 12px/1.75 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    padding: 0 14px 0 10px; color: #24292f; }
+  .ln .no { display: inline-block; width: 20px; text-align: right; margin-right: 12px;
+    color: #a8b0b9; user-select: none; }
+  .ln.hot { background: rgba(9,105,218,.08); box-shadow: inset 2px 0 0 #0969da; }
+  .ln.add { background: rgba(26,127,55,.09); box-shadow: inset 2px 0 0 #1a7f37; }
+  .ln.add.hot { box-shadow: inset 2px 0 0 #0969da; }
+  .ln.del { background: rgba(207,34,46,.05); color: #a8626a; text-decoration: line-through; }
+  .ln.del .no { color: #cf5b64; text-decoration: none; }
+  .dbadge { font: 10px ui-monospace, Menlo, Consolas, monospace; padding: 0 7px;
+    border-radius: 99px; background: rgba(31,35,40,.03); border: 1px solid #d0d7de; flex: none; }
+  .dbadge b { color: #1a7f37; font-weight: 600; }
+  .dbadge i { color: #cf222e; font-style: normal; }
+  /* ---- plan canvas: ghost cards + intent / delta badges ---- */
+  .card.ghost { border: 1.5px dashed #2da44e; }
+  .card.ghost .hdr { background: rgba(26,127,55,.06); }
+  .pbadge { font: 10px -apple-system, 'PingFang SC', sans-serif; padding: 0 7px; flex: none;
+    border-radius: 99px; border: 1px solid; }
+  .pbadge.add { color: #1a7f37; border-color: #2da44e; }
+  .pbadge.modify { color: #9a6700; border-color: #bf8700; }
+  .pbadge.remove { color: #cf222e; border-color: #e16f64; }
+  .pbadge.offplan { color: #cf222e; border-color: #cf222e; background: rgba(207,34,46,.08); font-weight: 600; }
+  .pbadge.missed { color: #57606a; border-color: #8c959f; }
+  .kw { color: #cf222e; } .fn { color: #8250df; } .str { color: #0a3069; }
+  .num { color: #0550ae; } .cmt { color: #6e7781; }
+  .card.dim { opacity: .32; }
+
+  /* ---- intra-function logical blocks ---- */
+  .blk { border-left: 3px solid var(--bc); background: var(--bt); margin: 3px 0 3px 8px;
+    border-radius: 0 6px 6px 0; }
+  .blk .ln { padding-left: 6px; }
+  .bbar { display: flex; align-items: baseline; gap: 7px; padding: 3px 10px 3px 7px;
+    cursor: pointer; font-size: 10.5px; line-height: 1.7; white-space: nowrap; }
+  .bbar:hover { background: rgba(31,35,40,.035); }
+  .bchev { color: var(--bc); font-size: 8px; }
+  .bname { color: var(--bc); font-weight: 600; }
+  .bsum { color: #57606a; }
+  .brange { margin-left: 10px; color: #8c959f; font-size: 9.5px; padding-left: 4px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .blk.folded > .bcode { display: none; }
+  .bbtn { font-size: 9px; padding: 0 7px; border-radius: 99px; border: 1px solid #d0d7de;
+    color: #57606a; cursor: pointer; line-height: 1.6; flex: none; align-self: center; }
+  .bbtn:hover { color: #1f2328; border-color: #8c959f; }
+  .bxplain { display: none; padding: 7px 14px 8px 10px; font-size: 11.5px; line-height: 1.7;
+    color: #424a53; border-top: 1px dashed rgba(31,35,40,.15); white-space: normal;
+    max-width: 560px; }
+  .blk.explained > .bxplain { display: block; }
+  .blk.qa-target { box-shadow: 0 0 0 2px var(--bc), 0 4px 16px rgba(31,35,40,.22); }
+  .blk.qa-target > .bbar { background: var(--bt); }
+  .blk.qa-target > .bbar .bname::after { content: ' · 问答中'; font-weight: 400; opacity: .75; }
+
+  /* ---- term annotations: dotted identifiers that expand a note ---- */
+  .term { border-bottom: 1px dotted #6e7781; cursor: pointer; }
+  .term:hover { border-bottom-color: #1f2328; color: #0a0c10; }
+  .term.on { background: rgba(154,103,0,.12); border-bottom-color: #bf8700; }
+  .tnote { display: none; margin: 1px 14px 4px 48px; padding: 5px 10px; font-size: 11px;
+    line-height: 1.65; color: #6a5518; background: rgba(191,135,0,.07);
+    border-left: 2px solid #bf8700; border-radius: 0 6px 6px 0; white-space: normal;
+    max-width: 480px; }
+  .tnote.open { display: block; }
+
+  /* ---- per-block Q&A drawer ---- */
+  #qa { position: fixed; top: 0; right: -420px; width: 390px; height: 100%; z-index: 20;
+    background: #ffffff; border-left: 1px solid #d0d7de; display: flex; flex-direction: column;
+    transition: right .3s ease; box-shadow: -12px 0 30px rgba(31,35,40,.16); }
+  #qa.open { right: 0; }
+  #qa header { padding: 14px 44px 10px 16px; border-bottom: 1px solid #e4e8ec; position: relative; }
+  #qa-path { font-size: 10.5px; color: #6e7781; margin-bottom: 3px; }
+  #qa-name { font: 600 13px ui-monospace, Menlo, Consolas, monospace; color: #1f2328; }
+  .qa-dot { display: inline-block; width: 9px; height: 9px; border-radius: 99px;
+    margin-right: 7px; vertical-align: 0; }
+  #qa-close { position: absolute; top: 10px; right: 10px; width: 26px; height: 26px;
+    background: none; border: 1px solid #d0d7de; border-radius: 7px; color: #57606a;
+    cursor: pointer; font-size: 12px; }
+  #qa-close:hover { color: #1f2328; }
+  #qa-log { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .qa-q { background: #f0f2f5; border-radius: 10px 10px 3px 10px; padding: 8px 11px;
+    margin: 10px 0 6px auto; max-width: 88%; width: fit-content; font-size: 12px; color: #24292f; }
+  .qa-a { font-size: 12px; line-height: 1.7; color: #424a53; margin: 0 0 10px;
+    padding: 8px 11px; background: #f6f8fa; border-radius: 10px 10px 10px 3px;
+    border-left: 2px solid #0969da; white-space: pre-wrap; }
+  .qa-a.err { border-left-color: #cf222e; color: #a2464e; }
+  .qa-a.busy { border-left-color: #8c959f; color: #8c959f; font-style: italic; }
+  .qa-hint { font-size: 11px; color: #6e7781; line-height: 1.7; padding: 6px 0; }
+  #qa-form { padding: 12px 16px 16px; border-top: 1px solid #e4e8ec; display: flex; gap: 8px; }
+  #qa-input { flex: 1; background: #ffffff; border: 1px solid #d0d7de; color: #24292f;
+    border-radius: 8px; padding: 8px 10px; font-size: 12px; resize: none; height: 62px;
+    font-family: inherit; }
+  #qa-send { align-self: flex-end; background: #0969da; border: none; color: #ffffff;
+    border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 12px; }
+  #qa-send:disabled { opacity: .45; cursor: default; }
+
+  /* ---- notes ---- */
+  .note { position: absolute; width: 250px; background: #fdf7e7; border: 1px solid #e6d5a5;
+    border-left: 3px solid #bf8700; border-radius: 8px; padding: 9px 12px; font-size: 11.5px;
+    line-height: 1.65; color: #6a5518; z-index: 4; transition: opacity .35s; }
+  .note .tag { font-size: 9.5px; color: #9a6700; margin-bottom: 3px; letter-spacing: 1px; }
+  .note.hot { border-color: #bf8700; border-left-color: #9a6700; color: #5c4a10;
+    box-shadow: 0 0 0 1px rgba(191,135,0,.35), 0 8px 20px rgba(31,35,40,.14); }
+  .note.dim { opacity: .32; }
+  .note.bg { background: #eef6fb; border-color: #b6d5e6; border-left-color: #1a91c2; color: #315e75; }
+  .note.bg .tag { color: #4a86a3; }
+  .note.bg.hot { border-color: #1a91c2; border-left-color: #0e7aa8; color: #24485c;
+    box-shadow: 0 0 0 1px rgba(26,145,194,.32), 0 8px 20px rgba(31,35,40,.14); }
+
+  /* ---- wires ---- */
+  #wires { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; overflow: visible; }
+  .wire { fill: none; transition: opacity .3s; }
+  .wire.call { stroke: #8c959f; stroke-width: 1.6; }
+  .wire.data { stroke: #bf8700; stroke-width: 1.6; }
+  .wire.off { opacity: .1; }
+  .wire.on.call { stroke: #24292f; stroke-width: 2.6; }
+  .wire.on.data { stroke: #9a6700; stroke-width: 2.6; }
+  .port.call { fill: #8c959f; } .port.data { fill: #bf8700; }
+  .port.on.call { fill: #24292f; } .port.on.data { fill: #9a6700; }
+  .port.off { opacity: .1; }
+  /* plan wires: 计划加/删的线，虚线（后置以覆盖 kind 色） */
+  .wire.plan-add { stroke: #2da44e; stroke-dasharray: 7 5; }
+  .wire.plan-remove { stroke: #d1242f; stroke-dasharray: 7 5; }
+  .wire.on.plan-add { stroke: #1a7f37; }
+  .wire.on.plan-remove { stroke: #a40e26; }
+  .port.plan-add { fill: #2da44e; } .port.plan-remove { fill: #d1242f; }
+  .leader { stroke: #bf8700; stroke-width: 1; stroke-dasharray: 3 4; opacity: .6; fill: none; }
+  .leader.off { opacity: .12; }
+  .wlabel { font: 10.5px -apple-system, sans-serif; fill: #9a6700; }
+  .wlabel.on { fill: #6a5518; font-weight: 600; }
+  .wlabel.off { opacity: .1; }
+
+  /* ---- chrome ---- */
+  #topbar { position: fixed; top: 14px; left: 18px; z-index: 10; }
+  #home-link { display: inline-block; font-size: 11px; color: #57606a; text-decoration: none;
+    background: #ffffff; border: 1px solid #d0d7de; border-radius: 99px; padding: 3px 11px;
+    margin-bottom: 7px; }
+  #home-link:hover { color: #1f2328; border-color: #8c959f; }
+  #home-link[hidden] { display: none; }
+  #topbar h1 { font-size: 14px; font-weight: 600; color: #1f2328; margin-bottom: 6px; }
+  #topbar h1 small { color: #6e7781; font-weight: 400; margin-left: 8px; }
+  .legend { display: flex; gap: 16px; font-size: 11px; color: #57606a; align-items: center; }
+  .sw { display: inline-block; width: 22px; height: 0; border-top: 2px solid; margin-right: 5px;
+    vertical-align: middle; }
+  #hint { position: fixed; top: 16px; right: 18px; z-index: 10; font-size: 11px; color: #8c959f;
+    text-align: right; line-height: 1.7; }
+
+  /* ---- reader profile ---- */
+  #canvas-ask-btn { position: fixed; top: 118px; right: 18px; z-index: 15; font-size: 11px;
+    color: #57606a; background: #ffffff; border: 1px solid #d0d7de; border-radius: 99px;
+    padding: 4px 12px; cursor: pointer; }
+  #canvas-ask-btn:hover { color: #1f2328; border-color: #8c959f; }
+  #dl-btn { position: fixed; top: 150px; right: 18px; z-index: 15; font-size: 11px;
+    color: #57606a; background: #ffffff; border: 1px solid #d0d7de; border-radius: 99px;
+    padding: 4px 12px; text-decoration: none; }
+  #dl-btn:hover { color: #1f2328; border-color: #8c959f; }
+  #dl-btn[hidden] { display: none; }
+  #profile-btn { position: fixed; top: 86px; right: 18px; z-index: 15; font-size: 11px;
+    padding: 4px 12px; border-radius: 99px; border: 1px solid #d0d7de; background: #ffffff;
+    color: #57606a; cursor: pointer; }
+  #profile-btn:hover { color: #1f2328; border-color: #8c959f; }
+  body.has-profile #profile-btn { color: #0969da; border-color: #79b8ff; }
+  #pp { position: fixed; top: 120px; right: 18px; z-index: 15; width: 320px;
+    background: #ffffff; border: 1px solid #d0d7de; border-radius: 12px; padding: 14px;
+    box-shadow: 0 14px 34px rgba(31,35,40,.18); }
+  #pp[hidden] { display: none; }
+  .pp-t { font-size: 12px; font-weight: 600; color: #1f2328; margin-bottom: 8px; }
+  #pp-input { width: 100%; height: 92px; background: #ffffff; border: 1px solid #d0d7de;
+    color: #24292f; border-radius: 8px; padding: 8px 10px; font-size: 11.5px; resize: none;
+    font-family: inherit; line-height: 1.6; }
+  .pp-row { display: flex; gap: 8px; margin: 10px 0 8px; }
+  .pp-row button { border-radius: 7px; padding: 5px 14px; font-size: 11.5px; cursor: pointer;
+    border: 1px solid #d0d7de; background: #f6f8fa; color: #24292f; }
+  #pp-save { background: #0969da; border-color: #0969da; color: #ffffff; }
+  .pp-hint { font-size: 10.5px; color: #6e7781; line-height: 1.65; }
+
+  /* rewrite affordances only exist once a profile is set */
+  body:not(.has-profile) .bbtn[data-act="rewrite"] { display: none; }
+  .bx-tools, .tn-tools { display: inline-flex; gap: 8px; align-items: center; }
+  .bx-tools { display: flex; margin-top: 7px; }
+  .rw-badge { font-size: 9px; color: #0969da; border: 1px solid #9cc7f7; border-radius: 99px;
+    padding: 0 7px; line-height: 1.6; flex: none; }
+
+  #bar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 10;
+    display: flex; align-items: center; gap: 14px; padding: 11px 16px;
+    background: rgba(255,255,255,.93); border: 1px solid #d0d7de; border-radius: 14px;
+    max-width: min(880px, 95vw); backdrop-filter: blur(6px);
+    box-shadow: 0 8px 24px rgba(31,35,40,.12); }
+  .navbtn { background: #f6f8fa; border: 1px solid #d0d7de; color: #24292f; border-radius: 8px;
+    width: 32px; height: 32px; cursor: pointer; font-size: 13px; flex: none; }
+  .navbtn:hover { background: #eef1f4; }
+  .navbtn:disabled { opacity: .35; cursor: default; }
+  #dots { display: flex; gap: 6px; flex: none; }
+  .dot { width: 7px; height: 7px; border-radius: 99px; background: #d0d7de; cursor: pointer; }
+  .dot.cur { background: #0969da; }
+  #stext { min-width: 0; }
+  .schip { display: inline-block; font-size: 10px; padding: 1px 8px; border-radius: 99px;
+    border: 1px solid; margin-right: 8px; vertical-align: 1px; }
+  #stitle { font-weight: 600; font-size: 13px; color: #1f2328; margin-bottom: 2px; }
+  #scap { font-size: 12px; color: #57606a; line-height: 1.5; max-width: 560px; }
+
+  /* ---- 移动端：画布不变，收纳 HUD ---- */
+  @media (max-width: 640px) {
+    .legend, #hint { display: none; }
+    #topbar h1 { font-size: 12.5px; max-width: 62vw; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    #topbar h1 small { display: none; }
+    #profile-btn { top: 56px; }
+    #canvas-ask-btn { top: 88px; }
+    #dl-btn { top: 120px; }
+    #pp { width: calc(100vw - 36px); top: 96px; }
+    #qa { width: 100vw; right: -110vw; }
+    /* 步进条改两行：上排 ◀ 点 ▶，下排标题+caption 占满宽 */
+    #bar { bottom: 10px; padding: 8px 12px; gap: 8px; flex-wrap: wrap;
+      justify-content: center; width: 95vw; }
+    #stext { flex-basis: 100%; margin-top: 2px; }
+    .schip { white-space: nowrap; }
+    .navbtn { width: 38px; height: 38px; }
+    #stitle { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #scap { font-size: 11px; max-width: none; max-height: 3.4em; overflow-y: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div id="vp"><div id="world"><svg id="wires"></svg></div></div>
+
+<div id="topbar">
+  <a id="home-link" href="/" hidden>← 画布库</a>
+  <h1 id="t-title">Code Canvas <small id="t-sub"></small></h1>
+  <div class="legend">
+    <span><span class="sw" style="border-color:#8c959f"></span>调用 / 执行</span>
+    <span><span class="sw" style="border-color:#bf8700"></span>数据流</span>
+    <span><span class="sw" style="border-color:#bf8700; border-top-style:dashed"></span>行注释引线</span>
+    <span style="color:#8c959f">色块 = 故事线区域</span>
+  </div>
+</div>
+
+<div id="hint">拖拽平移 · 滚轮缩放<br>点击卡片标题 / 块条展开收起<br>◀ ▶ 或 ←→ 沿故事线走</div>
+
+<button id="profile-btn">阅读画像</button>
+<button id="canvas-ask-btn">问画布</button>
+<a id="dl-btn" href="download" hidden>下载离线版</a>
+<div id="pp" hidden>
+  <div class="pp-t">阅读画像 — 你想被怎么讲</div>
+  <textarea id="pp-input" placeholder="你是谁、想看懂什么、偏好什么讲法…
+例：刚接手推理服务的后端，Python 一般；重点想懂显存管理；多用类比，中文。"></textarea>
+  <div class="pp-row"><button id="pp-save">保存</button><button id="pp-clear">清除</button></div>
+  <div class="pp-hint">设置后：块问答按画像回答；每条「说明」和变元注释出现「按我的画像重讲」。只存在本机 localStorage。</div>
+</div>
+
+<div id="bar">
+  <button class="navbtn" id="prev">◀</button>
+  <div id="dots"></div>
+  <button class="navbtn" id="next">▶</button>
+  <div id="stext"><div id="stitle"></div><div id="scap"></div></div>
+</div>
+
+<aside id="qa">
+  <header>
+    <div id="qa-path"></div>
+    <div id="qa-name"></div>
+    <button id="qa-close">✕</button>
+  </header>
+  <div id="qa-log"></div>
+  <div id="qa-form">
+    <textarea id="qa-input" placeholder="就这个块提问…（Enter 发送，Shift+Enter 换行）"></textarea>
+    <button id="qa-send">发送</button>
+  </div>
+</aside>
+
+<script>
+const DATA = /*CANVAS_DATA*/null;
+
+const vp = document.getElementById('vp');
+const world = document.getElementById('world');
+const svg = document.getElementById('wires');
+const NS = 'http://www.w3.org/2000/svg';
+
+if (!DATA) {
+  document.getElementById('stitle').textContent = '未注入数据';
+  document.getElementById('scap').textContent = '用 render.py 将 canvas JSON 注入此模板。';
+  throw new Error('no data');
+}
+
+/* ================= syntax highlighting ================= */
+const KW = {
+  py: 'def return if elif else for while in is not None True False and or with try except finally continue break class import from as lambda yield raise pass global nonlocal assert del await async',
+  js: 'function return if else for while const let var new class import from export try catch finally throw await async of in typeof instanceof null undefined true false break continue switch case default do yield delete void this super extends static get set',
+};
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function highlight(line, lang) {
+  const kws = (KW[lang] || KW.py).split(' ');
+  const re = new RegExp(
+    '(#.*$|\\/\\/.*$)'                                     // comment
+    + '|("(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\')'  // string
+    + '|\\b(' + kws.join('|') + ')\\b'                     // keyword
+    + '|\\b(\\d+(?:\\.\\d+)?)\\b'                          // number
+    + '|([A-Za-z_][A-Za-z0-9_]*)(?=\\()',                  // call
+    'g');
+  return esc(line).replace(re, (m, c, s, k, n, f) => {
+    if (c) return `<span class="cmt">${c}</span>`;
+    if (s) return `<span class="str">${s}</span>`;
+    if (k) return `<span class="kw">${k}</span>`;
+    if (n) return `<span class="num">${n}</span>`;
+    if (f) return `<span class="fn">${f}</span>`;
+    return m;
+  });
+}
+
+/* ================= build DOM ================= */
+const HUES = {
+  blue:   { bg: 'rgba(9,105,218,.045)',  bd: 'rgba(9,105,218,.38)',  lb: '#0969da' },
+  green:  { bg: 'rgba(26,127,55,.05)',   bd: 'rgba(26,127,55,.38)',  lb: '#1a7f37' },
+  violet: { bg: 'rgba(130,80,223,.05)',  bd: 'rgba(130,80,223,.38)', lb: '#8250df' },
+  amber:  { bg: 'rgba(154,103,0,.05)',   bd: 'rgba(154,103,0,.42)',  lb: '#9a6700' },
+};
+const BLOCK_PALETTE = [
+  ['#0969da', '#8250df', '#1a7f37', '#bc4c00', '#9a6700'],   // depth 0
+  ['#bf3989', '#0f766e', '#b45309', '#1d4ed8'],              // depth 1+
+];
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+}
+
+document.getElementById('t-title').firstChild.textContent = (DATA.meta?.title || 'Code Canvas') + ' ';
+document.getElementById('t-sub').textContent = DATA.meta?.subtitle || '';
+document.title = DATA.meta?.title || 'Code Canvas';
+
+/* regions (positioned later) */
+for (const r of DATA.regions || []) {
+  const hue = HUES[r.hue] || HUES.blue;
+  const el = document.createElement('div');
+  el.className = 'region';
+  el.id = 'reg-' + r.id;
+  el.style.background = hue.bg;
+  el.style.borderColor = hue.bd;
+  el.innerHTML = `<span class="rlabel" style="color:${hue.lb}; border-color:${hue.bd}">${esc(r.title)}</span>`
+    + (r.blurb ? `<span class="rblurb" style="color:${hue.lb}; opacity:.7">${esc(r.blurb)}</span>` : '');
+  world.appendChild(el);
+}
+
+/* cards: lines + nested block tree */
+function buildBlocks(blocks, lines, lo, hi, cardId, depth) {
+  // returns HTML for line range [lo, hi] with blocks interleaved
+  let html = '', i = lo;
+  const blks = (blocks || []).slice().sort((a, b) => a.lines[0] - b.lines[0]);
+  for (const b of blks) {
+    for (; i < b.lines[0]; i++) html += lines[i - 1];
+    const c = BLOCK_PALETTE[Math.min(depth, 1)][b._idx % BLOCK_PALETTE[Math.min(depth, 1)].length];
+    const btns = (b.explain ? `<span class="bbtn" style="margin-left:auto" data-act="explain">说明</span>` : '')
+      + `<span class="bbtn"${b.explain ? '' : ' style="margin-left:auto"'} data-act="ask">问</span>`;
+    html += `<div class="blk${b.folded !== false ? ' folded' : ''}" style="--bc:${c}; --bt:${rgba(c, .05)}">`
+      + `<div class="bbar" data-card="${cardId}" data-bname="${esc(b.name)}">`
+      + `<span class="bchev">${b.folded !== false ? '▸' : '▾'}</span>`
+      + `<span class="bname">${esc(b.name)}</span><span class="bsum">${esc(b.summary || '')}</span>`
+      + btns + `<span class="brange">${b.lines[0]}–${b.lines[1]}</span></div>`
+      + (b.explain ? `<div class="bxplain" data-card="${cardId}" data-bname="${esc(b.name)}">`
+        + `<span class="bx-text">${esc(b.explain)}</span>`
+        + `<div class="bx-tools"><span class="bbtn" data-act="rewrite">按我的画像重讲</span></div></div>` : '')
+      + `<div class="bcode">`
+      + buildBlocks(b.children, lines, b.lines[0], b.lines[1], cardId, depth + 1)
+      + `</div></div>`;
+    i = b.lines[1] + 1;
+  }
+  for (; i <= hi; i++) html += lines[i - 1];
+  return html;
+}
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+const cardById = {};
+for (const c of DATA.cards) {
+  cardById[c.id] = c;
+  const raw = c.code.split('\n');
+  const diff = c.diff || {};
+  const addSet = new Set(diff.added || []);
+  const delAfter = {};
+  (diff.removed || []).forEach(r => (delAfter[r.after] ||= []).push(r.code));
+  const delHtml = k => (delAfter[k] || []).map(t =>
+    `<div class="ln del"><span class="no">−</span>${esc(t)}</div>`).join('');
+  const lineHtml = raw.map((t, i) => {
+    // mark annotated terms with sentinels before highlighting, wrap after
+    let marked = t;
+    const terms = (c.terms || []).map((tm, j) => ({ ...tm, _id: `tn-${c.id}-${j}`, _j: j }))
+      .filter(tm => tm.line === i + 1);
+    for (const tm of terms)
+      marked = marked.replace(new RegExp('\\b' + escRe(tm.token) + '\\b'), '\x01' + tm.token + '\x02');
+    let h = highlight(marked, c.lang);
+    for (const tm of terms) {
+      h = h.replace('\x01', `<span class="term" data-tn="${tm._id}">`).replace('\x02', '</span>');
+    }
+    const notes = terms.map(tm =>
+      `<div class="tnote" id="${tm._id}" data-card="${c.id}" data-tid="${tm._j}">`
+      + `<b>${esc(tm.token)}</b> — <span class="tn-text">${esc(tm.note)}</span> `
+      + `<span class="tn-tools"><span class="bbtn" data-act="rewrite">重讲</span></span></div>`).join('');
+    return (i === 0 ? delHtml(0) : '')
+      + `<div class="ln${addSet.has(i + 1) ? ' add' : ''}" id="${c.id}-L${i + 1}"><span class="no">${i + 1}</span>${h}</div>`
+      + delHtml(i + 1) + notes;
+  });
+  (c.blocks || []).forEach((b, i) => { b._idx = i; (function mark(bs) { (bs || []).forEach((x, j) => { x._idx = j; mark(x.children); }); })(b.children); });
+  const el = document.createElement('div');
+  el.className = 'card' + (c.plan === 'add' ? ' ghost' : '');
+  el.id = 'card-' + c.id;
+  const PLAN_LABEL = { add: '新建', modify: '将改', remove: '将删' };
+  const DELTA_LABEL = { offplan: '⚠ 计划外', missed: '○ 计划未动' };
+  const badge = (c.diff
+    ? `<span class="dbadge"><b>+${(diff.added || []).length}</b> <i>−${(diff.removed || []).length}</i></span>` : '')
+    + (c.plan ? `<span class="pbadge ${c.plan}">${PLAN_LABEL[c.plan]}</span>` : '')
+    + (c.plan_delta ? `<span class="pbadge ${c.plan_delta}">${DELTA_LABEL[c.plan_delta]}</span>` : '');
+  el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>${badge}`
+    + `<span class="file">${esc(c.file || '')}</span></div>`
+    + `<div class="body">${buildBlocks(c.blocks, lineHtml, 1, raw.length, c.id, 0)}</div>`;
+  world.appendChild(el);
+}
+if (DATA.cards.some(c => c.diff)) {
+  document.querySelector('.legend').insertAdjacentHTML('beforeend',
+    `<span><span class="sw" style="border-color:#1a7f37"></span>新增行</span>`
+    + `<span><span class="sw" style="border-color:#cf222e"></span>删除的原文</span>`);
+}
+if (DATA.cards.some(c => c.plan) || (DATA.wires || []).some(w => w.plan)) {
+  document.querySelector('.legend').insertAdjacentHTML('beforeend',
+    `<span><span class="sw" style="border-top-style:dashed;border-color:#2da44e"></span>幽灵卡/计划加线</span>`
+    + `<span><span class="sw" style="border-top-style:dashed;border-color:#d1242f"></span>计划删线</span>`
+    + `<span><span class="pbadge modify">将改</span></span>`);
+}
+if (DATA.cards.some(c => c.plan_delta)) {
+  document.querySelector('.legend').insertAdjacentHTML('beforeend',
+    `<span><span class="pbadge offplan">⚠ 计划外</span> 计划没说、实际动了</span>`
+    + `<span><span class="pbadge missed">○ 计划未动</span> 计划要动、实际没动</span>`);
+}
+
+/* notes */
+for (const n of DATA.notes || []) {
+  const el = document.createElement('div');
+  el.className = 'note' + (n.flavor === 'bg' ? ' bg' : '');
+  el.id = 'note-' + n.id;
+  el.dataset.step = n.step ?? '';
+  el.innerHTML = `<div class="tag">${esc(n.tag || 'NOTE')}</div>${esc(n.text)}`;
+  world.appendChild(el);
+}
+
+/* ================= layout ================= */
+const L = { margin: 40, top: 160, gutter: 230, bandH: 280, vGap: 90,
+  noteW: 250, noteGap: 60, regPadX: 30, regPadTop: 46, regPadBot: 26 };
+
+function layout() {
+  // measure natural card widths (expanded, unfolded)
+  for (const c of DATA.cards) {
+    const el = document.getElementById('card-' + c.id);
+    el.classList.remove('collapsed');
+    el.querySelectorAll('.blk').forEach(b => b.classList.remove('folded'));
+    el.style.width = 'max-content';
+    c._w = Math.min(el.offsetWidth + 2, 800);
+  }
+  // apply default states + fixed widths
+  for (const c of DATA.cards) {
+    const el = document.getElementById('card-' + c.id);
+    el.style.width = c._w + 'px';
+    if (c.collapsed) { el.classList.add('collapsed'); el.querySelector('.chev').textContent = '▸'; }
+    el.querySelectorAll('.blk').forEach(b => b.classList.add('folded'));
+    el.querySelectorAll('.bchev').forEach(v => v.textContent = '▸');
+    // honor explicit folded:false
+    applyFoldDefaults(c);
+  }
+  // columns; a column whose cards have left-notes gets a note lane in front of it
+  const hasLeftNotes = (DATA.notes || []).some(n => n.place
+    && (n.place.corner || (n.place.side === 'left' && cardById[n.place.of]?.layout.col === 0)));
+  const leftNoteCols = new Set();
+  for (const n of DATA.notes || []) if (n.place && n.place.side === 'left') {
+    const t = cardById[n.place.of];
+    if (t && t.layout.col > 0) leftNoteCols.add(t.layout.col);
+  }
+  const cols = {};
+  for (const c of DATA.cards) (cols[c.layout.col] ||= []).push(c);
+  let x = L.margin + (hasLeftNotes ? L.noteW + 80 : 0);
+  const colX = {};
+  for (const k of Object.keys(cols).map(Number).sort((a, b) => a - b)) {
+    if (leftNoteCols.has(k)) x += L.noteW + 70;
+    colX[k] = x;
+    x += Math.max(...cols[k].map(c => c._w)) + L.gutter;
+  }
+  // x + base y from coarse hints; dynamic push-down happens on every draw
+  for (const c of DATA.cards) {
+    const el = document.getElementById('card-' + c.id);
+    el.style.left = colX[c.layout.col] + 'px';
+    c._x = colX[c.layout.col];
+    c._baseY = L.top + c.layout.band * L.bandH;
+  }
+  relayoutColumns();
+  placeNotes();
+  fitRegions();
+  sizeWorld();
+}
+/* notes follow their target cards on every redraw; an "above" note squeezed
+   out by an expanding card slides down, and falls back to hanging left of
+   its target when there is no room at all */
+function placeNotes() {
+  const leftSlots = {};
+  for (const n of DATA.notes || []) {
+    const el = document.getElementById('note-' + n.id);
+    const p = n.place || {};
+    if (p.corner === 'nw') { el.style.left = L.margin + 'px'; el.style.top = (L.top - 40) + 'px'; continue; }
+    const target = cardById[p.of];
+    const tEl = target && document.getElementById('card-' + target.id);
+    if (!tEl) { el.style.left = L.margin + 'px'; el.style.top = L.top + 'px'; continue; }
+    const ty = tEl.offsetTop, h = el.offsetHeight;
+    if (p.side === 'above') {
+      const above = DATA.cards
+        .filter(c => c.layout.col === target.layout.col && c.id !== target.id)
+        .map(c => document.getElementById('card-' + c.id))
+        .filter(e => e.offsetTop < ty);
+      const floor = above.length
+        ? Math.max(...above.map(e => e.offsetTop + e.offsetHeight)) + 10 : 20;
+      let y = Math.max(ty - h - L.regPadTop - 44, floor);
+      if (y <= ty - h - 6) {
+        el.style.left = (target._x + 120) + 'px';
+        el.style.top = Math.max(20, y) + 'px';
+      } else {
+        el.style.left = (target._x - L.noteW - 40) + 'px';
+        el.style.top = ty + 'px';
+      }
+    } else { // left
+      el.style.left = (target._x - L.noteGap - L.noteW) + 'px';
+      let y = ty + 40;
+      if (n.anchor && n.anchor.card === p.of) {
+        const le = document.getElementById(n.anchor.card + '-L' + n.anchor.line);
+        if (le && le.offsetParent !== null) y = wpos(le).y - 20;
+      }
+      const floor = leftSlots[p.of] || 0;
+      if (y < floor) y = floor;
+      el.style.top = y + 'px';
+      leftSlots[p.of] = y + h + 16;
+    }
+  }
+}
+function applyFoldDefaults(c) {
+  const walk = (bs, prefix) => (bs || []).forEach(b => {
+    if (b.folded === false) {
+      // find the matching blk element by name (names unique within a card in practice)
+      const el = [...document.getElementById('card-' + c.id).querySelectorAll('.blk')]
+        .find(e => e.querySelector('.bname').textContent === b.name);
+      if (el) { el.classList.remove('folded'); el.querySelector('.bchev').textContent = '▾'; }
+    }
+    walk(b.children);
+  });
+  walk(c.blocks);
+}
+function relayoutColumns() {
+  // cards grow and shrink as they expand/fold; keep columns overlap-free
+  const cols = {};
+  for (const c of DATA.cards) (cols[c.layout.col] ||= []).push(c);
+  for (const k of Object.keys(cols)) {
+    const list = cols[k].slice().sort((a, b) => a._baseY - b._baseY);
+    let prevBottom = -1e9;
+    for (const c of list) {
+      const el = document.getElementById('card-' + c.id);
+      const y = Math.max(c._baseY, prevBottom + 60);
+      el.style.top = y + 'px';
+      c._y = y;
+      prevBottom = y + el.offsetHeight;
+    }
+  }
+}
+function fitRegions() {
+  for (const r of DATA.regions || []) {
+    const el = document.getElementById('reg-' + r.id);
+    let x0 = 1e9, y0 = 1e9, x1 = 0, y1 = 0;
+    for (const id of r.cards) {
+      const c = document.getElementById('card-' + id);
+      x0 = Math.min(x0, c.offsetLeft); y0 = Math.min(y0, c.offsetTop);
+      x1 = Math.max(x1, c.offsetLeft + c.offsetWidth);
+      y1 = Math.max(y1, c.offsetTop + c.offsetHeight);
+    }
+    el.style.left = (x0 - L.regPadX) + 'px';
+    el.style.top = (y0 - L.regPadTop) + 'px';
+    el.style.width = (x1 - x0 + 2 * L.regPadX) + 'px';
+    el.style.height = (y1 - y0 + L.regPadTop + L.regPadBot) + 'px';
+  }
+}
+function contentBBox() {
+  let x0 = 1e9, y0 = 1e9, x1 = 0, y1 = 0;
+  for (const el of world.querySelectorAll('.card, .note, .region')) {
+    x0 = Math.min(x0, el.offsetLeft); y0 = Math.min(y0, el.offsetTop);
+    x1 = Math.max(x1, el.offsetLeft + el.offsetWidth);
+    y1 = Math.max(y1, el.offsetTop + el.offsetHeight);
+  }
+  return { x0, y0, x1, y1 };
+}
+function sizeWorld() {
+  const b = contentBBox();
+  const w = b.x1 + 200, h = b.y1 + 260;
+  world.style.width = w + 'px'; world.style.height = h + 'px';
+  svg.setAttribute('width', w); svg.setAttribute('height', h);
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+}
+
+/* ================= geometry / wires ================= */
+function wpos(el) {
+  let x = 0, y = 0, e = el;
+  while (e && e.id !== 'world') { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+}
+function visibleProxy(lineEl, cardEl) {
+  // line hidden? cascade: outermost folded block bar -> card
+  if (cardEl.classList.contains('collapsed')) return cardEl;
+  if (lineEl.offsetParent !== null) return lineEl;
+  const chain = [];
+  let e = lineEl.parentElement;
+  while (e && e !== cardEl) { if (e.classList.contains('blk')) chain.unshift(e); e = e.parentElement; }
+  for (const b of chain) if (b.classList.contains('folded')) return b.querySelector('.bbar');
+  return cardEl;
+}
+function resolveAnchor(spec, slot) {
+  const cardEl = document.getElementById('card-' + spec.card);
+  let el = cardEl, isInner = false;
+  if (spec.line) {
+    const le = document.getElementById(spec.card + '-L' + spec.line);
+    if (le) { el = visibleProxy(le, cardEl); isInner = el !== cardEl; }
+  }
+  const p = wpos(el);
+  const side = spec.side || (slot ? 'left' : 'right');
+  const x = side === 'right' ? p.x + p.w : p.x;
+  let y;
+  if (isInner) y = p.y + p.h / 2;
+  else if (slot) {
+    const collapsed = el.classList.contains('collapsed');
+    if (slot === 'data') y = collapsed ? p.y + p.h / 2 + 7 : p.y + Math.min(p.h * 0.62, p.h - 16);
+    else y = collapsed ? p.y + p.h / 2 - 5 : p.y + 16;
+  } else y = p.y + p.h / 2;
+  return { x, y, side };
+}
+function bez(a, c1, c2, b, t) {
+  const u = 1 - t;
+  return { x: u*u*u*a.x + 3*u*u*t*c1.x + 3*u*t*t*c2.x + t*t*t*b.x,
+           y: u*u*u*a.y + 3*u*u*t*c1.y + 3*u*t*t*c2.y + t*t*t*b.y };
+}
+let step = 0;
+const STEPS = DATA.steps && DATA.steps.length ? DATA.steps : [{ title: '总览', caption: '', fit: true }];
+function drawWires() {
+  relayoutColumns(); placeNotes(); fitRegions(); sizeWorld();
+  svg.innerHTML = '';
+  const active = STEPS[step].wires || null;
+  for (const w of DATA.wires || []) {
+    const a = resolveAnchor(w.from, null);
+    const b = resolveAnchor({ side: 'left', ...w.to }, w.kind === 'data' ? 'data' : 'call');
+    const k = Math.min(Math.max(Math.abs(b.x - a.x) * .55, Math.abs(b.y - a.y) * .25, 30), 170);
+    const c1 = { x: a.x + (a.side === 'right' ? k : -k), y: a.y };
+    const c2 = { x: b.x + (b.side === 'right' ? k : -k), y: b.y };
+    const state = active === null ? '' : (active.includes(w.id) ? ' on' : ' off');
+    const planCls = w.plan ? ` plan-${w.plan}` : '';
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`);
+    path.setAttribute('class', `wire ${w.kind}${planCls}${state}`);
+    svg.appendChild(path);
+    for (const pt of [a, b]) {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', pt.x); c.setAttribute('cy', pt.y);
+      c.setAttribute('r', state === ' on' ? 4.5 : 3.5);
+      c.setAttribute('class', `port ${w.kind}${planCls}${state}`);
+      svg.appendChild(c);
+    }
+    if (w.label) {
+      const m = bez(a, c1, c2, b, .5);
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', m.x); t.setAttribute('y', m.y - 7);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('class', `wlabel${state}`);
+      t.textContent = w.label;
+      svg.appendChild(t);
+    }
+  }
+  for (const n of DATA.notes || []) {
+    if (!n.anchor) continue;
+    const noteEl = document.getElementById('note-' + n.id);
+    const note = wpos(noteEl);
+    const b = resolveAnchor({ card: n.anchor.card, line: n.anchor.line, side: 'left' }, null);
+    const a = { x: note.x + note.w, y: note.y + note.h / 2 };
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', `M ${a.x} ${a.y} C ${a.x + 34} ${a.y}, ${b.x - 34} ${b.y}, ${b.x} ${b.y}`);
+    p.setAttribute('class', 'leader' + (noteEl.classList.contains('dim') ? ' off' : ''));
+    svg.appendChild(p);
+  }
+}
+
+/* ================= camera ================= */
+let cam = { x: 0, y: 0, s: .8 };
+function apply(animate = true) {
+  world.classList.toggle('notrans', !animate);
+  world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
+}
+function centerOn(wx, wy, s, animate = true) {
+  cam.s = s;
+  cam.x = innerWidth / 2 - wx * s;
+  cam.y = (innerHeight - 70) / 2 - wy * s;
+  apply(animate);
+}
+function fitAll(animate = true) {
+  // never crop the overview — wide canvases fit at whatever scale it takes
+  const b = contentBBox();
+  const s = Math.min(Math.min(innerWidth / (b.x1 - b.x0 + 60), (innerHeight - 110) / (b.y1 - b.y0 + 60)) * .98, 1.15);
+  centerOn((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, Math.max(s, .1), animate);
+}
+function focusOn(ids, animate = true) {
+  let x0 = 1e9, y0 = 1e9, x1 = 0, y1 = 0;
+  for (const id of ids) {
+    const el = document.getElementById('card-' + id) || document.getElementById('note-' + id);
+    if (!el) continue;
+    const p = wpos(el);
+    x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x + p.w); y1 = Math.max(y1, p.y + p.h);
+  }
+  if (x1 === 0) return fitAll(animate);
+  const minS = innerWidth < 700 ? .12 : .35;  // 手机上宁可小也不裁切 focus 内容
+  const s = Math.max(minS, Math.min(Math.min(innerWidth / (x1 - x0 + 160), (innerHeight - 170) / (y1 - y0 + 120)), 1.1));
+  centerOn((x0 + x1) / 2, (y0 + y1) / 2, s, animate);
+}
+
+/* ================= steps ================= */
+function setStep(i, animate = true) {
+  step = Math.max(0, Math.min(STEPS.length - 1, i));
+  const s = STEPS[step];
+  (s.expand || []).forEach(id => {
+    const el = document.getElementById('card-' + id);
+    el.classList.remove('collapsed');
+    el.querySelector('.chev').textContent = '▾';
+  });
+  (s.unfold || []).forEach(([cid, name]) => {
+    const blk = [...document.getElementById('card-' + cid).querySelectorAll('.blk')]
+      .find(e => e.querySelector('.bname').textContent === name);
+    if (blk) { blk.classList.remove('folded'); blk.querySelector('.bchev').textContent = '▾'; }
+  });
+  document.querySelectorAll('.ln.hot').forEach(e => e.classList.remove('hot'));
+  (s.lines || []).forEach(([cid, ln]) => {
+    const e = document.getElementById(cid + '-L' + ln);
+    if (e) e.classList.add('hot');
+  });
+  const activeCards = new Set();
+  if (s.wires) for (const w of DATA.wires || []) if (s.wires.includes(w.id)) {
+    activeCards.add(w.from.card); activeCards.add(w.to.card);
+  }
+  document.querySelectorAll('.card').forEach(c =>
+    c.classList.toggle('dim', s.wires ? !activeCards.has(c.id.slice(5)) : false));
+  document.querySelectorAll('.note').forEach(n => {
+    const mine = n.dataset.step !== '' && +n.dataset.step === step;
+    n.classList.toggle('hot', mine);
+    n.classList.toggle('dim', step > 0 && !mine);
+  });
+  if (s.fit || !s.focus) fitAll(animate); else focusOn(s.focus, animate);
+  drawWires();
+  const reg = (DATA.regions || []).find(r => r.id === s.storyline);
+  const hue = reg && (HUES[reg.hue] || HUES.blue);
+  document.getElementById('stitle').innerHTML =
+    (reg ? `<span class="schip" style="color:${hue.lb}; border-color:${hue.lb}">${esc(reg.title.replace(/^故事线\s*/, ''))}</span>` : '')
+    + esc(s.title || '');
+  document.getElementById('scap').textContent = s.caption || '';
+  document.getElementById('prev').disabled = step === 0;
+  document.getElementById('next').disabled = step === STEPS.length - 1;
+  document.querySelectorAll('.dot').forEach((d, j) => {
+    d.classList.toggle('cur', j === step);
+    const r2 = (DATA.regions || []).find(r => r.id === STEPS[j].storyline);
+    const h2 = r2 && (HUES[r2.hue] || HUES.blue);
+    d.style.background = h2 ? (j === step ? h2.lb : rgba(h2.lb, .35))
+                            : (j === step ? '#79a8ff' : '#3c4653');
+  });
+}
+const dots = document.getElementById('dots');
+STEPS.forEach((_, i) => {
+  const d = document.createElement('span');
+  d.className = 'dot'; d.onclick = () => setStep(i);
+  dots.appendChild(d);
+});
+document.getElementById('prev').onclick = () => setStep(step - 1);
+document.getElementById('next').onclick = () => setStep(step + 1);
+/* region label -> jump to that storyline's first step */
+const firstStepOf = {};
+STEPS.forEach((s, i) => { if (s.storyline && !(s.storyline in firstStepOf)) firstStepOf[s.storyline] = i; });
+for (const r of DATA.regions || []) {
+  if (!(r.id in firstStepOf)) continue;
+  const lb = document.querySelector('#reg-' + r.id + ' .rlabel');
+  lb.style.cursor = 'pointer';
+  lb.title = '跳到这条故事线';
+  lb.addEventListener('click', () => setStep(firstStepOf[r.id]));
+}
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') setStep(step - 1);
+  if (e.key === 'ArrowRight') setStep(step + 1);
+});
+
+/* ================= per-block Q&A ================= */
+const QA = { live: false, cur: null, log: {} };
+const QA_STORE = 'canvas-qa:' + (DATA.meta?.title || 'untitled');
+try { QA.log = JSON.parse(localStorage.getItem(QA_STORE) || '{}'); } catch (e) {}
+fetch('__alive').then(r => r.json()).then(() => { QA.live = true; }).catch(() => {});
+
+function findBlock(blocks, name) {
+  for (const b of blocks || []) {
+    if (b.name === name) return b;
+    const c = findBlock(b.children, name);
+    if (c) return c;
+  }
+  return null;
+}
+function qaKey() { return QA.cur.card ? QA.cur.card + '::' + QA.cur.block : '__canvas__'; }
+
+/* 画布级问答的上下文：整张图的策展内容（卡片代码按预算截断） */
+function canvasContext() {
+  const regions = (DATA.regions || [])
+    .map(r => `${r.title}${r.blurb ? ' — ' + r.blurb : ''}：${(r.cards || []).join(', ')}`).join('\n');
+  const cards = DATA.cards.map(c => {
+    const lines = c.code.split('\n');
+    const code = lines.length > 60 ? lines.slice(0, 60).join('\n') + '\n…（截断）' : c.code;
+    return `— ${c.name}（${c.file || ''}）:\n${code}`;
+  }).join('\n\n');
+  const notes = (DATA.notes || []).map(n => `${n.tag || 'NOTE'}: ${n.text}`).join('\n');
+  const s = STEPS[step];
+  return `故事线:\n${regions}\n\n卡片:\n${cards}\n\n注释:\n${notes}\n\n读者当前停在步骤「${s.title || ''}」：${s.caption || ''}`;
+}
+
+/* ---- reader profile + personalized rewrites ---- */
+const PROFILE_KEY = 'canvas-reader-profile';
+function getProfile() { try { return localStorage.getItem(PROFILE_KEY) || ''; } catch (e) { return ''; } }
+function setProfile(v) {
+  try { v ? localStorage.setItem(PROFILE_KEY, v) : localStorage.removeItem(PROFILE_KEY); } catch (e) {}
+  document.body.classList.toggle('has-profile', !!v);
+}
+function djb2(s) { let h = 5381; for (const ch of s) h = (h * 33 + ch.codePointAt(0)) >>> 0; return h.toString(36); }
+function rwContext(el) {
+  const card = cardById[el.dataset.card];
+  if (el.classList.contains('bxplain')) {
+    const b = findBlock(card.blocks, el.dataset.bname);
+    return { orig: b.explain, textEl: el.querySelector('.bx-text'), key: `bx-${card.id}-${b.name}`,
+      ctx: `卡片: ${card.name}（${card.file || ''}）\n逻辑块: ${b.name} — ${b.summary || ''}\n块内代码:\n`
+        + card.code.split('\n').slice(b.lines[0] - 1, b.lines[1]).join('\n') };
+  }
+  const tm = card.terms[+el.dataset.tid];
+  return { orig: tm.note, textEl: el.querySelector('.tn-text'), key: el.id,
+    ctx: `卡片: ${card.name}（${card.file || ''}）\n标识符: ${tm.token}（卡片内第 ${tm.line} 行）\n所在函数完整代码:\n${card.code}` };
+}
+function setTools(el, html) { el.querySelector('.bx-tools, .tn-tools').innerHTML = html; }
+function toolsDefault(el) {
+  return `<span class="bbtn" data-act="rewrite">${el.classList.contains('tnote') ? '重讲' : '按我的画像重讲'}</span>`;
+}
+const TOOLS_RW = `<span class="rw-badge">已按画像重讲</span>`
+  + `<span class="bbtn" data-act="revert">还原原文</span><span class="bbtn" data-act="rewrite">重新生成</span>`;
+async function rewriteEl(el, force = false) {
+  const profile = getProfile();
+  if (!profile) return;
+  const { orig, textEl, key, ctx } = rwContext(el);
+  const cacheKey = 'canvas-rw:' + djb2(profile) + ':' + key;
+  if (!force) {
+    let cached = null;
+    try { cached = localStorage.getItem(cacheKey); } catch (e) {}
+    if (cached) { textEl.textContent = cached; setTools(el, TOOLS_RW); drawWires(); return; }
+  }
+  const prompt = `把下面这段代码注释改写给特定读者。保持事实与代码依据不变，只调整讲法、详略、术语和语言风格；长度不超过原文两倍；只输出改写后的正文，不要任何前后缀。\n\n读者画像: ${profile}\n\n${ctx}\n\n原注释: ${orig}`;
+  if (!QA.live) {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setTools(el, `<span class="rw-badge">已复制改写提问 ✓ 粘给任意 agent</span>`);
+    } catch (e) {
+      setTools(el, `<span class="rw-badge">复制失败——用 serve.py 开启在线模式</span>`);
+    }
+    setTimeout(() => setTools(el, toolsDefault(el)), 3000);
+    return;
+  }
+  const prevText = textEl.textContent;
+  textEl.textContent = '为你重讲中…';
+  try {
+    const r = await fetch('ask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, kind: 'rewrite', target: key }),
+    });
+    const j = await r.json();
+    if (j.ok) {
+      textEl.textContent = j.answer;
+      setTools(el, TOOLS_RW);
+      try { localStorage.setItem(cacheKey, j.answer); } catch (e) {}
+    } else {
+      textEl.textContent = prevText;
+      setTools(el, `<span class="rw-badge">出错：${esc((j.error || '').slice(0, 60))}</span>`);
+      setTimeout(() => setTools(el, toolsDefault(el)), 4000);
+    }
+  } catch (e) {
+    textEl.textContent = prevText;
+  }
+  drawWires();
+}
+function revertEl(el) {
+  const { orig, textEl } = rwContext(el);
+  textEl.textContent = orig;
+  setTools(el, toolsDefault(el));
+  drawWires();
+}
+document.getElementById('profile-btn').onclick = () => {
+  const pp = document.getElementById('pp');
+  pp.hidden = !pp.hidden;
+  if (!pp.hidden) document.getElementById('pp-input').value = getProfile();
+};
+document.getElementById('pp-save').onclick = () => {
+  setProfile(document.getElementById('pp-input').value.trim());
+  document.getElementById('pp').hidden = true;
+};
+document.getElementById('pp-clear').onclick = () => {
+  setProfile('');
+  document.getElementById('pp-input').value = '';
+  document.getElementById('pp').hidden = true;
+};
+document.getElementById('pp-input').addEventListener('keydown', e => e.stopPropagation());
+setProfile(getProfile());
+
+function buildQAPrompt(question) {
+  const profileLine = getProfile()
+    ? `\n读者画像: ${getProfile()}（回答的深度、术语与语言风格按画像来）` : '';
+  if (!QA.cur.card) {  // 画布级自由提问
+    const hist = (QA.log[qaKey()] || []).filter(x => x.a && !x.err).slice(-3)
+      .map(x => `Q: ${x.q}\nA: ${x.a}`).join('\n');
+    return `你是一张交互式代码画布（Code Canvas）的讲解员。下面是整张画布的策展内容（真实代码摘选 + 注释）。只根据给出的内容回答；没有依据的不要编造；若问题超出画布覆盖范围，直说并指出该去读哪个文件。用中文回答，尽量不超过 250 字。${profileLine}\n\n主题: ${DATA.meta?.title || ''} — ${DATA.meta?.subtitle || ''}\n\n${canvasContext()}\n${hist ? '\n此前的问答:\n' + hist + '\n' : ''}\n读者的问题: ${question}`;
+  }
+  const card = cardById[QA.cur.card];
+  const b = findBlock(card.blocks, QA.cur.block);
+  const lines = card.code.split('\n');
+  const blockCode = lines.slice(b.lines[0] - 1, b.lines[1])
+    .map((t, i) => `${b.lines[0] + i}  ${t}`).join('\n');
+  const hist = (QA.log[qaKey()] || []).filter(x => x.a && !x.err).slice(-3)
+    .map(x => `Q: ${x.q}\nA: ${x.a}`).join('\n');
+  const profile = getProfile();
+  return `你是一张交互式代码画布（Code Canvas）的讲解员。只根据给出的代码与上下文回答；代码里没有依据的不要编造；不确定就直说不确定。用中文回答，尽量不超过 200 字。${profile ? `\n读者画像: ${profile}（回答的深度、术语与语言风格按画像来）` : ''}\n\n主题: ${DATA.meta?.title || ''} — ${DATA.meta?.subtitle || ''}\n卡片: ${card.name}（${card.file || ''}）\n逻辑块: ${b.name} — ${b.summary || ''}${b.explain ? '\n已有说明: ' + b.explain : ''}\n\n块内代码（卡片内行号 ${b.lines[0]}–${b.lines[1]}）:\n${blockCode}\n\n所在函数完整代码:\n${card.code}\n${hist ? '\n此前的问答:\n' + hist + '\n' : ''}\n读者的问题: ${question}`;
+}
+function renderQALog() {
+  const el = document.getElementById('qa-log');
+  el.innerHTML = '';
+  if (!QA.live) {
+    el.innerHTML = `<div class="qa-hint">未检测到本地问答服务：发送会把「问题 + 块代码 + 上下文」复制到剪贴板，粘贴给任意 agent 即可。<br>在线问答：<code>python3 serve.py 本画布.html</code> 后从 localhost 打开。</div>`;
+  }
+  for (const x of QA.log[qaKey()] || []) {
+    el.insertAdjacentHTML('beforeend', `<div class="qa-q">${esc(x.q)}</div>`);
+    el.insertAdjacentHTML('beforeend',
+      `<div class="qa-a${x.err ? ' err' : x.busy ? ' busy' : ''}">${esc(x.a || '…')}</div>`);
+  }
+  el.scrollTop = el.scrollHeight;
+}
+/* 抽屉占右侧时，把被问的块平移进可见区（不改缩放）；
+   小屏抽屉全屏盖住画布，平移没有意义，跳过 */
+function ensureVisible(el) {
+  if (innerWidth < 700) return;
+  const p = wpos(el);
+  const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+  const availW = innerWidth - 410;
+  const sx = cx * cam.s + cam.x, sy = cy * cam.s + cam.y;
+  if (sx > 60 && sx < availW - 60 && sy > 90 && sy < innerHeight - 140) return;
+  cam.x = availW / 2 - cx * cam.s;
+  cam.y = (innerHeight - 70) / 2 - cy * cam.s;
+  apply(true);
+}
+function openQA(cardId, bname) {
+  QA.cur = { card: cardId, block: bname };
+  document.querySelectorAll('.blk.qa-target').forEach(b => b.classList.remove('qa-target'));
+  const nameEl = document.getElementById('qa-name');
+  if (cardId) {
+    const bar = [...document.querySelectorAll('.bbar')]
+      .find(b => b.dataset.card === cardId && b.dataset.bname === bname);
+    const card = cardById[cardId];
+    document.getElementById('qa-path').textContent = `${card.name} · ${card.file || ''}`;
+    if (bar) {
+      const blk = bar.parentElement;
+      blk.classList.add('qa-target');
+      const bc = blk.style.getPropertyValue('--bc');
+      nameEl.innerHTML = `<span class="qa-dot" style="background:${bc}"></span>${esc(bname)}`;
+      ensureVisible(blk);
+    } else nameEl.textContent = bname;
+  } else {
+    document.getElementById('qa-path').textContent = DATA.meta?.subtitle || '';
+    nameEl.textContent = '整张画布 · 自由提问';
+  }
+  document.getElementById('qa').classList.add('open');
+  renderQALog();
+  document.getElementById('qa-input').focus();
+}
+function closeQA() {
+  document.getElementById('qa').classList.remove('open');
+  document.querySelectorAll('.blk.qa-target').forEach(b => b.classList.remove('qa-target'));
+  QA.cur = null;
+}
+async function sendQA() {
+  const input = document.getElementById('qa-input');
+  const q = input.value.trim();
+  if (!q || !QA.cur) return;
+  input.value = '';
+  const entry = { q, a: '', busy: true };
+  (QA.log[qaKey()] ||= []).push(entry);
+  const prompt = buildQAPrompt(q);
+  if (!QA.live) {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      entry.a = '已复制完整上下文提问到剪贴板 ✓ 粘贴给你的 agent 即可。';
+    } catch (e) {
+      entry.a = '复制失败（浏览器限制）。启动 serve.py 使用在线问答。';
+      entry.err = true;
+    }
+    entry.busy = false;
+    renderQALog();
+    return;
+  }
+  entry.a = '思考中…';
+  renderQALog();
+  document.getElementById('qa-send').disabled = true;
+  try {
+    const r = await fetch('ask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, card: QA.cur.card || '__canvas__', block: QA.cur.block || '-', question: q }),
+    });
+    const j = await r.json();
+    if (j.ok) entry.a = j.answer;
+    else { entry.a = '出错了：' + (j.error || '未知错误'); entry.err = true; }
+  } catch (e) {
+    entry.a = '请求失败：' + e.message; entry.err = true;
+  }
+  entry.busy = false;
+  document.getElementById('qa-send').disabled = false;
+  try { localStorage.setItem(QA_STORE, JSON.stringify(QA.log)); } catch (e) {}
+  renderQALog();
+}
+document.getElementById('qa-close').onclick = closeQA;
+document.getElementById('qa-send').onclick = sendQA;
+document.getElementById('canvas-ask-btn').onclick = () => openQA(null, null);
+/* hub 下（/c/<name>/）显示回库链接与下载；静态打开两者都无意义，保持隐藏 */
+if (location.pathname.startsWith('/c/')) {
+  document.getElementById('home-link').hidden = false;
+  document.getElementById('dl-btn').hidden = false;
+}
+document.getElementById('qa-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQA(); }
+  e.stopPropagation();
+});
+
+/* ================= interactions ================= */
+world.addEventListener('click', e => {
+  const term = e.target.closest('.term');
+  if (term) {
+    const note = document.getElementById(term.dataset.tn);
+    term.classList.toggle('on');
+    note.classList.toggle('open');
+    drawWires(); return;
+  }
+  const btn = e.target.closest('.bbtn');
+  if (btn) {
+    const act = btn.dataset.act;
+    if (act === 'rewrite') { rewriteEl(btn.closest('.bxplain, .tnote'), btn.textContent === '重新生成'); return; }
+    if (act === 'revert') { revertEl(btn.closest('.bxplain, .tnote')); return; }
+    const bar = btn.closest('.bbar');
+    if (act === 'explain') {
+      bar.parentElement.classList.toggle('explained');
+      drawWires();
+    } else {
+      openQA(bar.dataset.card, bar.dataset.bname);
+    }
+    return;
+  }
+  const bar = e.target.closest('.bbar');
+  if (bar) {
+    const blk = bar.parentElement;
+    blk.classList.toggle('folded');
+    bar.querySelector('.bchev').textContent = blk.classList.contains('folded') ? '▸' : '▾';
+    drawWires(); return;
+  }
+  const hdr = e.target.closest('.hdr');
+  if (hdr) {
+    const card = hdr.closest('.card');
+    card.classList.toggle('collapsed');
+    hdr.querySelector('.chev').textContent = card.classList.contains('collapsed') ? '▸' : '▾';
+    drawWires();
+  }
+});
+/* Pan starts only after real movement (>4px). Capturing on pointerdown would
+   retarget the click event to the viewport and swallow clicks on terms, bars,
+   headers etc. — so a still pointer is a click, a moved pointer is a drag.
+   Two pointers = pinch zoom (touch); capture immediately, no click semantics. */
+let drag = null, pinch = null;
+const pts = new Map();
+function pinchState() {
+  const [a, b] = [...pts.values()];
+  return { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+}
+vp.addEventListener('pointerdown', e => {
+  pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pts.size === 2) {
+    drag = null;
+    pinch = { ...pinchState(), s0: cam.s, x0: cam.x, y0: cam.y };
+    world.classList.add('notrans');
+    for (const id of pts.keys()) { try { vp.setPointerCapture(id); } catch (err) {} }
+  } else if (pts.size === 1) {
+    drag = { sx: e.clientX, sy: e.clientY, ox: cam.x, oy: cam.y, moved: false, id: e.pointerId };
+  }
+});
+vp.addEventListener('pointermove', e => {
+  if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pts.size === 2) {
+    const p = pinchState();
+    const ns = Math.min(1.8, Math.max(.1, pinch.s0 * (p.d / (pinch.d || 1))));
+    cam.x = p.cx - (pinch.cx - pinch.x0) * (ns / pinch.s0);
+    cam.y = p.cy - (pinch.cy - pinch.y0) * (ns / pinch.s0);
+    cam.s = ns;
+    apply(false);
+    return;
+  }
+  if (!drag) return;
+  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if (!drag.moved) {
+    if (Math.abs(dx) + Math.abs(dy) <= 4) return;
+    drag.moved = true;
+    vp.classList.add('dragging');
+    vp.setPointerCapture(drag.id);
+  }
+  cam.x = drag.ox + dx;
+  cam.y = drag.oy + dy;
+  apply(false);
+});
+function endPointer(e) {
+  pts.delete(e.pointerId);
+  if (pts.size < 2) pinch = null;
+  if (pts.size === 0) { drag = null; vp.classList.remove('dragging'); }
+}
+vp.addEventListener('pointerup', endPointer);
+vp.addEventListener('pointercancel', endPointer);
+vp.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = Math.exp(-e.deltaY * .0012);
+  const ns = Math.min(1.8, Math.max(.1, cam.s * f));
+  cam.x = e.clientX - (e.clientX - cam.x) * (ns / cam.s);
+  cam.y = e.clientY - (e.clientY - cam.y) * (ns / cam.s);
+  cam.s = ns;
+  apply(false);
+}, { passive: false });
+addEventListener('resize', () => { drawWires(); if (STEPS[step].fit) fitAll(false); });
+
+/* ================= init =================
+   #s2 jumps to step 2; trailing debug letters: x = unfold everything,
+   e = open all block explanations, t = open all term notes, q = open Q&A drawer */
+const m = location.hash.match(/^#s(\d+)([a-z]*)$/);
+const flags = m ? m[2] : '';
+requestAnimationFrame(() => {
+  layout();
+  if (flags.includes('x')) document.querySelectorAll('.blk, .card').forEach(b => {
+    b.classList.remove('folded'); b.classList.remove('collapsed');
+    const v = b.querySelector('.bchev, .chev'); if (v) v.textContent = '▾';
+  });
+  if (flags.includes('e')) document.querySelectorAll('.blk').forEach(b => {
+    if (b.querySelector(':scope > .bxplain')) b.classList.add('explained');
+  });
+  if (flags.includes('t')) document.querySelectorAll('.tnote').forEach(n => n.classList.add('open'));
+  setStep(m ? +m[1] : 0, false);
+  if (flags.includes('q')) {
+    const bar = document.querySelector('.bbar');
+    if (bar) openQA(bar.dataset.card, bar.dataset.bname);
+    else openQA(null, null);  // 无块画布退到画布级问答
+  }
+});
+</script>
+</body>
+</html>

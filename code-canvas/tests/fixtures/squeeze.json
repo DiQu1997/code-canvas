@@ -1,0 +1,23 @@
+{
+  "meta": { "title": "note 跟随测试" },
+  "regions": [
+    { "id": "A", "title": "故事线 A · 测试", "hue": "blue", "cards": ["top", "bottom"] }
+  ],
+  "cards": [
+    { "id": "top", "name": "top()", "file": "t.py:1", "lang": "py",
+      "layout": { "col": 0, "band": 0 }, "collapsed": true,
+      "code": "def top():\n    a = 1\n    b = 2\n    c = 3\n    d = 4\n    e = 5\n    f = 6\n    g = 7\n    h = 8\n    i = 9\n    j = 10\n    k = 11\n    l = 12\n    m = 13\n    n = 14\n    o = 15\n    p = 16\n    q = 17\n    return a" },
+    { "id": "bottom", "name": "bottom()", "file": "b.py:1", "lang": "py",
+      "layout": { "col": 0, "band": 1 }, "collapsed": false,
+      "code": "def bottom():\n    return 1" }
+  ],
+  "wires": [],
+  "notes": [
+    { "id": "nb", "flavor": "bg", "tag": "T", "text": "跟随测试注释：目标卡被下推时我必须跟着走，且不压任何卡。",
+      "place": { "side": "above", "of": "bottom" }, "step": 1 }
+  ],
+  "steps": [
+    { "title": "总览", "caption": "初始", "fit": true },
+    { "title": "①", "caption": "展开上方卡，把下方卡挤下去", "expand": ["top"], "focus": ["top", "bottom", "nb"] }
+  ]
+}

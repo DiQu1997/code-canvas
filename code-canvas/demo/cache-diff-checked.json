@@ -1,0 +1,336 @@
+{
+  "meta": {
+    "title": "缓存防雪崩 PR",
+    "subtitle": "diff 画布示例 · TTL 抖动 + singleflight 击穿锁",
+    "audience": "评审这个 PR 的后端工程师；中文；关注正确性与回归风险",
+    "mode": "diff"
+  },
+  "regions": [
+    {
+      "id": "A",
+      "title": "故事线 A · 本次变更",
+      "blurb": "两招：过期时刻打散、热 key 只放一个回源",
+      "hue": "amber",
+      "cards": [
+        "handler",
+        "jittered",
+        "store"
+      ]
+    },
+    {
+      "id": "B",
+      "title": "故事线 B · 未改动的邻居",
+      "blurb": "变更周边的上下文，读懂连锁影响用",
+      "hue": "blue",
+      "cards": [
+        "get",
+        "fetch"
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "id": "handler",
+      "name": "handle_request(req)",
+      "file": "server/handler.py:12",
+      "lang": "py",
+      "layout": {
+        "col": 0,
+        "band": 0
+      },
+      "collapsed": false,
+      "code": "def handle_request(req):\n    key = cache_key(req)\n    cached = get_cached(key)\n    if cached is not None:\n        metrics.hit()\n        return cached\n    with keyed_lock(key):\n        cached = get_cached(key)\n        if cached is not None:\n            return cached\n        resp = fetch_upstream(req)\n        store(key, resp, ttl=req.ttl)\n    return resp",
+      "diff": {
+        "added": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "removed": [
+          {
+            "after": 6,
+            "code": "    resp = fetch_upstream(req)"
+          },
+          {
+            "after": 6,
+            "code": "    store(key, resp, ttl=req.ttl)"
+          }
+        ]
+      },
+      "terms": [
+        {
+          "line": 7,
+          "token": "keyed_lock",
+          "note": "进程内按 key 的互斥锁：同一 key 的并发未命中只放一个去回源，其余等它回填。"
+        }
+      ]
+    },
+    {
+      "id": "jittered",
+      "name": "jittered(ttl)",
+      "file": "server/cache.py:9",
+      "lang": "py",
+      "layout": {
+        "col": 1,
+        "band": 0
+      },
+      "collapsed": false,
+      "code": "def jittered(ttl):\n    return ttl * random.uniform(0.9, 1.1)",
+      "diff": {
+        "added": [
+          1,
+          2
+        ],
+        "removed": []
+      }
+    },
+    {
+      "id": "store",
+      "name": "store(key, resp, ttl)",
+      "file": "server/cache.py:14",
+      "lang": "py",
+      "layout": {
+        "col": 1,
+        "band": 1
+      },
+      "collapsed": false,
+      "code": "def store(key, resp, ttl):\n    ttl = jittered(ttl)\n    _table[key] = Entry(resp, now() + ttl)\n    _evict_if_needed()",
+      "diff": {
+        "added": [
+          2
+        ],
+        "removed": []
+      },
+      "plan_delta": "offplan"
+    },
+    {
+      "id": "get",
+      "name": "get_cached(key)",
+      "file": "server/cache.py:24",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 0
+      },
+      "collapsed": true,
+      "code": "def get_cached(key):\n    entry = _table.get(key)\n    if entry is None or entry.expired():\n        return None\n    return entry.value"
+    },
+    {
+      "id": "fetch",
+      "name": "fetch_upstream(req)",
+      "file": "server/upstream.py:31",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 2
+      },
+      "collapsed": true,
+      "code": "def fetch_upstream(req):\n    conn = pool.acquire(req.host)\n    try:\n        return conn.send(req)\n    finally:\n        pool.release(conn)"
+    }
+  ],
+  "wires": [
+    {
+      "id": "w-get",
+      "kind": "call",
+      "from": {
+        "card": "handler",
+        "line": 3
+      },
+      "to": {
+        "card": "get"
+      }
+    },
+    {
+      "id": "w-fetch",
+      "kind": "call",
+      "from": {
+        "card": "handler",
+        "line": 11
+      },
+      "to": {
+        "card": "fetch",
+        "side": "left"
+      }
+    },
+    {
+      "id": "w-store",
+      "kind": "call",
+      "from": {
+        "card": "handler",
+        "line": 12
+      },
+      "to": {
+        "card": "store"
+      }
+    },
+    {
+      "id": "w-jit",
+      "kind": "call",
+      "from": {
+        "card": "store",
+        "line": 2,
+        "side": "left"
+      },
+      "to": {
+        "card": "jittered",
+        "side": "left"
+      }
+    },
+    {
+      "id": "d-resp",
+      "kind": "data",
+      "label": "resp",
+      "from": {
+        "card": "fetch",
+        "line": 4,
+        "side": "left"
+      },
+      "to": {
+        "card": "store",
+        "side": "right"
+      }
+    }
+  ],
+  "notes": [
+    {
+      "id": "bg0",
+      "flavor": "bg",
+      "tag": "背景 · 这个 PR 治什么病",
+      "text": "雪崩：大批 key 同秒过期，回源洪峰打垮上游；击穿：热 key 过期瞬间并发全部回源。本 PR 各用一招：TTL 抖动打散过期，singleflight 锁同 key 并发。",
+      "place": {
+        "corner": "nw"
+      },
+      "step": 0
+    },
+    {
+      "id": "n-jit",
+      "flavor": "intent",
+      "tag": "NOTE · cache.py:10",
+      "text": "抖动窗口 ±10%：足够打散过期时刻，又不至于让 TTL 明显失真。",
+      "anchor": {
+        "card": "jittered",
+        "line": 2
+      },
+      "place": {
+        "side": "left",
+        "of": "jittered"
+      },
+      "step": 1
+    },
+    {
+      "id": "n-dc",
+      "flavor": "intent",
+      "tag": "NOTE · handler.py:19",
+      "text": "双重检查：拿到锁先再查一次缓存——排队期间别人可能已经回填了。",
+      "anchor": {
+        "card": "handler",
+        "line": 8
+      },
+      "place": {
+        "side": "left",
+        "of": "handler"
+      },
+      "step": 2
+    },
+    {
+      "id": "n-risk",
+      "flavor": "intent",
+      "tag": "风险 · 观测与告警",
+      "text": "jittered 之后 TTL 观测值 ≠ 配置值：监控里按 ttl 精确值报警的规则会误报，要跟着改。",
+      "anchor": {
+        "card": "store",
+        "line": 2
+      },
+      "place": {
+        "side": "left",
+        "of": "store"
+      },
+      "step": 3
+    }
+  ],
+  "steps": [
+    {
+      "title": "总览",
+      "caption": "一个防雪崩 PR 的评审画布：绿 = 新增行，红删除线 = 被删原文，卡头有 +/− 统计。三步走：这个 PR 治什么病 → 抖动 → 击穿锁 → 风险。",
+      "fit": true
+    },
+    {
+      "title": "① TTL 抖动",
+      "storyline": "A",
+      "caption": "store 写入前把 TTL 过一遍 jittered()：±10% 均匀抖动，同批写入的 key 过期时刻被打散——雪崩的「同秒过期」前提直接消失。",
+      "wires": [
+        "w-jit"
+      ],
+      "lines": [
+        [
+          "store",
+          2
+        ],
+        [
+          "jittered",
+          2
+        ]
+      ],
+      "focus": [
+        "store",
+        "jittered",
+        "n-jit"
+      ]
+    },
+    {
+      "title": "② singleflight 击穿锁",
+      "storyline": "A",
+      "caption": "未命中路径包进 keyed_lock：同一 key 只放一个请求去回源，其余排队。注意被删的原文——原来是裸奔直接回源。拿到锁先做双重检查。",
+      "wires": [
+        "w-fetch",
+        "w-store"
+      ],
+      "lines": [
+        [
+          "handler",
+          7
+        ],
+        [
+          "handler",
+          8
+        ],
+        [
+          "handler",
+          9
+        ],
+        [
+          "handler",
+          10
+        ]
+      ],
+      "focus": [
+        "handler",
+        "n-dc",
+        "fetch"
+      ]
+    },
+    {
+      "title": "③ 回归风险",
+      "storyline": "A",
+      "caption": "两个要盯的点：抖动让 TTL 观测值偏离配置值，相关告警规则要改；keyed_lock 持锁期间包含整个回源耗时，慢上游会让排队请求堆积。",
+      "wires": [
+        "w-store",
+        "w-jit"
+      ],
+      "lines": [
+        [
+          "store",
+          2
+        ]
+      ],
+      "focus": [
+        "store",
+        "n-risk",
+        "handler"
+      ]
+    }
+  ]
+}

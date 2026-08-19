@@ -1,0 +1,608 @@
+{
+  "meta": {
+    "title": "Codex CLI 领航图",
+    "subtitle": "openai/codex · 仓库总览 · 9 个子系统",
+    "audience": "有经验的后端工程师，第一次接触本仓库；中文；准确优先"
+  },
+  "regions": [
+    {
+      "id": "A",
+      "title": "故事线 A · 一次对话的主流程",
+      "blurb": "输入进来，事件回去",
+      "hue": "blue",
+      "cards": [
+        "cli",
+        "tui",
+        "appserver",
+        "core",
+        "client"
+      ]
+    },
+    {
+      "id": "B",
+      "title": "故事线 B · 工具与安全边界",
+      "blurb": "模型动手，沙箱兜底",
+      "hue": "amber",
+      "cards": [
+        "tools",
+        "sandbox"
+      ]
+    },
+    {
+      "id": "C",
+      "title": "故事线 C · 契约与持久化",
+      "blurb": "类型是语言，JSONL 是记忆",
+      "hue": "violet",
+      "cards": [
+        "protocol",
+        "rollout"
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "id": "cli",
+      "name": "cli · main() 多工具入口",
+      "file": "codex-rs/cli/src/main.rs:985",
+      "lang": "rust",
+      "layout": {
+        "col": 0,
+        "band": 0
+      },
+      "collapsed": true,
+      "code": "fn main() -> anyhow::Result<()> {\n    let remote_control_disabled = codex_app_server::take_remote_control_disabled_env();\n    arg0_dispatch_or_else(move |arg0_paths: Arg0DispatchPaths| async move {\n        cli_main(arg0_paths, remote_control_disabled).await?;\n        Ok(())\n    })\n}\n\nasync fn cli_main(\n    arg0_paths: Arg0DispatchPaths,\n    remote_control_disabled: bool,\n) -> anyhow::Result<()> {",
+      "terms": [
+        {
+          "line": 3,
+          "token": "arg0_dispatch_or_else",
+          "note": "按 argv[0] 分发：同一个二进制兼任 codex-linux-sandbox 等辅助进程"
+        }
+      ]
+    },
+    {
+      "id": "tui",
+      "name": "tui · App::handle_tui_event()",
+      "file": "codex-rs/tui/src/app.rs:755",
+      "lang": "rust",
+      "layout": {
+        "col": 1,
+        "band": 0
+      },
+      "collapsed": true,
+      "code": "    pub(crate) async fn handle_tui_event(\n        &mut self,\n        tui: &mut tui::Tui,\n        app_server: &mut AppServerSession,\n        event: TuiEvent,\n    ) -> Result<AppRunControl> {\n        let screen_size = tui.screen_size_for_event(&event)?;\n        if !matches!(&event, TuiEvent::Key(_) | TuiEvent::Paste(_)) {\n            self.expire_pending_key_chord();\n            self.handle_draw_pre_render(tui, screen_size)?;\n        }",
+      "terms": [
+        {
+          "line": 4,
+          "token": "AppServerSession",
+          "note": "TUI 持有的 app-server 门面：所有动作都变成 JSON-RPC 调用"
+        },
+        {
+          "line": 5,
+          "token": "TuiEvent",
+          "note": "终端事件的统一类型：按键、粘贴、重绘、resize、恢复"
+        }
+      ]
+    },
+    {
+      "id": "appserver",
+      "name": "app-server · process_request()",
+      "file": "codex-rs/app-server/src/message_processor.rs:556",
+      "lang": "rust",
+      "layout": {
+        "col": 2,
+        "band": 0
+      },
+      "collapsed": true,
+      "code": "    pub(crate) async fn process_request(\n        self: &Arc<Self>,\n        connection_id: ConnectionId,\n        request: JSONRPCRequest,\n        transport: &AppServerTransport,\n        session: Arc<ConnectionSessionState>,\n    ) {\n        let request_method = request.method.as_str();",
+      "terms": [
+        {
+          "line": 4,
+          "token": "JSONRPCRequest",
+          "note": "JSON-RPC 2.0 请求（wire 上省略 jsonrpc 头）——IDE 扩展说的语言"
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "name": "core · submission_loop()",
+      "file": "codex-rs/core/src/session/handlers.rs:515",
+      "lang": "rust",
+      "layout": {
+        "col": 3,
+        "band": 0
+      },
+      "collapsed": false,
+      "code": "pub(super) async fn submission_loop(\n    sess: Arc<Session>,\n    config: Arc<Config>,\n    rx_sub: Receiver<Submission>,\n) {\n    // To break out of this loop, send Op::Shutdown.\n    let mut shutdown_received = false;\n    while let Ok(sub) = rx_sub.recv().await {\n        debug!(?sub, \"Submission\");\n        let dispatch_span = submission_dispatch_span(&sub);\n        let should_exit = async {\n            match sub.op {",
+      "terms": [
+        {
+          "line": 4,
+          "token": "rx_sub",
+          "note": "所有客户端请求汇入的单一队列；发 Op::Shutdown 才退出"
+        }
+      ]
+    },
+    {
+      "id": "client",
+      "name": "core::client · ModelClient::stream()",
+      "file": "codex-rs/core/src/client.rs:1851",
+      "lang": "rust",
+      "layout": {
+        "col": 4,
+        "band": 0
+      },
+      "collapsed": true,
+      "code": "    pub async fn stream(\n        &mut self,\n        prompt: &Prompt,\n        model_info: &ModelInfo,\n        session_telemetry: &SessionTelemetry,\n        effort: Option<ReasoningEffortConfig>,\n        summary: ReasoningSummaryConfig,\n        service_tier: Option<String>,\n        responses_metadata: &CodexResponsesMetadata,\n        inference_trace: &InferenceTraceContext,\n    ) -> Result<ResponseStream> {\n        let wire_api = self.client.state.provider.info().wire_api;",
+      "terms": [
+        {
+          "line": 12,
+          "token": "wire_api",
+          "note": "供应商的协议形态（Responses 等）：决定请求怎么编码、怎么流式"
+        }
+      ]
+    },
+    {
+      "id": "tools",
+      "name": "core::tools · struct ToolCall",
+      "file": "codex-rs/core/src/tools/router.rs:31",
+      "lang": "rust",
+      "layout": {
+        "col": 3,
+        "band": 1
+      },
+      "collapsed": false,
+      "code": "#[derive(Clone, Debug, PartialEq)]\npub struct ToolCall {\n    pub tool_name: ToolName,\n    pub call_id: String,\n    pub payload: ToolPayload,\n    pub encrypted_function_args: Option<Vec<String>>,\n}",
+      "terms": [
+        {
+          "line": 5,
+          "token": "payload",
+          "note": "工具入参的形态：shell 命令、apply_patch 补丁、MCP 参数…"
+        }
+      ]
+    },
+    {
+      "id": "sandbox",
+      "name": "sandboxing · enum SandboxType",
+      "file": "codex-rs/sandboxing/src/manager.rs:36",
+      "lang": "rust",
+      "layout": {
+        "col": 4,
+        "band": 1
+      },
+      "collapsed": false,
+      "code": "#[derive(Clone, Copy, Debug, PartialEq, Eq)]\npub enum SandboxType {\n    None,\n    MacosSeatbelt,\n    LinuxSeccomp,\n    WindowsRestrictedToken,\n}",
+      "terms": [
+        {
+          "line": 4,
+          "token": "MacosSeatbelt",
+          "note": "macOS 的 sandbox-exec 机制：SBPL 策略限制文件与网络"
+        }
+      ]
+    },
+    {
+      "id": "protocol",
+      "name": "protocol · struct Submission",
+      "file": "codex-rs/protocol/src/protocol.rs:182",
+      "lang": "rust",
+      "layout": {
+        "col": 1,
+        "band": 2
+      },
+      "collapsed": false,
+      "code": "/// Submission Queue Entry - requests from user\n#[derive(Debug)]\npub struct Submission {\n    /// Unique id for this Submission to correlate with Events\n    pub id: String,\n    /// Payload\n    pub op: Op,\n    /// Optional W3C trace carrier propagated across async submission handoffs.\n    pub trace: Option<W3cTraceContext>,",
+      "terms": [
+        {
+          "line": 7,
+          "token": "Op",
+          "note": "客户端→引擎的全部请求类型：TurnInput、ExecApproval、Interrupt…"
+        }
+      ]
+    },
+    {
+      "id": "rollout",
+      "name": "rollout · struct RolloutRecorder",
+      "file": "codex-rs/rollout/src/recorder.rs:85",
+      "lang": "rust",
+      "layout": {
+        "col": 2,
+        "band": 2
+      },
+      "collapsed": true,
+      "code": "#[derive(Clone)]\npub struct RolloutRecorder {\n    tx: Sender<RolloutCmd>,\n    writer_task: Arc<RolloutWriterTask>,\n    pub(crate) rollout_path: PathBuf,\n}",
+      "terms": [
+        {
+          "line": 5,
+          "token": "rollout_path",
+          "note": "~/.codex/sessions/YYYY/MM/DD/rollout-<时间>-<线程id>.jsonl"
+        }
+      ]
+    }
+  ],
+  "wires": [
+    {
+      "id": "w-cli-tui",
+      "kind": "call",
+      "from": {
+        "card": "cli"
+      },
+      "to": {
+        "card": "tui"
+      }
+    },
+    {
+      "id": "w-tui-as",
+      "kind": "call",
+      "from": {
+        "card": "tui",
+        "line": 4
+      },
+      "to": {
+        "card": "appserver"
+      }
+    },
+    {
+      "id": "w-as-core",
+      "kind": "call",
+      "from": {
+        "card": "appserver"
+      },
+      "to": {
+        "card": "core"
+      }
+    },
+    {
+      "id": "w-core-client",
+      "kind": "call",
+      "from": {
+        "card": "core"
+      },
+      "to": {
+        "card": "client"
+      }
+    },
+    {
+      "id": "d-sse",
+      "kind": "data",
+      "label": "ResponseEvent",
+      "from": {
+        "card": "client",
+        "line": 11,
+        "side": "left"
+      },
+      "to": {
+        "card": "core",
+        "side": "right"
+      }
+    },
+    {
+      "id": "d-event",
+      "kind": "data",
+      "label": "Event",
+      "from": {
+        "card": "core",
+        "side": "left"
+      },
+      "to": {
+        "card": "appserver",
+        "side": "right"
+      }
+    },
+    {
+      "id": "w-core-tools",
+      "kind": "call",
+      "from": {
+        "card": "core",
+        "side": "left"
+      },
+      "to": {
+        "card": "tools"
+      }
+    },
+    {
+      "id": "w-tools-sandbox",
+      "kind": "call",
+      "from": {
+        "card": "tools"
+      },
+      "to": {
+        "card": "sandbox"
+      }
+    },
+    {
+      "id": "d-op",
+      "kind": "data",
+      "label": "Submission(Op)",
+      "from": {
+        "card": "protocol",
+        "line": 3
+      },
+      "to": {
+        "card": "core",
+        "line": 4
+      }
+    },
+    {
+      "id": "d-rollout",
+      "kind": "data",
+      "label": "RolloutItem",
+      "from": {
+        "card": "core",
+        "side": "left"
+      },
+      "to": {
+        "card": "rollout",
+        "side": "right"
+      }
+    }
+  ],
+  "notes": [
+    {
+      "id": "bg0",
+      "flavor": "bg",
+      "tag": "背景 · 这是什么仓库",
+      "text": "OpenAI Codex CLI：本地运行的编码智能体。Rust workspace，百余 crate。三个问题读懂它——输入怎么变成模型对话、模型怎么安全动手、会话怎么留痕。",
+      "place": {
+        "corner": "nw"
+      },
+      "step": 0
+    },
+    {
+      "id": "n-inproc",
+      "flavor": "intent",
+      "tag": "NOTE · app.rs:758",
+      "text": "TUI 不直连 core：同进程内起一个 app-server，走同一套 JSON-RPC；IDE、桌面、exec 说的也是这套。",
+      "anchor": {
+        "card": "tui",
+        "line": 4
+      },
+      "place": {
+        "side": "above",
+        "of": "tui"
+      },
+      "step": 2
+    },
+    {
+      "id": "n-sqeq",
+      "flavor": "bg",
+      "tag": "背景 · SQ/EQ 模式",
+      "text": "protocol.rs 文件头自述：Submission Queue 进、Event Queue 出，异步通信。这是全仓库的中枢隐喻。",
+      "anchor": {
+        "card": "protocol",
+        "line": 3
+      },
+      "place": {
+        "side": "above",
+        "of": "protocol"
+      },
+      "step": 3
+    },
+    {
+      "id": "n-ws",
+      "flavor": "intent",
+      "tag": "NOTE · client.rs:1862",
+      "text": "一个 stream() 两条传输：Responses WebSocket 优先，不健康自动回退 HTTP SSE——对上层完全透明。",
+      "anchor": {
+        "card": "client",
+        "line": 12
+      },
+      "place": {
+        "side": "above",
+        "of": "client"
+      },
+      "step": 4
+    },
+    {
+      "id": "n-approval",
+      "flavor": "intent",
+      "tag": "NOTE · router.rs:33",
+      "text": "工具不直接跑：先过审批策略，该问人的发 ExecApprovalRequest，答复以 Op::ExecApproval 回来。",
+      "anchor": {
+        "card": "tools",
+        "line": 3
+      },
+      "place": {
+        "side": "left",
+        "of": "tools"
+      },
+      "step": 5
+    },
+    {
+      "id": "n-sandbox",
+      "flavor": "bg",
+      "tag": "背景 · 三平台沙箱",
+      "text": "三平台三种笼子：Seatbelt、Landlock+seccomp、受限令牌。None = 不设笼，全靠审批把关。",
+      "anchor": {
+        "card": "sandbox",
+        "line": 2
+      },
+      "place": {
+        "side": "left",
+        "of": "sandbox"
+      },
+      "step": 5
+    },
+    {
+      "id": "n-rollout",
+      "flavor": "intent",
+      "tag": "NOTE · recorder.rs:89",
+      "text": "会话即文件：JSONL 逐行追加、只增不改；resume、fork、回放都从这份文件重建。",
+      "anchor": {
+        "card": "rollout",
+        "line": 5
+      },
+      "place": {
+        "side": "above",
+        "of": "rollout"
+      },
+      "step": 6
+    }
+  ],
+  "steps": [
+    {
+      "title": "总览 · codex 是怎么长的",
+      "caption": "领航图：上排五张卡是一次对话的主流程，中排右侧是工具与沙箱，下排是契约与持久化。灰线=调用，琥珀线=数据。按 ▶ 沿故事走。",
+      "fit": true
+    },
+    {
+      "title": "① 一个二进制，多个面孔",
+      "storyline": "A",
+      "caption": "codex 裸命令进 TUI；exec 无头跑；mcp-server/app-server 接 IDE。高亮行：argv[0] 分发——同一个二进制兼任沙箱辅助进程。",
+      "wires": [
+        "w-cli-tui"
+      ],
+      "lines": [
+        [
+          "cli",
+          3
+        ]
+      ],
+      "expand": [
+        "cli"
+      ],
+      "focus": [
+        "cli",
+        "tui"
+      ]
+    },
+    {
+      "title": "② 所有界面都是 app-server 的客户端",
+      "storyline": "A",
+      "caption": "TUI 不直连引擎：进程内起 app-server 说 JSON-RPC；IDE/桌面走 stdio，说同一种话。引擎的 ThreadManager 就住在这里。",
+      "wires": [
+        "w-tui-as",
+        "w-as-core"
+      ],
+      "lines": [
+        [
+          "tui",
+          4
+        ]
+      ],
+      "expand": [
+        "tui",
+        "appserver"
+      ],
+      "focus": [
+        "tui",
+        "appserver",
+        "core",
+        "n-inproc"
+      ]
+    },
+    {
+      "title": "③ 契约：SQ/EQ 两条队列",
+      "storyline": "C",
+      "caption": "客户端的每个动作都是 Submission{id,op}，引擎的每个回应都是 Event{id,msg}；id 把问与答缝在一起。protocol crate 是唯一共享语言。",
+      "wires": [
+        "d-op",
+        "d-event"
+      ],
+      "lines": [
+        [
+          "protocol",
+          3
+        ],
+        [
+          "protocol",
+          7
+        ]
+      ],
+      "expand": [
+        "protocol"
+      ],
+      "focus": [
+        "protocol",
+        "core",
+        "appserver",
+        "n-sqeq"
+      ]
+    },
+    {
+      "title": "④ 引擎跑 turn，模型流式回话",
+      "storyline": "A",
+      "caption": "submission_loop 逐条吃 Submission 驱动 turn；stream() 优先 WebSocket，掉线回退 HTTP SSE，增量流回引擎。",
+      "wires": [
+        "w-core-client",
+        "d-sse"
+      ],
+      "lines": [
+        [
+          "core",
+          8
+        ],
+        [
+          "client",
+          12
+        ]
+      ],
+      "expand": [
+        "client"
+      ],
+      "focus": [
+        "core",
+        "client",
+        "n-ws"
+      ]
+    },
+    {
+      "title": "⑤ 模型动手：工具、审批、沙箱",
+      "storyline": "B",
+      "caption": "模型的每次动手都是一个 ToolCall：shell 先过审批策略再进平台沙箱；apply_patch、MCP、计划工具各有 handler。",
+      "wires": [
+        "w-core-tools",
+        "w-tools-sandbox"
+      ],
+      "lines": [
+        [
+          "tools",
+          5
+        ],
+        [
+          "sandbox",
+          4
+        ],
+        [
+          "sandbox",
+          5
+        ],
+        [
+          "sandbox",
+          6
+        ]
+      ],
+      "focus": [
+        "tools",
+        "sandbox",
+        "core",
+        "n-approval",
+        "n-sandbox"
+      ]
+    },
+    {
+      "title": "⑥ 会话即文件",
+      "storyline": "C",
+      "caption": "每条消息作为 RolloutItem 追加进 ~/.codex/sessions 的 JSONL；codex resume 用它重建历史，fork/回放/审计同源。",
+      "wires": [
+        "d-rollout"
+      ],
+      "lines": [
+        [
+          "rollout",
+          5
+        ]
+      ],
+      "expand": [
+        "rollout"
+      ],
+      "focus": [
+        "core",
+        "rollout",
+        "n-rollout"
+      ]
+    },
+    {
+      "title": "⑦ 从哪儿深潜",
+      "caption": "值得单独出细图：① 一个 turn 的生命周期（core/session）② 审批与 execpolicy ③ 沙箱三平台实现 ④ MCP 双面 ⑤ TUI 渲染。挑一个，我再深潜。",
+      "fit": true
+    }
+  ]
+}

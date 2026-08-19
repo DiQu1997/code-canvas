@@ -1,0 +1,427 @@
+{
+  "meta": {
+    "title": "Code Canvas",
+    "subtitle": "缓存中间件 demo · 生成器渲染",
+    "audience": "一般后端工程师；中文；简洁"
+  },
+  "regions": [
+    {
+      "id": "A",
+      "title": "故事线 A · 请求主流程",
+      "blurb": "请求的进与出：命中早退，未命中回源",
+      "hue": "blue",
+      "cards": [
+        "handler",
+        "fetch"
+      ]
+    },
+    {
+      "id": "B",
+      "title": "故事线 B · 缓存子系统",
+      "blurb": "key 的生成与存取——命中率与新鲜度都在这里决定",
+      "hue": "green",
+      "cards": [
+        "cachekey",
+        "get",
+        "store",
+        "evict"
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "id": "handler",
+      "name": "handle_request(req)",
+      "file": "server/handler.py",
+      "lang": "py",
+      "layout": {
+        "col": 0,
+        "band": 0
+      },
+      "collapsed": false,
+      "code": "def handle_request(req):\n    key = cache_key(req)\n    cached = get_cached(key)\n    if cached is not None:\n        metrics.hit()\n        return cached\n    resp = fetch_upstream(req)\n    store(key, resp, ttl=req.ttl)\n    return resp",
+      "terms": [
+        {
+          "line": 8,
+          "token": "ttl",
+          "note": "存活秒数，由请求方通过 req.ttl 声明——缓存不猜新鲜度。"
+        }
+      ]
+    },
+    {
+      "id": "fetch",
+      "name": "fetch_upstream(req)",
+      "file": "server/upstream.py",
+      "lang": "py",
+      "layout": {
+        "col": 0,
+        "band": 2
+      },
+      "collapsed": true,
+      "code": "def fetch_upstream(req):\n    conn = pool.acquire(req.host)\n    try:\n        return conn.send(req)\n    finally:\n        pool.release(conn)"
+    },
+    {
+      "id": "cachekey",
+      "name": "cache_key(req)",
+      "file": "server/keys.py",
+      "lang": "py",
+      "layout": {
+        "col": 1,
+        "band": 0
+      },
+      "collapsed": true,
+      "code": "def cache_key(req):\n    parts = [req.method, req.path]\n    for h in sorted(req.vary_headers):\n        parts.append(req.headers.get(h, \"\"))\n    return \"v1:\" + sha1(\"|\".join(parts))",
+      "terms": [
+        {
+          "line": 3,
+          "token": "vary_headers",
+          "note": "该请求声明的 Vary 头列表：这些头的取值会改变响应内容，必须参与 key。"
+        }
+      ]
+    },
+    {
+      "id": "get",
+      "name": "get_cached(key)",
+      "file": "server/cache.py",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 0
+      },
+      "collapsed": true,
+      "code": "def get_cached(key):\n    entry = _table.get(key)\n    if entry is None or entry.expired():\n        return None\n    return entry.value"
+    },
+    {
+      "id": "store",
+      "name": "store(key, resp, ttl)",
+      "file": "server/cache.py",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 1
+      },
+      "collapsed": true,
+      "code": "def store(key, resp, ttl):\n    _table[key] = Entry(resp, now() + ttl)\n    _evict_if_needed()"
+    },
+    {
+      "id": "evict",
+      "name": "_evict_if_needed()",
+      "file": "server/cache.py",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 2
+      },
+      "collapsed": false,
+      "code": "def _evict_if_needed():\n    if _table.size() < HIGH_WATER:\n        return\n    target = _table.size() - LOW_WATER\n    victims = []\n    for shard in _table.shards():\n        with shard.lock():\n            for key, e in shard.items():\n                if e.expired():\n                    victims.append((INF, key))\n                    continue\n                score = now() - e.last_used\n                if e.size > BIG_OBJECT:\n                    score *= 2\n                victims.append((score, key))\n    victims.sort(reverse=True)\n    for _, key in victims[:target]:\n        _table.delete(key)\n    metrics.evicted(target)",
+      "blocks": [
+        {
+          "name": "水位检查",
+          "summary": "低于高水位就什么都不做",
+          "lines": [
+            2,
+            4
+          ]
+        },
+        {
+          "name": "全表扫描打分",
+          "summary": "锁一个 shard 扫一个",
+          "lines": [
+            5,
+            15
+          ],
+          "children": [
+            {
+              "name": "单个 entry 打分",
+              "summary": "过期白送；越冷越大越先死",
+              "lines": [
+                9,
+                15
+              ],
+              "explain": "分数 = 冷的程度 × 大小惩罚。过期条目给 INF 直接排最前——它们本来就该走。"
+            }
+          ],
+          "explain": "O(N) 扫全表换实现简单：这个量级的缓存不值得维护堆或 LRU 链表。锁粒度是 shard——扫描期间写入只被挡在一个分片上。"
+        },
+        {
+          "name": "收割",
+          "summary": "分数最高的 target 个删掉",
+          "lines": [
+            16,
+            19
+          ]
+        }
+      ]
+    }
+  ],
+  "wires": [
+    {
+      "id": "w-key",
+      "kind": "call",
+      "from": {
+        "card": "handler",
+        "line": 2
+      },
+      "to": {
+        "card": "cachekey"
+      }
+    },
+    {
+      "id": "w-get",
+      "kind": "call",
+      "from": {
+        "card": "handler",
+        "line": 3
+      },
+      "to": {
+        "card": "get"
+      }
+    },
+    {
+      "id": "w-fetch",
+      "kind": "call",
+      "from": {
+        "card": "handler",
+        "line": 7,
+        "side": "left"
+      },
+      "to": {
+        "card": "fetch",
+        "side": "left"
+      }
+    },
+    {
+      "id": "w-store",
+      "kind": "call",
+      "from": {
+        "card": "handler",
+        "line": 8
+      },
+      "to": {
+        "card": "store"
+      }
+    },
+    {
+      "id": "w-evict",
+      "kind": "call",
+      "from": {
+        "card": "store",
+        "line": 3,
+        "side": "left"
+      },
+      "to": {
+        "card": "evict",
+        "side": "left"
+      }
+    },
+    {
+      "id": "d-key1",
+      "kind": "data",
+      "label": "key",
+      "from": {
+        "card": "cachekey",
+        "line": 5
+      },
+      "to": {
+        "card": "get"
+      }
+    },
+    {
+      "id": "d-key2",
+      "kind": "data",
+      "label": "key",
+      "from": {
+        "card": "cachekey",
+        "line": 5
+      },
+      "to": {
+        "card": "store"
+      }
+    },
+    {
+      "id": "d-resp",
+      "kind": "data",
+      "label": "resp",
+      "from": {
+        "card": "fetch",
+        "line": 4
+      },
+      "to": {
+        "card": "store"
+      }
+    }
+  ],
+  "notes": [
+    {
+      "id": "bg0",
+      "flavor": "bg",
+      "tag": "背景 · 这是什么",
+      "text": "一个 HTTP 缓存中间件：请求先查缓存，命中直接返回；未命中回源、写回再返回。读懂它只需要三个问题——key 怎么算、命中走哪条路、未命中怎么写回。故事线正好各答一个。",
+      "place": {
+        "corner": "nw"
+      },
+      "step": 0
+    },
+    {
+      "id": "n1",
+      "flavor": "intent",
+      "tag": "NOTE · handler.py:6",
+      "text": "命中直接返回：完全绕过 upstream。这个 early return 就是缓存存在的意义。",
+      "anchor": {
+        "card": "handler",
+        "line": 6
+      },
+      "place": {
+        "side": "left",
+        "of": "handler"
+      },
+      "step": 2
+    },
+    {
+      "id": "n2",
+      "flavor": "intent",
+      "tag": "NOTE · handler.py:8",
+      "text": "ttl 由请求方声明——新鲜度是调用方的决定，缓存只负责执行。",
+      "anchor": {
+        "card": "handler",
+        "line": 8
+      },
+      "place": {
+        "side": "left",
+        "of": "handler"
+      },
+      "step": 3
+    },
+    {
+      "id": "n3",
+      "flavor": "bg",
+      "tag": "背景 · HTTP Vary",
+      "text": "Vary 头声明同一 URL 会因哪些请求头返回不同内容——所以这些头必须参与 key，否则会把 A 的响应错发给 B。",
+      "anchor": {
+        "card": "cachekey",
+        "line": 3
+      },
+      "place": {
+        "side": "above",
+        "of": "cachekey"
+      },
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "title": "总览",
+      "caption": "一次带缓存的请求处理。左边是请求主流程，右边是缓存子系统。灰线 = 调用，琥珀线 = 数据流。可以自由拖拽查看，或用 ▶ 沿故事线走。",
+      "fit": true
+    },
+    {
+      "title": "① 请求如何变成 key",
+      "caption": "第一步把请求归一化成缓存键（cache_key 已展开）。第 3 行先对 vary_headers 排序——保证同一请求永远得到同一个 key。两根琥珀线预告了 key 接下来的去向。",
+      "wires": [
+        "w-key",
+        "d-key1",
+        "d-key2"
+      ],
+      "lines": [
+        [
+          "handler",
+          2
+        ]
+      ],
+      "expand": [
+        "cachekey"
+      ],
+      "focus": [
+        "handler",
+        "cachekey",
+        "n3",
+        "get"
+      ],
+      "storyline": "B"
+    },
+    {
+      "title": "② 命中路径",
+      "caption": "拿 key 查表，命中就直接返回。注意左侧点亮的行注释：这个 early return 绕过了整个下半段，是缓存存在的意义。",
+      "wires": [
+        "w-get",
+        "d-key1"
+      ],
+      "lines": [
+        [
+          "handler",
+          3
+        ],
+        [
+          "handler",
+          4
+        ],
+        [
+          "handler",
+          5
+        ],
+        [
+          "handler",
+          6
+        ]
+      ],
+      "focus": [
+        "n1",
+        "handler",
+        "get"
+      ],
+      "storyline": "A"
+    },
+    {
+      "title": "③ 未命中：回源并写回",
+      "caption": "回源拿到 resp，连同 key 一起写回。两根琥珀线在 store 汇合——「这个值从哪来」在文本里要人肉追踪变量，在图上是一眼的事。",
+      "wires": [
+        "w-fetch",
+        "w-store",
+        "d-key2",
+        "d-resp"
+      ],
+      "lines": [
+        [
+          "handler",
+          7
+        ],
+        [
+          "handler",
+          8
+        ],
+        [
+          "handler",
+          9
+        ]
+      ],
+      "focus": [
+        "n2",
+        "handler",
+        "fetch",
+        "store"
+      ],
+      "storyline": "A"
+    },
+    {
+      "title": "④ 后台淘汰：长函数先读大纲",
+      "caption": "store 写完顺手检查水位。_evict_if_needed 是个 19 行的嵌套函数——先读三根色条组成的大纲，点条展开代码；「单个 entry 打分」里还能再展一层。层级：卡片 → 块大纲 → 代码。",
+      "wires": [
+        "w-evict"
+      ],
+      "lines": [
+        [
+          "store",
+          3
+        ]
+      ],
+      "expand": [
+        "store"
+      ],
+      "focus": [
+        "store",
+        "evict"
+      ],
+      "storyline": "B"
+    }
+  ]
+}

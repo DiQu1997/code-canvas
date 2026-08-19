@@ -1,0 +1,9 @@
+.DS_Store
+node_modules/
+__pycache__/
+*.pyc
+# 评测运行产物与仓库缓存（考生报告的黄金样本在 examples/ 里另存）
+code-canvas/eval/.repos/
+code-canvas/eval/runs/
+# 问答 sidecar（本地会话数据）
+*.qa.json

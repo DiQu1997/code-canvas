@@ -1,0 +1,1429 @@
+{
+ "meta": {
+  "title": "Code Canvas",
+  "subtitle": "codex CLI · 一条 shell 命令的执行与沙箱之旅",
+  "audience": "有经验的后端工程师；Rust 一般；想搞懂执行与沙箱机制；中文"
+ },
+ "regions": [
+  {
+   "id": "A",
+   "title": "故事线 A · 派发与回程",
+   "blurb": "工具调用的进与出",
+   "hue": "blue",
+   "cards": [
+    "c-loop",
+    "c-build",
+    "c-handler",
+    "c-runexec",
+    "c-format"
+   ]
+  },
+  {
+   "id": "B",
+   "title": "故事线 B · 审批与升级",
+   "blurb": "谁点头、要不要沙箱",
+   "hue": "amber",
+   "cards": [
+    "c-orch1",
+    "c-orch2"
+   ]
+  },
+  {
+   "id": "C",
+   "title": "故事线 C · 沙箱落地",
+   "blurb": "把命令包进沙箱 argv",
+   "hue": "green",
+   "cards": [
+    "c-runtime",
+    "c-envfor",
+    "c-transform",
+    "c-linuxargs"
+   ]
+  },
+  {
+   "id": "D",
+   "title": "故事线 D · 执行与回收",
+   "blurb": "spawn、收流、定性",
+   "hue": "violet",
+   "cards": [
+    "c-exec",
+    "c-spawn",
+    "c-consume",
+    "c-final"
+   ]
+  }
+ ],
+ "cards": [
+  {
+   "id": "c-loop",
+   "name": "handle_output_item_done(…) · 工具调用分支",
+   "file": "codex-rs/core/src/stream_events_utils.rs:296",
+   "lang": "rs",
+   "layout": {
+    "col": 0,
+    "band": 0
+   },
+   "collapsed": false,
+   "code": "match ToolRouter::build_tool_call(item.clone()) {\n    // The model emitted a tool call; log it, persist the item\n    // immediately, and queue the tool execution.\n    Ok(Some(call)) => {\n        ctx.sess\n            .input_queue\n            .accept_mailbox_delivery_for_current_turn(\n                &ctx.sess.active_turn,\n                &ctx.turn_context.sub_id,\n            )\n            .await;\n\n        let payload_preview = tool_log_payload(&call.payload,\n            &call.direct_source());\n        tracing::info!(\n            thread_id = %ctx.sess.thread_id,\n            \"ToolCall: {} {}\",\n            call.tool_name,\n            payload_preview\n        );\n\n        record_completed_response_item(ctx.sess.as_ref(),\n            ctx.turn_context.as_ref(), &item)\n            .await;\n\n        let cancellation_token = ctx.cancellation_token.child_token();\n        let tool_future: InFlightFuture<'static> = Box::pin(\n            ctx.tool_runtime\n                .clone()\n                .handle_tool_call(call, cancellation_token),\n        );\n\n        output.needs_follow_up = true;\n        output.tool_future = Some(tool_future);\n    }",
+   "blocks": [
+    {
+     "name": "接收与入账",
+     "summary": "先写入历史再执行",
+     "lines": [
+      4,
+      24
+     ],
+     "explain": "FunctionCall 一到手就记进会话历史与 rollout——即使回合稍后被取消，模型下轮也能看到自己发过这个调用，不会精神分裂。"
+    },
+    {
+     "name": "把执行排成 future",
+     "summary": "真正跑在回合循环里",
+     "lines": [
+      27,
+      34
+     ],
+     "explain": "工具不在这里执行：future 交回回合循环统一驱动，才有并行工具调用与统一取消。future 的结果就是喂回模型的 function_call_output。"
+    }
+   ],
+   "terms": [
+    {
+     "line": 27,
+     "token": "tool_future",
+     "note": "执行工具的异步任务；它的结果就是回给模型的 function_call_output。"
+    }
+   ]
+  },
+  {
+   "id": "c-build",
+   "name": "ToolRouter::build_tool_call(item)",
+   "file": "codex-rs/core/src/tools/router.rs:154",
+   "lang": "rs",
+   "layout": {
+    "col": 0,
+    "band": 1
+   },
+   "collapsed": true,
+   "code": "pub fn build_tool_call(item: ResponseItem) -> Result<Option<ToolCall>,\n    FunctionCallError> {\n    match item {\n        ResponseItem::FunctionCall {\n            name,\n            namespace,\n            arguments,\n            encrypted_function_args,\n            call_id,\n            ..\n        } => {\n            let tool_name = ToolName::new(namespace, name).with_default_namespace();\n            Ok(Some(ToolCall {\n                tool_name,\n                call_id,\n                payload: ToolPayload::Function { arguments },\n                encrypted_function_args,\n            }))\n        }",
+   "terms": [
+    {
+     "line": 16,
+     "token": "ToolPayload",
+     "note": "参数的运输箱：Function 变体装的是未解析的 JSON 字符串。"
+    }
+   ]
+  },
+  {
+   "id": "c-format",
+   "name": "format_exec_output_for_model(…)",
+   "file": "codex-rs/core/src/tools/mod.rs:96",
+   "lang": "rs",
+   "layout": {
+    "col": 0,
+    "band": 2
+   },
+   "collapsed": true,
+   "code": "/// Format the combined exec output for sending back to the model.\n/// Includes exit code and duration metadata; truncates large bodies safely.\npub fn format_exec_output_for_model(\n    exec_output: &ExecToolCallOutput,\n    truncation_policy: TruncationPolicy,\n) -> String {\n    // round to 1 decimal place\n    let duration_seconds = ((exec_output.duration.as_secs_f32()) * 10.0).round() /\n        10.0;\n\n    let content = build_content_with_timeout(exec_output);\n\n    let total_lines = content.lines().count();\n\n    let formatted_output = truncate_text(&content, truncation_policy);\n\n    let mut sections = Vec::new();\n\n    sections.push(format!(\"Exit code: {}\", exec_output.exit_code));\n    sections.push(format!(\"Wall time: {duration_seconds} seconds\"));\n    if total_lines != formatted_output.lines().count() {\n        sections.push(format!(\"Total output lines: {total_lines}\"));\n    }\n\n    sections.push(\"Output:\".to_string());\n    sections.push(formatted_output);\n\n    sections.join(\"\\n\")\n}",
+   "terms": [
+    {
+     "line": 11,
+     "token": "build_content_with_timeout",
+     "note": "聚合 stdout+stderr；若超时，正文前加一行超时说明。"
+    }
+   ]
+  },
+  {
+   "id": "c-handler",
+   "name": "ShellCommandHandler::handle_call(…) · 摘选",
+   "file": "codex-rs/core/src/tools/handlers/shell/shell_command.rs:209",
+   "lang": "rs",
+   "layout": {
+    "col": 1,
+    "band": 0
+   },
+   "collapsed": true,
+   "code": "    let cwd = resolve_workdir_base_path(&arguments, &environment_cwd)?;\n    let params: ShellCommandToolCallParams =\n        parse_arguments_with_base_path(&arguments, &cwd)?;\n    maybe_emit_implicit_skill_invocation(\n        session.as_ref(),\n        turn.as_ref(),\n        &params.command,\n        &PathUri::from_abs_path(&cwd),\n        Some(&cwd),\n        LOCAL_ENVIRONMENT_ID,\n    )\n    .await;\n    let prefix_rule = params.prefix_rule.clone();\n    let exec_params = Self::to_exec_params(\n        &params,\n        session.as_ref(),\n        turn.as_ref(),\n        &turn_environment,\n        cwd,\n    )?;\n    let shell_type = Some(\n        turn_environment\n            .shell\n            .as_ref()\n            .map_or_else(|| session.user_shell().shell_type,\n                |shell| shell.shell_type),\n    );\n    run_exec_like(RunExecLikeArgs {\n        tool_name,\n        exec_params,\n        cancellation_token,\n        hook_command: params.command,\n        shell_type,\n        additional_permissions: params.additional_permissions.clone(),\n        prefix_rule,\n        session,\n        step_context,\n        turn_environment,\n        tracker,\n        call_id,\n        shell_runtime_backend: self.shell_runtime_backend(),\n    })\n    .await\n    .map(boxed_tool_output)\n}",
+   "blocks": [
+    {
+     "name": "解析参数与 cwd",
+     "summary": "workdir 相对环境 cwd",
+     "lines": [
+      1,
+      12
+     ]
+    },
+    {
+     "name": "组 ExecParams",
+     "summary": "shell 包装与受控 env",
+     "lines": [
+      13,
+      27
+     ],
+     "explain": "to_exec_params 把命令交给用户 shell 包一层（bash -lc 等），按策略生成干净 env，并解析 sandbox_permissions——模型可以在参数里请求升级权限。"
+    },
+    {
+     "name": "移交 run_exec_like",
+     "summary": "shell 工具的共同管线",
+     "lines": [
+      28,
+      44
+     ]
+    }
+   ],
+   "terms": [
+    {
+     "line": 13,
+     "token": "prefix_rule",
+     "note": "模型建议的『同前缀命令以后免审』规则，交给 execpolicy 评估。"
+    }
+   ]
+  },
+  {
+   "id": "c-runexec",
+   "name": "run_exec_like(args) · 主体",
+   "file": "codex-rs/core/src/tools/handlers/shell.rs:180",
+   "lang": "rs",
+   "layout": {
+    "col": 1,
+    "band": 1
+   },
+   "collapsed": false,
+   "code": "    let exec_approval_requirement = session\n        .services\n        .exec_policy\n        .create_exec_approval_requirement_for_command(ExecApprovalRequest {\n            command: &exec_params.command,\n            approval_policy: turn.approval_policy(),\n            permission_profile: turn_environment.permission_profile().clone(),\n            windows_sandbox_level: turn.windows_sandbox_level,\n            sandbox_permissions: if\n                effective_additional_permissions.permissions_preapproved {\n                codex_protocol::models::SandboxPermissions::UseDefault\n            } else {\n                effective_additional_permissions.sandbox_permissions\n            },\n            prefix_rule,\n            allow_prefix_rules: turn.allow_prefix_rules(),\n        })\n        .await;\n\n    let req = ShellRequest {\n        command: exec_params.command.clone(),\n        turn_environment: turn_environment.clone(),\n        shell_type,\n        hook_command,\n        cwd: exec_params.cwd.clone(),\n        timeout_ms: exec_params.expiration.timeout_ms(),\n        cancellation_token,\n        env,\n        explicit_env_overrides,\n        network: exec_params.network.clone(),\n        sandbox_permissions: effective_additional_permissions.sandbox_permissions,\n        additional_permissions: normalized_additional_permissions,\n        #[cfg(unix)]\n        additional_permissions_preapproved: effective_additional_permissions\n            .permissions_preapproved,\n        justification: exec_params.justification.clone(),\n        exec_approval_requirement,\n    };\n    let mut orchestrator = ToolOrchestrator::new();\n    let mut runtime = ShellRuntime::for_shell_command(shell_runtime_backend);\n    let tool_ctx = ToolCtx {\n        session: session.clone(),\n        step_context,\n        call_id: call_id.clone(),\n        tool_name,\n    };\n    let out = orchestrator\n        .run(&mut runtime, &req, &tool_ctx, &turn, turn.approval_policy())\n        .await\n        .map(|result| result.output);\n    let event_ctx = ToolEventCtx::new(\n        session.as_ref(),\n        turn.as_ref(),\n        &call_id,\n        /*turn_diff_tracker*/ None,\n    );\n    let post_tool_use_response = out\n        .as_ref()\n        .ok()\n        .map(|output| {\n            crate::tools::format_exec_output_str(output,\n                turn.model_info.truncation_policy.into())\n        })\n        .map(JsonValue::String);\n    let content = emitter\n        .finish(event_ctx, out, /*applied_patch_delta*/ None)\n        .await?;\n    Ok(FunctionToolOutput {\n        body: vec![\n            codex_protocol::models::FunctionCallOutputContentItem::InputText { text:\n                content },\n        ],\n        success: Some(true),\n        post_tool_use_response,\n    })\n}",
+   "blocks": [
+    {
+     "name": "问 execpolicy 要判决",
+     "summary": "免审/需审/禁止三选一",
+     "lines": [
+      1,
+      18
+     ],
+     "explain": "规则引擎按解析后的命令匹配：Allow 可免审甚至免沙箱，Forbidden 当场拒绝，其余按审批策略落到 Skip 或 NeedsApproval。判决先算好，由编排器执行。"
+    },
+    {
+     "name": "组装 ShellRequest",
+     "summary": "执行所需的全部上下文",
+     "lines": [
+      20,
+      38
+     ]
+    },
+    {
+     "name": "交给编排器",
+     "summary": "审批→沙箱→执行→重试",
+     "lines": [
+      39,
+      50
+     ]
+    },
+    {
+     "name": "格式化回执",
+     "summary": "exit code 拼进正文",
+     "lines": [
+      51,
+      67
+     ]
+    },
+    {
+     "name": "回礼给模型",
+     "summary": "文本装进 tool output",
+     "lines": [
+      68,
+      76
+     ]
+    }
+   ],
+   "terms": [
+    {
+     "line": 1,
+     "token": "exec_approval_requirement",
+     "note": "execpolicy 的判决书：Skip(可带免沙箱)/NeedsApproval/Forbidden。"
+    },
+    {
+     "line": 65,
+     "token": "emitter",
+     "note": "向 UI 广播 begin/finish 事件的助手，finish 顺便产出给模型的文本。"
+    }
+   ]
+  },
+  {
+   "id": "c-orch1",
+   "name": "ToolOrchestrator::run · ① 审批与首攻",
+   "file": "codex-rs/core/src/tools/orchestrator.rs:168",
+   "lang": "rs",
+   "layout": {
+    "col": 2,
+    "band": 0
+   },
+   "collapsed": false,
+   "code": "let requirement = tool.exec_approval_requirement(req).unwrap_or_else(|| {\n    default_exec_approval_requirement(approval_policy, &file_system_sandbox_policy)\n});\nmatch &requirement {\n    ExecApprovalRequirement::Skip { .. } => {\n        if strict_auto_review {\n            let action = tool\n                .approval_action(req, &tool_ctx.call_id)\n                .map_err(|err| {\n                    ToolError::Rejected(format!(\"could not prepare approval action:\n                        {err}\"))\n                })?;\n            let approval_ctx = ApprovalContext {\n                review_context: GuardianReviewContext::from(&tool_ctx.step_context),\n                call_id: tool_ctx.call_id.clone(),\n                tool_name: tool_ctx.tool_name.clone(),\n                strict_auto_review,\n                approval_reason: None,\n                retry_reason: None,\n                network_approval_context: None,\n            };\n            tool_ctx\n                .session\n                .request_approval(action, approval_ctx)\n                .await?;\n            already_approved = true;\n        } else {\n            otel.tool_decision(\n                &otel_tn,\n                otel_ci,\n                &ReviewDecision::Approved,\n                Some(ToolDecisionSource::Config),\n            );\n        }\n    }\n    ExecApprovalRequirement::Forbidden { reason } => {\n        return Err(ToolError::Rejected(reason.clone()));\n    }\n    ExecApprovalRequirement::NeedsApproval { reason, .. } => {\n        let action = tool\n            .approval_action(req, &tool_ctx.call_id)\n            .map_err(|err| {\n                ToolError::Rejected(format!(\"could not prepare approval action:\n                    {err}\"))\n            })?;\n        let approval_ctx = ApprovalContext {\n            review_context: GuardianReviewContext::from(&tool_ctx.step_context),\n            call_id: tool_ctx.call_id.clone(),\n            tool_name: tool_ctx.tool_name.clone(),\n            strict_auto_review,\n            approval_reason: reason.clone(),\n            retry_reason: None,\n            network_approval_context: None,\n        };\n        tool_ctx\n            .session\n            .request_approval(action, approval_ctx)\n            .await?;\n        already_approved = true;\n    }\n}\n\n// 2) First attempt under the selected sandbox.\nlet sandbox_override = sandbox_override_for_first_attempt(\n    tool.sandbox_permissions(req),\n    &requirement,\n    &file_system_sandbox_policy,\n);\nlet managed_network_active = turn_ctx.network.is_some();\nlet sandbox_preference = tool.sandbox_preference();\nlet sandbox_requested = match sandbox_override {\n    SandboxOverride::BypassSandboxFirstAttempt => false,\n    SandboxOverride::NoOverride => self.sandbox.should_sandbox(\n        &permissions,\n        sandbox_preference,\n        managed_network_active,\n    ),\n};\nlet initial_sandbox = if sandbox_requested && !executor_managed_process_sandbox {\n    self.sandbox.select_initial(\n        &permissions,\n        sandbox_preference,\n        turn_ctx.windows_sandbox_level,\n        managed_network_active,\n    )\n} else {\n    SandboxType::None\n};\n\n// Platform-specific flag gating is handled by SandboxManager::select_initial.\nlet use_legacy_landlock = turn_ctx.config.features.use_legacy_landlock();\nlet sandbox_policy_cwd = tool\n    .sandbox_cwd(req)\n    .cloned()\n    .unwrap_or_else(|| environment.cwd().clone());\nlet initial_attempt = SandboxAttempt {\n    sandbox: initial_sandbox,\n    sandbox_requested,\n    permissions: &permissions,\n    exec_server_permissions: permission_profile,\n    enforce_managed_network: managed_network_active,\n    manager: &self.sandbox,\n    sandbox_cwd: &sandbox_policy_cwd,\n    workspace_roots,\n    codex_linux_sandbox_exe: turn_ctx.config.codex_linux_sandbox_exe.as_ref(),\n    use_legacy_landlock,\n    windows_sandbox_level: turn_ctx.windows_sandbox_level,\n    windows_sandbox_private_desktop: turn_ctx\n        .config\n        .permissions\n        .windows_sandbox_private_desktop,\n    network_denial_cancellation_token: None,\n    network_proxy: None,\n};\n\nlet initial_attempt_start = Instant::now();\nlet (first_result, first_deferred_network_approval) = Self::run_attempt(\n    tool,\n    req,\n    tool_ctx,\n    &initial_attempt,\n    managed_network_active,\n)\n.await;\nlet initial_duration = initial_attempt_start.elapsed();\nmatch first_result {\n    Ok(out) => {\n        // We have a successful initial result\n        Ok(OrchestratorRunResult {\n            output: out,\n            deferred_network_approval: first_deferred_network_approval,\n        })\n    }",
+   "blocks": [
+    {
+     "name": "默认审批需求",
+     "summary": "策略×文件沙箱推默认",
+     "lines": [
+      1,
+      3
+     ]
+    },
+    {
+     "name": "审批三分支",
+     "summary": "Skip、禁止、或问用户",
+     "lines": [
+      4,
+      61
+     ],
+     "explain": "Skip 直接放行（严格自动评审除外）；Forbidden 当场拒绝；NeedsApproval 调 request_approval：发事件给 UI，挂在 oneshot channel 上等用户点头，结果按命令缓存。"
+    },
+    {
+     "name": "首攻要不要沙箱",
+     "summary": "策略放行或升级则裸跑",
+     "lines": [
+      63,
+      88
+     ]
+    },
+    {
+     "name": "组装 SandboxAttempt",
+     "summary": "一次尝试的沙箱语境",
+     "lines": [
+      90,
+      114
+     ]
+    },
+    {
+     "name": "第一次执行",
+     "summary": "成功即返回，失败看下文",
+     "lines": [
+      116,
+      133
+     ]
+    }
+   ],
+   "terms": [
+    {
+     "line": 71,
+     "token": "sandbox_requested",
+     "note": "策略层面要不要沙箱——与平台上有没有可用沙箱是两回事。"
+    },
+    {
+     "line": 96,
+     "token": "SandboxAttempt",
+     "note": "一次尝试的沙箱语境：类型、权限、cwd、平台参数、网络代理。"
+    }
+   ]
+  },
+  {
+   "id": "c-orch2",
+   "name": "ToolOrchestrator::run · ② 升级重试",
+   "file": "codex-rs/core/src/tools/orchestrator.rs:381",
+   "lang": "rs",
+   "layout": {
+    "col": 2,
+    "band": 2
+   },
+   "collapsed": true,
+   "code": "let retry_reason =\n    if let Some(network_approval_context) = network_approval_context.as_ref() {\n        format!(\n            \"Network access to \\\"{}\\\" is blocked by policy.\",\n            network_approval_context.host\n        )\n    } else {\n        build_denial_reason_from_output(output.as_ref())\n    };\n\n// Strict auto-review approval covers the sandboxed attempt only;\n// retrying without the sandbox requires a fresh guardian review.\nlet bypass_retry_approval = !strict_auto_review\n    && tool.should_bypass_approval(approval_policy, already_approved)\n    && network_approval_context.is_none();\nif !bypass_retry_approval {\n    let approval_reason = match &requirement {\n        ExecApprovalRequirement::NeedsApproval { reason, .. } => reason.clone(),\n        ExecApprovalRequirement::Skip { .. }\n        | ExecApprovalRequirement::Forbidden { .. } => None,\n    };\n    let action = tool\n        .approval_action(req, &tool_ctx.call_id)\n        .map_err(|err| {\n            ToolError::Rejected(format!(\"could not prepare approval action: {err}\"))\n        })?;\n    let approval_ctx = ApprovalContext {\n        review_context: GuardianReviewContext::from(&tool_ctx.step_context),\n        call_id: tool_ctx.call_id.clone(),\n        tool_name: tool_ctx.tool_name.clone(),\n        strict_auto_review,\n        approval_reason,\n        retry_reason: Some(retry_reason),\n        network_approval_context: network_approval_context.clone(),\n    };\n\n    tool_ctx\n        .session\n        .request_approval(action, approval_ctx)\n        .await?;\n}\n\nlet retry_sandbox_requested = !unsandboxed_allowed\n    && self.sandbox.should_sandbox(\n        &permissions,\n        sandbox_preference,\n        managed_network_active,\n    );\nlet retry_sandbox = if retry_sandbox_requested && !executor_managed_process_sandbox\n{\n    self.sandbox.select_initial(\n        &permissions,\n        sandbox_preference,\n        turn_ctx.windows_sandbox_level,\n        managed_network_active,\n    )\n} else {\n    SandboxType::None\n};\nlet retry_codex_linux_sandbox_exe = if unsandboxed_allowed {\n    None\n} else {\n    turn_ctx.config.codex_linux_sandbox_exe.as_ref()\n};\nlet retry_attempt = SandboxAttempt {\n    sandbox: retry_sandbox,\n    sandbox_requested: retry_sandbox_requested,\n    permissions: &permissions,\n    exec_server_permissions: permission_profile,\n    enforce_managed_network: managed_network_active,\n    manager: &self.sandbox,\n    sandbox_cwd: &sandbox_policy_cwd,\n    workspace_roots,\n    codex_linux_sandbox_exe: retry_codex_linux_sandbox_exe,\n    use_legacy_landlock,\n    windows_sandbox_level: turn_ctx.windows_sandbox_level,\n    windows_sandbox_private_desktop: turn_ctx\n        .config\n        .permissions\n        .windows_sandbox_private_desktop,\n    network_denial_cancellation_token: None,\n    network_proxy: None,\n};\n\n// Second attempt.\nlet escalated_attempt_start = Instant::now();\nlet (retry_result, retry_deferred_network_approval) =\n    Self::run_attempt(tool, req, tool_ctx, &retry_attempt, managed_network_active)\n        .await;\nlet escalated_duration = escalated_attempt_start.elapsed();\nmatch retry_result {\n    Ok(output) => {\n        otel.sandbox_outcome(\n            &otel_tn,\n            otel_ci,\n            \"escalated\",\n            initial_duration,\n            Some(escalated_duration),\n        );\n        Ok(OrchestratorRunResult {\n            output,\n            deferred_network_approval: retry_deferred_network_approval,\n        })\n    }\n    Err(err) => {\n        if let Some(outcome) = sandbox_outcome_from_tool_error(&err) {\n            otel.sandbox_outcome(\n                &otel_tn,\n                otel_ci,\n                outcome,\n                initial_duration,\n                Some(escalated_duration),\n            );\n        }\n        Err(err)\n    }\n}",
+   "blocks": [
+    {
+     "name": "造一句重试理由",
+     "summary": "给用户看的一行话",
+     "lines": [
+      1,
+      9
+     ],
+     "explain": "build_denial_reason_from_output 固定返回『command failed; retry without sandbox?』——理由刻意简短稳定，方便 UI 与测试。"
+    },
+    {
+     "name": "重试前再审批",
+     "summary": "批过或 Never 则跳过",
+     "lines": [
+      11,
+      41
+     ],
+     "explain": "should_bypass_approval：第一次已点过头、或策略是 Never，就不再打扰用户；否则带着 retry_reason 再弹一次审批。网络拒绝时总是再问。"
+    },
+    {
+     "name": "重选沙箱：通常裸跑",
+     "summary": "无 denied-read 即 None",
+     "lines": [
+      43,
+      64
+     ],
+     "explain": "允许无沙箱执行时 retry_sandbox_requested=false → SandboxType::None，真正“出沙箱”。若策略含 denied-read 路径，必须留在沙箱里重试。"
+    },
+    {
+     "name": "组装重试 Attempt",
+     "summary": "同一语境，换沙箱类型",
+     "lines": [
+      65,
+      83
+     ]
+    },
+    {
+     "name": "第二次执行",
+     "summary": "成功记 escalated",
+     "lines": [
+      85,
+      117
+     ]
+    }
+   ],
+   "terms": [
+    {
+     "line": 13,
+     "token": "bypass_retry_approval",
+     "note": "重试免再审的条件：非严格评审 + 已批过(或 Never) + 非网络拒绝。"
+    }
+   ]
+  },
+  {
+   "id": "c-consume",
+   "name": "consume_output(child, …)",
+   "file": "codex-rs/core/src/exec.rs:967",
+   "lang": "rs",
+   "layout": {
+    "col": 2,
+    "band": 4
+   },
+   "collapsed": true,
+   "code": "let retained_bytes_cap = capture_policy.retained_bytes_cap();\nlet stdout_handle = tokio::spawn(read_output(\n    BufReader::new(stdout_reader),\n    stdout_stream.clone(),\n    /*is_stderr*/ false,\n    retained_bytes_cap,\n));\nlet stderr_handle = tokio::spawn(read_output(\n    BufReader::new(stderr_reader),\n    stdout_stream.clone(),\n    /*is_stderr*/ true,\n    retained_bytes_cap,\n));\n\nlet expiration_wait = async {\n    if capture_policy.uses_expiration() {\n        Some(expiration.wait_with_outcome().await)\n    } else {\n        std::future::pending::<Option<ExecExpirationOutcome>>().await\n    }\n};\ntokio::pin!(expiration_wait);\nlet (exit_status, timed_out) = tokio::select! {\n    status_result = child.wait() => {\n        let exit_status = status_result?;\n        (exit_status, false)\n    }\n    outcome = &mut expiration_wait => {\n        match outcome {\n            Some(ExecExpirationOutcome::TimedOut) => {\n                kill_child_process_group(&mut child)?;\n                child.start_kill()?;\n                (\n                    synthetic_exit_status(EXIT_CODE_SIGNAL_BASE + TIMEOUT_CODE),\n                    true,\n                )\n            }\n            Some(ExecExpirationOutcome::Cancelled) => {\n                // Let TERM-aware processes run cleanup briefly, then kill any\n                // remaining members of the original process group.\n                let process_group_id = child.id();\n                let should_escalate = if let Some(process_group_id) =\n                    process_group_id {\n                    codex_utils_pty::process_group::terminate_process_group(process_group_id)?\n                } else {\n                    false\n                };\n                match tokio::time::timeout(\n                    CANCELLATION_TERMINATION_GRACE_PERIOD,\n                    child.wait(),\n                )\n                .await\n                {\n                    Ok(status) => {\n                        status?;\n                        if should_escalate\n                            && let Some(process_group_id) = process_group_id\n                        {\n                            codex_utils_pty::process_group::kill_process_group(\n                                process_group_id,\n                            )?;\n                        }\n                    }\n                    Err(_) => {\n                        kill_child_process_group(&mut child)?;\n                        child.start_kill()?;\n                    }\n                }\n                (synthetic_exit_status_for_code(/*code*/ 1), false)\n            }\n            None => unreachable!(\"expiration wait only resolves while expiration is\n                active\"),\n        }\n    }\n    _ = tokio::signal::ctrl_c() => {\n        kill_child_process_group(&mut child)?;\n        child.start_kill()?;\n        (synthetic_exit_status(EXIT_CODE_SIGNAL_BASE + SIGKILL_CODE), false)\n    }\n};",
+   "blocks": [
+    {
+     "name": "两条读流水线",
+     "summary": "边攒缓冲边发增量",
+     "lines": [
+      1,
+      13
+     ],
+     "explain": "read_output 每读 8KiB：有订阅者就把增量作为 ExecCommandOutputDelta 事件发给 UI 实时显示（至多一万条）；缓冲各自封顶防 OOM，但读到 EOF 为止防背压。模型只拿最终聚合文本。"
+    },
+    {
+     "name": "到期条件挂起",
+     "summary": "无到期策略则永远等",
+     "lines": [
+      15,
+      22
+     ]
+    },
+    {
+     "name": "select!：谁先到听谁的",
+     "summary": "退出/到点/Ctrl-C",
+     "lines": [
+      23,
+      80
+     ],
+     "explain": "child.wait、到期(超时∪取消)、Ctrl-C 三路竞争。到点的两路都杀整个进程组——孙进程若继承了管道，还得靠 2s 排水超时兜底。",
+     "children": [
+      {
+       "name": "超时：整组 SIGKILL",
+       "summary": "128+64 合成退出码",
+       "lines": [
+        30,
+        37
+       ]
+      },
+      {
+       "name": "取消：先 TERM 再 KILL",
+       "summary": "给 50ms 体面退场",
+       "lines": [
+        38,
+        70
+       ]
+      }
+     ]
+    }
+   ],
+   "terms": [
+    {
+     "line": 17,
+     "token": "expiration",
+     "note": "超时与取消的合一表达；wait_with_outcome 说明是哪种。"
+    }
+   ]
+  },
+  {
+   "id": "c-runtime",
+   "name": "ShellRuntime::run(…) · 执行臂",
+   "file": "codex-rs/core/src/tools/runtimes/shell.rs:285",
+   "lang": "rs",
+   "layout": {
+    "col": 3,
+    "band": 0
+   },
+   "collapsed": false,
+   "code": "let out = if let Some(out) = zsh_fork_output {\n    out\n} else {\n    let sidecar_permissions = metrics_sidecar\n        .as_ref()\n        .map(PluginMetricsSidecar::additional_permissions);\n    let additional_permissions = merge_permission_profiles(\n        req.additional_permissions.as_ref(),\n        sidecar_permissions.as_ref(),\n    );\n    let command = build_sandbox_command(&command, &req.cwd, &env,\n        additional_permissions)?;\n    let mut expiration: crate::exec::ExecExpiration = req.timeout_ms.into();\n    expiration = expiration.with_cancellation(req.cancellation_token.clone());\n    if let Some(cancellation) = attempt.network_denial_cancellation_token.clone() {\n        expiration = expiration.with_cancellation(cancellation);\n    }\n    let options = ExecOptions {\n        expiration,\n        capture_policy: ExecCapturePolicy::ShellTool,\n    };\n    let env = attempt\n        .env_for(\n            command,\n            options,\n            managed_network,\n            Some(&req.turn_environment.selection.environment_id),\n        )\n        .map_err(ToolError::Codex)?;\n    execute_env(env, Self::stdout_stream(ctx))\n        .await\n        .map_err(ToolError::Codex)?\n};",
+   "blocks": [
+    {
+     "name": "zsh-fork 旁路口",
+     "summary": "另一后端跑完则直取",
+     "lines": [
+      1,
+      3
+     ]
+    },
+    {
+     "name": "组 SandboxCommand 与到期",
+     "summary": "超时∪取消，先到先杀",
+     "lines": [
+      4,
+      21
+     ]
+    },
+    {
+     "name": "env_for：包装成 ExecRequest",
+     "summary": "沙箱包装在这步发生",
+     "lines": [
+      22,
+      29
+     ]
+    },
+    {
+     "name": "执行",
+     "summary": "统一走 execute_env",
+     "lines": [
+      30,
+      32
+     ]
+    }
+   ],
+   "terms": [
+    {
+     "line": 11,
+     "token": "build_sandbox_command",
+     "note": "把 argv+cwd+env 打包成 SandboxCommand——还没包沙箱，只是原料。"
+    },
+    {
+     "line": 22,
+     "token": "attempt",
+     "note": "编排器递来的本次尝试语境；首攻与重试各调一遍本函数。"
+    }
+   ]
+  },
+  {
+   "id": "c-envfor",
+   "name": "SandboxAttempt::env_for(…)",
+   "file": "codex-rs/core/src/tools/sandboxing.rs:425",
+   "lang": "rs",
+   "layout": {
+    "col": 3,
+    "band": 1
+   },
+   "collapsed": true,
+   "code": "pub fn env_for(\n    &self,\n    command: SandboxCommand,\n    options: ExecOptions,\n    network: Option<&NetworkProxy>,\n    environment_id: Option<&str>,\n) -> Result<crate::sandboxing::ExecRequest, CodexErr> {\n    let network = self.network_proxy(network);\n    let request = self\n        .manager\n        .transform(SandboxTransformRequest {\n            command,\n            permissions: self.permissions,\n            sandbox: self.sandbox,\n            enforce_managed_network: self.enforce_managed_network,\n            environment_id,\n            network,\n            sandbox_policy_cwd: self.sandbox_cwd,\n            codex_linux_sandbox_exe: self\n                .codex_linux_sandbox_exe\n                .map(std::path::PathBuf::as_path),\n            use_legacy_landlock: self.use_legacy_landlock,\n            windows_sandbox_level: self.windows_sandbox_level,\n            windows_sandbox_private_desktop: self.windows_sandbox_private_desktop,\n        })\n        .map_err(CodexErr::from)?;\n    let workspace_roots = self\n        .workspace_roots\n        .iter()\n        .map(PathUri::to_abs_path)\n        .collect::<std::io::Result<Vec<_>>>()?;\n    crate::sandboxing::ExecRequest::from_sandbox_exec_request(request, options,\n        workspace_roots)\n}",
+   "blocks": [
+    {
+     "name": "调 manager.transform",
+     "summary": "跨平台包装唯一入口",
+     "lines": [
+      9,
+      26
+     ]
+    },
+    {
+     "name": "转成 ExecRequest",
+     "summary": "URI 落成本机路径",
+     "lines": [
+      27,
+      34
+     ]
+    }
+   ]
+  },
+  {
+   "id": "c-exec",
+   "name": "exec(…) · 落点",
+   "file": "codex-rs/core/src/exec.rs:917",
+   "lang": "rs",
+   "layout": {
+    "col": 3,
+    "band": 4
+   },
+   "collapsed": false,
+   "code": "    let (program, args) = command.split_first().ok_or_else(|| {\n        CodexErr::Io(io::Error::new(\n            io::ErrorKind::InvalidInput,\n            \"command args are empty\",\n        ))\n    })?;\n    let arg0_ref = arg0.as_deref();\n    let child = spawn_child_async(SpawnChildRequest {\n        program: PathBuf::from(program),\n        args: args.into(),\n        arg0: arg0_ref,\n        cwd,\n        network_sandbox_policy,\n        // The environment already has attempt-scoped proxy settings from\n        // apply_to_env_for_attempt above. Passing network here would reapply\n        // non-attempt proxy vars and drop attempt correlation metadata.\n        network: None,\n        stdio_policy: StdioPolicy::RedirectForShellTool,\n        env,\n    })\n    .await?;\n    if let Some(after_spawn) = after_spawn {\n        after_spawn();\n    }\n    consume_output(child, expiration, capture_policy, stdout_stream).await\n}",
+   "blocks": [
+    {
+     "name": "argv 拆头",
+     "summary": "空命令直接报错",
+     "lines": [
+      1,
+      6
+     ]
+    },
+    {
+     "name": "spawn：进程在这里出生",
+     "summary": "argv 已含沙箱前缀",
+     "lines": [
+      7,
+      21
+     ]
+    },
+    {
+     "name": "回调 + 移交收流",
+     "summary": "输出交给 consume",
+     "lines": [
+      22,
+      25
+     ]
+    }
+   ]
+  },
+  {
+   "id": "c-transform",
+   "name": "SandboxManager::transform · 包装臂",
+   "file": "codex-rs/sandboxing/src/manager.rs:353",
+   "lang": "rs",
+   "layout": {
+    "col": 4,
+    "band": 0
+   },
+   "collapsed": false,
+   "code": "let mut argv = Vec::with_capacity(1 + command.args.len());\nargv.push(command.program);\nargv.extend(command.args.into_iter().map(OsString::from));\n\nlet (argv, arg0_override, pending_sandboxed_request) = match sandbox {\n    SandboxType::None => (os_argv_to_strings(argv), None, None),\n    #[cfg(target_os = \"macos\")]\n    SandboxType::MacosSeatbelt => {\n        use crate::seatbelt::CreateSeatbeltCommandArgsParams;\n        use crate::seatbelt::MACOS_PATH_TO_SEATBELT_EXECUTABLE;\n        use crate::seatbelt::create_seatbelt_command_args_with_profile;\n\n        let pending = pending_sandboxed_request?;\n        let (file_system_sandbox_policy, network_sandbox_policy) = pending\n            .effective_permission_profile\n            .to_runtime_permissions();\n        let mut args = create_seatbelt_command_args_with_profile(\n            CreateSeatbeltCommandArgsParams {\n                command: os_argv_to_strings(argv),\n                file_system_sandbox_policy: &file_system_sandbox_policy,\n                network_sandbox_policy,\n                sandbox_policy_cwd: pending.native_sandbox_policy_cwd.as_path(),\n                enforce_managed_network,\n                managed_network,\n                environment_id,\n                network,\n                extra_allow_unix_sockets: &[],\n            },\n            self.seatbelt_profile,\n        )\n        .map_err(SandboxTransformError::EnvironmentNetworkProxy)?;\n        let mut full_command = Vec::with_capacity(1 + args.len());\n        full_command.push(MACOS_PATH_TO_SEATBELT_EXECUTABLE.to_string());\n        full_command.append(&mut args);\n        (full_command, None, Some(pending))\n    }\n    #[cfg(not(target_os = \"macos\"))]\n    SandboxType::MacosSeatbelt => return\n        Err(SandboxTransformError::SeatbeltUnavailable),\n    SandboxType::LinuxSeccomp => {\n        let pending = pending_sandboxed_request?;\n        let exe = codex_linux_sandbox_exe\n            .ok_or(SandboxTransformError::MissingLinuxSandboxExecutable)?;\n        let allow_proxy_network = allow_network_for_proxy(enforce_managed_network);\n        #[cfg(target_os = \"linux\")]\n        ensure_linux_bubblewrap_is_supported(\n            &pending\n                .effective_permission_profile\n                .file_system_sandbox_policy(),\n            use_legacy_landlock,\n            allow_proxy_network,\n            is_wsl1(),\n        )?;\n        let mut args = create_linux_sandbox_command_args_for_permission_profile(\n            os_argv_to_strings(argv),\n            pending.native_command_cwd.as_path(),\n            &pending.effective_permission_profile,\n            pending.native_sandbox_policy_cwd.as_path(),\n            use_legacy_landlock,\n            allow_proxy_network,\n        );\n        let mut full_command = Vec::with_capacity(1 + args.len());\n        full_command.push(os_string_to_command_component(exe.as_os_str().to_owned()));\n        full_command.append(&mut args);\n        (\n            full_command,\n            Some(linux_sandbox_arg0_override(exe)),\n            Some(pending),\n        )\n    }",
+   "blocks": [
+    {
+     "name": "拼 argv",
+     "summary": "program + args",
+     "lines": [
+      1,
+      3
+     ]
+    },
+    {
+     "name": "None：原样放行",
+     "summary": "不需要沙箱就不包",
+     "lines": [
+      5,
+      6
+     ]
+    },
+    {
+     "name": "macOS：sandbox-exec",
+     "summary": "-p 传入生成的 SBPL",
+     "lines": [
+      7,
+      36
+     ],
+     "explain": "把权限档翻译成 Seatbelt 的 SBPL 策略文本，argv 变成 /usr/bin/sandbox-exec -p <policy> -D… -- 原命令。固定用 /usr/bin 防篡改。"
+    },
+    {
+     "name": "非 macOS 兜底",
+     "summary": "报 SeatbeltUnavailable",
+     "lines": [
+      37,
+      39
+     ]
+    },
+    {
+     "name": "Linux：helper 前缀",
+     "summary": "codex-linux-sandbox 包一层",
+     "lines": [
+      40,
+      70
+     ],
+     "explain": "argv 变成 codex-linux-sandbox --permission-profile <json> -- 原命令。helper 是 codex 按 argv[0] 分身，默认 bwrap+seccomp，先自囚再 exec 目标。"
+    }
+   ],
+   "terms": [
+    {
+     "line": 67,
+     "token": "linux_sandbox_arg0_override",
+     "note": "argv[0] 改名 codex-linux-sandbox：codex 自身按 arg0 分身成 helper。"
+    }
+   ]
+  },
+  {
+   "id": "c-linuxargs",
+   "name": "create_linux_sandbox_command_args…(…)",
+   "file": "codex-rs/sandboxing/src/landlock.rs:23",
+   "lang": "rs",
+   "layout": {
+    "col": 4,
+    "band": 2
+   },
+   "collapsed": true,
+   "code": "pub fn create_linux_sandbox_command_args_for_permission_profile(\n    command: Vec<String>,\n    command_cwd: &Path,\n    permission_profile: &PermissionProfile,\n    sandbox_policy_cwd: &Path,\n    use_legacy_landlock: bool,\n    allow_network_for_proxy: bool,\n) -> Vec<String> {\n    let permission_profile_json = serde_json::to_string(permission_profile)\n        .unwrap_or_else(|err| panic!(\"failed to serialize permission profile:\n            {err}\"));\n    let sandbox_policy_cwd = sandbox_policy_cwd\n        .to_str()\n        .unwrap_or_else(|| panic!(\"cwd must be valid UTF-8\"))\n        .to_string();\n    let command_cwd = command_cwd\n        .to_str()\n        .unwrap_or_else(|| panic!(\"command cwd must be valid UTF-8\"))\n        .to_string();\n\n    let mut linux_cmd: Vec<String> = vec![\n        \"--sandbox-policy-cwd\".to_string(),\n        sandbox_policy_cwd,\n        \"--command-cwd\".to_string(),\n        command_cwd,\n        \"--permission-profile\".to_string(),\n        permission_profile_json,\n    ];\n    // Proxy-only networking requires bubblewrap's isolated network namespace.\n    if use_legacy_landlock && !allow_network_for_proxy {\n        linux_cmd.push(\"--use-legacy-landlock\".to_string());\n    }\n    if allow_network_for_proxy {\n        linux_cmd.push(\"--allow-network-for-proxy\".to_string());\n    }\n    linux_cmd.push(\"--\".to_string());\n    linux_cmd.extend(command);\n    linux_cmd\n}",
+   "blocks": [
+    {
+     "name": "权限档序列化成 JSON",
+     "summary": "整个 PermissionProfile",
+     "lines": [
+      9,
+      19
+     ]
+    },
+    {
+     "name": "helper 标志位",
+     "summary": "网络/旧 landlock 开关",
+     "lines": [
+      21,
+      35
+     ]
+    },
+    {
+     "name": "-- 后接原命令",
+     "summary": "防参数被误解析",
+     "lines": [
+      36,
+      38
+     ]
+    }
+   ]
+  },
+  {
+   "id": "c-spawn",
+   "name": "spawn_child_async(req) · 主体",
+   "file": "codex-rs/core/src/spawn.rs:70",
+   "lang": "rs",
+   "layout": {
+    "col": 4,
+    "band": 4
+   },
+   "collapsed": true,
+   "code": "    let mut cmd = Command::new(&program);\n    #[cfg(unix)]\n    cmd.arg0(arg0.map_or_else(|| program.to_string_lossy().to_string(),\n        String::from));\n    cmd.args(args);\n    cmd.current_dir(cwd);\n    if let Some(network) = network {\n        network.apply_to_env(&mut env);\n    }\n    // macOS fd cleanup must keep the shell escalation socket.\n    #[cfg(target_os = \"macos\")]\n    let inherited_fd = env\n        .get(codex_shell_escalation::ESCALATE_SOCKET_ENV_VAR)\n        .and_then(|fd| fd.parse().ok());\n    cmd.env_clear();\n    cmd.envs(env);\n\n    if !network_sandbox_policy.is_enabled() {\n        cmd.env(CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR, \"1\");\n    }\n\n    // If this Codex process dies (including being killed via SIGKILL), we want\n    // any child processes that were spawned as part of a `\"shell\"` tool call\n    // to also be terminated.\n\n    #[cfg(unix)]\n    unsafe {\n        let detach_from_tty = matches!(stdio_policy,\n            StdioPolicy::RedirectForShellTool);\n        #[cfg(target_os = \"linux\")]\n        let parent_pid = libc::getpid();\n        cmd.pre_exec(move || {\n            if detach_from_tty {\n                codex_utils_pty::process_group::detach_from_tty()?;\n            }\n\n            // This relies on prctl(2), so it only works on Linux.\n            #[cfg(target_os = \"linux\")]\n            {\n                // This prctl call effectively requests, \"deliver SIGTERM when my\n                // current parent dies.\"\n                codex_utils_pty::process_group::set_parent_death_signal(parent_pid)?;\n            }\n            // macOS cannot receive the fd with close-on-exec set atomically.\n            #[cfg(target_os = \"macos\")]\n            codex_utils_pty::pty::close_inherited_fds_except(inherited_fd.as_slice());\n            Ok(())\n        });\n    }\n\n    match stdio_policy {\n        StdioPolicy::RedirectForShellTool => {\n            // Do not create a file descriptor for stdin because otherwise some\n            // commands may hang forever waiting for input. For example, ripgrep has\n            // a heuristic where it may try to read from stdin as explained here:\n            // https://github.com/BurntSushi/ripgrep/blob/\n            //   e2362d4d5185d02fa857bf381e7bd52e66fafc73/\n            //   crates/core/flags/hiargs.rs#L1101-L1103\n            cmd.stdin(Stdio::null());\n\n            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());\n        }\n        StdioPolicy::Inherit => {\n            // Inherit stdin, stdout, and stderr from the parent process.\n            cmd.stdin(Stdio::inherit())\n                .stdout(Stdio::inherit())\n                .stderr(Stdio::inherit());\n        }\n    }\n\n    cmd.kill_on_drop(true).spawn()\n}",
+   "blocks": [
+    {
+     "name": "命令与净化后的 env",
+     "summary": "env_clear 后重注入",
+     "lines": [
+      1,
+      16
+     ]
+    },
+    {
+     "name": "网络禁用哨兵变量",
+     "summary": "告诉子进程别碰网",
+     "lines": [
+      18,
+      20
+     ]
+    },
+    {
+     "name": "pre_exec：进程组与死信号",
+     "summary": "父死子也死",
+     "lines": [
+      22,
+      49
+     ],
+     "explain": "fork 后 exec 前执行：脱离 TTY 自成进程组（超时可整组杀）；Linux 上 prctl 请求『父进程死时给我 SIGTERM』——codex 被 kill -9 也不留孤儿。"
+    },
+    {
+     "name": "stdio：stdin 关死",
+     "summary": "stdout/stderr 接管道",
+     "lines": [
+      51,
+      69
+     ],
+     "explain": "stdin 指向 null：rg 等工具会探测 stdin，给了管道就可能永远等输入。stdout/stderr 各接一根管道供异步读取。"
+    },
+    {
+     "name": "kill_on_drop + spawn",
+     "summary": "句柄一丢就杀",
+     "lines": [
+      71,
+      72
+     ]
+    }
+   ],
+   "terms": [
+    {
+     "line": 71,
+     "token": "kill_on_drop",
+     "note": "Child 句柄被 drop 时自动杀进程，兜底防泄漏。"
+    }
+   ]
+  },
+  {
+   "id": "c-final",
+   "name": "finalize_exec_result(…)",
+   "file": "codex-rs/core/src/exec.rs:749",
+   "lang": "rs",
+   "layout": {
+    "col": 1,
+    "band": 4
+   },
+   "collapsed": true,
+   "code": "fn finalize_exec_result(\n    raw_output_result: std::result::Result<RawExecToolCallOutput, CodexErr>,\n    sandbox_type: SandboxType,\n    duration: Duration,\n) -> Result<ExecToolCallOutput> {\n    match raw_output_result {\n        Ok(raw_output) => {\n            #[allow(unused_mut)]\n            let mut timed_out = raw_output.timed_out;\n\n            #[cfg(target_family = \"unix\")]\n            {\n                if let Some(signal) = raw_output.exit_status.signal() {\n                    if signal == TIMEOUT_CODE {\n                        timed_out = true;\n                    } else {\n                        return Err(CodexErr::Sandbox(SandboxErr::Signal(signal)));\n                    }\n                }\n            }\n\n            let mut exit_code = raw_output.exit_status.code().unwrap_or(-1);\n            if timed_out {\n                exit_code = EXEC_TIMEOUT_EXIT_CODE;\n            }\n\n            let stdout = raw_output.stdout.from_utf8_lossy();\n            let stderr = raw_output.stderr.from_utf8_lossy();\n            let aggregated_output = raw_output.aggregated_output.from_utf8_lossy();\n            let exec_output = ExecToolCallOutput {\n                exit_code,\n                stdout,\n                stderr,\n                aggregated_output,\n                duration,\n                timed_out,\n            };\n\n            if timed_out {\n                return Err(CodexErr::Sandbox(SandboxErr::Timeout {\n                    output: Box::new(exec_output),\n                }));\n            }\n\n            if is_likely_sandbox_denied(sandbox_type, &exec_output) {\n                record_filesystem_sandbox_violation(sandbox_type, &exec_output);\n                return Err(CodexErr::Sandbox(SandboxErr::Denied {\n                    output: Box::new(exec_output),\n                    network_policy_decision: None,\n                }));\n            }\n\n            Ok(exec_output)\n        }\n        Err(err) => {\n            tracing::error!(\"exec error: {err}\");\n            Err(err)\n        }\n    }\n}",
+   "blocks": [
+    {
+     "name": "信号处理",
+     "summary": "64 号当超时，其余上抛",
+     "lines": [
+      8,
+      20
+     ]
+    },
+    {
+     "name": "拼 ExecToolCallOutput",
+     "summary": "超时统一 124 退出码",
+     "lines": [
+      22,
+      37
+     ]
+    },
+    {
+     "name": "超时 → SandboxErr::Timeout",
+     "summary": "带着完整输出上抛",
+     "lines": [
+      39,
+      43
+     ]
+    },
+    {
+     "name": "像被沙箱拦？→ Denied",
+     "summary": "启发式判定，非确证",
+     "lines": [
+      45,
+      51
+     ],
+     "explain": "沙箱不会明说“我拦了你”，只有退出码和输出。is_likely_sandbox_denied 用启发式猜“像不像被拦”——猜中才有编排器那边的升级重试。"
+    }
+   ]
+  }
+ ],
+ "wires": [
+  {
+   "id": "w-build",
+   "kind": "call",
+   "from": {
+    "card": "c-loop",
+    "line": 1
+   },
+   "to": {
+    "card": "c-build"
+   }
+  },
+  {
+   "id": "w-dispatch",
+   "kind": "call",
+   "from": {
+    "card": "c-loop",
+    "line": 30
+   },
+   "to": {
+    "card": "c-handler"
+   }
+  },
+  {
+   "id": "w-run",
+   "kind": "call",
+   "from": {
+    "card": "c-handler",
+    "line": 28
+   },
+   "to": {
+    "card": "c-runexec"
+   }
+  },
+  {
+   "id": "w-orch",
+   "kind": "call",
+   "from": {
+    "card": "c-runexec",
+    "line": 48
+   },
+   "to": {
+    "card": "c-orch1"
+   }
+  },
+  {
+   "id": "w-attempt",
+   "kind": "call",
+   "from": {
+    "card": "c-orch1",
+    "line": 117
+   },
+   "to": {
+    "card": "c-runtime"
+   }
+  },
+  {
+   "id": "w-envfor",
+   "kind": "call",
+   "from": {
+    "card": "c-runtime",
+    "line": 23
+   },
+   "to": {
+    "card": "c-envfor"
+   }
+  },
+  {
+   "id": "w-transform",
+   "kind": "call",
+   "from": {
+    "card": "c-envfor",
+    "line": 11
+   },
+   "to": {
+    "card": "c-transform"
+   }
+  },
+  {
+   "id": "w-linux",
+   "kind": "call",
+   "from": {
+    "card": "c-transform",
+    "line": 54
+   },
+   "to": {
+    "card": "c-linuxargs"
+   }
+  },
+  {
+   "id": "w-exec",
+   "kind": "call",
+   "from": {
+    "card": "c-runtime",
+    "line": 30
+   },
+   "to": {
+    "card": "c-exec"
+   }
+  },
+  {
+   "id": "w-spawn",
+   "kind": "call",
+   "from": {
+    "card": "c-exec",
+    "line": 8
+   },
+   "to": {
+    "card": "c-spawn"
+   }
+  },
+  {
+   "id": "w-consume",
+   "kind": "call",
+   "from": {
+    "card": "c-exec",
+    "line": 25
+   },
+   "to": {
+    "card": "c-consume"
+   }
+  },
+  {
+   "id": "w-format",
+   "kind": "call",
+   "from": {
+    "card": "c-runexec",
+    "line": 61
+   },
+   "to": {
+    "card": "c-format"
+   }
+  },
+  {
+   "id": "d-argv",
+   "kind": "data",
+   "label": "沙箱化 argv",
+   "from": {
+    "card": "c-transform",
+    "line": 66
+   },
+   "to": {
+    "card": "c-exec",
+    "line": 8
+   }
+  },
+  {
+   "id": "d-raw",
+   "kind": "data",
+   "label": "原始输出",
+   "from": {
+    "card": "c-consume",
+    "side": "left"
+   },
+   "to": {
+    "card": "c-final",
+    "line": 2
+   }
+  },
+  {
+   "id": "d-denied",
+   "kind": "data",
+   "label": "SandboxErr::Denied",
+   "from": {
+    "card": "c-final",
+    "line": 47
+   },
+   "to": {
+    "card": "c-orch2",
+    "line": 1
+   }
+  },
+  {
+   "id": "d-output",
+   "kind": "data",
+   "label": "ExecToolCallOutput",
+   "from": {
+    "card": "c-final",
+    "line": 53
+   },
+   "to": {
+    "card": "c-runexec",
+    "line": 47
+   }
+  },
+  {
+   "id": "d-fco",
+   "kind": "data",
+   "label": "function_call_output",
+   "from": {
+    "card": "c-runexec",
+    "line": 68
+   },
+   "to": {
+    "card": "c-loop",
+    "line": 27
+   }
+  }
+ ],
+ "notes": [
+  {
+   "id": "bg0",
+   "flavor": "bg",
+   "tag": "背景 · 这是什么",
+   "text": "codex CLI 的 Rust 内核。模型发出 FunctionCall，内核把它变成审批过、沙箱化的真实进程，再把输出折成文本还给模型。",
+   "place": {
+    "corner": "nw"
+   },
+   "step": 0
+  },
+  {
+   "id": "n-dispatch",
+   "flavor": "intent",
+   "tag": "NOTE · 派发被略过两跳",
+   "text": "这里只是排队：future 由回合循环驱动，经 ToolRouter→registry 派发到 shell handler。",
+   "anchor": {
+    "card": "c-loop",
+    "line": 30
+   },
+   "place": {
+    "side": "left",
+    "of": "c-build"
+   },
+   "step": 1
+  },
+  {
+   "id": "n-execpolicy",
+   "flavor": "bg",
+   "tag": "背景 · execpolicy",
+   "text": "内置+用户规则按命令前缀给出 Allow/Prompt/Forbidden。“git status 免审”这类知识都在规则库里。",
+   "anchor": {
+    "card": "c-orch1",
+    "line": 1
+   },
+   "place": {
+    "side": "above",
+    "of": "c-orch1"
+   },
+   "step": 3
+  },
+  {
+   "id": "n-platform",
+   "flavor": "bg",
+   "tag": "背景 · 三平台沙箱",
+   "text": "沙箱=包 argv：macOS 借 sandbox-exec，Linux 用自带 helper，Windows 受限令牌。强制在内核。",
+   "anchor": {
+    "card": "c-transform",
+    "line": 5
+   },
+   "place": {
+    "side": "above",
+    "of": "c-transform"
+   },
+   "step": 5
+  },
+  {
+   "id": "n-stdin",
+   "flavor": "intent",
+   "tag": "NOTE · spawn.rs stdin",
+   "text": "stdin 接 null：rg 等工具会探测 stdin，给了管道就可能永远等输入。",
+   "anchor": {
+    "card": "c-spawn",
+    "line": 59
+   },
+   "place": {
+    "side": "above",
+    "of": "c-spawn"
+   },
+   "step": 7
+  },
+  {
+   "id": "n-denied",
+   "flavor": "intent",
+   "tag": "NOTE · 拒绝靠猜",
+   "text": "沙箱只留下退出码与输出；启发式判断“像被拦”，才触发无沙箱重试。",
+   "anchor": {
+    "card": "c-final",
+    "line": 45
+   },
+   "place": {
+    "side": "above",
+    "of": "c-final"
+   },
+   "step": 8
+  }
+ ],
+ "steps": [
+  {
+   "title": "总览",
+   "caption": "上排去程：派发→审批→沙箱包装；下排回程：spawn→收流→判决→回模型。灰线=调用，琥珀=数据。按 ▶ 顺编号走。",
+   "fit": true
+  },
+  {
+   "title": "① 模型开口：FunctionCall → ToolCall",
+   "storyline": "A",
+   "caption": "响应流每完成一个条目就问：是工具调用吗？是就解析成 ToolCall，排一个 future——工具调用与正文在同一条流里。",
+   "wires": [
+    "w-build"
+   ],
+   "lines": [
+    [
+     "c-loop",
+     1
+    ],
+    [
+     "c-loop",
+     30
+    ]
+   ],
+   "expand": [
+    "c-build"
+   ],
+   "focus": [
+    "c-loop",
+    "c-build",
+    "n-dispatch"
+   ]
+  },
+  {
+   "title": "② shell handler：从 JSON 到 ShellRequest",
+   "storyline": "A",
+   "caption": "参数解析、shell 包装、env 注入之后，run_exec_like 先问 execpolicy 拿审批判决，随请求一起交给编排器。",
+   "wires": [
+    "w-dispatch",
+    "w-run"
+   ],
+   "lines": [
+    [
+     "c-handler",
+     14
+    ],
+    [
+     "c-handler",
+     28
+    ]
+   ],
+   "expand": [
+    "c-handler"
+   ],
+   "unfold": [
+    [
+     "c-runexec",
+     "问 execpolicy 要判决"
+    ]
+   ],
+   "focus": [
+    "c-loop",
+    "c-handler",
+    "c-runexec"
+   ]
+  },
+  {
+   "title": "③ 审批闸门",
+   "storyline": "B",
+   "caption": "编排器执行判决：Forbidden 当场回绝；NeedsApproval 发事件给 UI 并挂起等决定；Skip 静默放行。批过的进缓存。",
+   "wires": [
+    "w-orch"
+   ],
+   "lines": [
+    [
+     "c-orch1",
+     4
+    ],
+    [
+     "c-orch1",
+     36
+    ],
+    [
+     "c-orch1",
+     39
+    ],
+    [
+     "c-orch1",
+     57
+    ]
+   ],
+   "unfold": [
+    [
+     "c-orch1",
+     "审批三分支"
+    ]
+   ],
+   "focus": [
+    "c-orch1",
+    "n-execpolicy"
+   ]
+  },
+  {
+   "title": "④ 要不要沙箱、选哪家",
+   "storyline": "B",
+   "caption": "默认按权限档要沙箱；策略明确放行或模型请求升级则首攻裸跑。选型按平台：Seatbelt / Linux helper / 受限令牌。",
+   "wires": [
+    "w-attempt"
+   ],
+   "lines": [
+    [
+     "c-orch1",
+     64
+    ],
+    [
+     "c-orch1",
+     71
+    ],
+    [
+     "c-orch1",
+     79
+    ]
+   ],
+   "unfold": [
+    [
+     "c-orch1",
+     "首攻要不要沙箱"
+    ],
+    [
+     "c-orch1",
+     "组装 SandboxAttempt"
+    ]
+   ],
+   "focus": [
+    "c-orch1",
+    "c-runtime"
+   ]
+  },
+  {
+   "title": "⑤ 命令被包装成沙箱 argv",
+   "storyline": "C",
+   "caption": "沙箱不改进程，只改 argv：原命令被套进 sandbox-exec 或 codex-linux-sandbox，权限档翻译成策略随行。",
+   "wires": [
+    "w-envfor",
+    "w-transform",
+    "w-linux"
+   ],
+   "lines": [
+    [
+     "c-runtime",
+     23
+    ],
+    [
+     "c-transform",
+     54
+    ]
+   ],
+   "expand": [
+    "c-transform",
+    "c-linuxargs"
+   ],
+   "unfold": [
+    [
+     "c-transform",
+     "Linux：helper 前缀"
+    ]
+   ],
+   "focus": [
+    "c-runtime",
+    "c-envfor",
+    "c-transform",
+    "c-linuxargs",
+    "n-platform"
+   ]
+  },
+  {
+   "title": "⑥ 包装好的 argv 落进执行层",
+   "storyline": "D",
+   "caption": "两线在 exec 会合：ShellRuntime 沿灰线递来 ExecRequest，包装臂的琥珀线送来沙箱化 argv。自此进入真实的进程世界。",
+   "wires": [
+    "w-exec",
+    "d-argv"
+   ],
+   "lines": [
+    [
+     "c-exec",
+     8
+    ]
+   ],
+   "focus": [
+    "c-runtime",
+    "c-transform",
+    "c-exec"
+   ]
+  },
+  {
+   "title": "⑦ spawn：进程树的生死约定",
+   "storyline": "D",
+   "caption": "spawn 前的仪式：env 清空重注、自成进程组、父死子亡、stdin 关死——每行都是运维伤疤。",
+   "wires": [
+    "w-spawn"
+   ],
+   "lines": [
+    [
+     "c-spawn",
+     15
+    ],
+    [
+     "c-spawn",
+     28
+    ],
+    [
+     "c-spawn",
+     42
+    ],
+    [
+     "c-spawn",
+     59
+    ],
+    [
+     "c-spawn",
+     71
+    ]
+   ],
+   "expand": [
+    "c-spawn"
+   ],
+   "unfold": [
+    [
+     "c-spawn",
+     "pre_exec：进程组与死信号"
+    ],
+    [
+     "c-spawn",
+     "stdio：stdin 关死"
+    ]
+   ],
+   "focus": [
+    "c-exec",
+    "c-spawn",
+    "n-stdin"
+   ]
+  },
+  {
+   "title": "⑧ 收输出与判决",
+   "storyline": "D",
+   "caption": "三路竞速：进程退出、到点、Ctrl-C。原始输出在 finalize 里定性——超时、信号、疑似沙箱拦截各成不同错误。",
+   "wires": [
+    "w-consume",
+    "d-raw"
+   ],
+   "lines": [
+    [
+     "c-consume",
+     23
+    ],
+    [
+     "c-final",
+     45
+    ]
+   ],
+   "expand": [
+    "c-consume",
+    "c-final"
+   ],
+   "unfold": [
+    [
+     "c-consume",
+     "select!：谁先到听谁的"
+    ],
+    [
+     "c-final",
+     "像被沙箱拦？→ Denied"
+    ]
+   ],
+   "focus": [
+    "c-consume",
+    "c-final",
+    "n-denied"
+   ]
+  },
+  {
+   "title": "⑨ 沙箱说不 → 升级重试",
+   "storyline": "B",
+   "caption": "Denied 沿琥珀线流回编排器：问一句 retry without sandbox?，点头后同一请求以 SandboxType::None 再跑。唯一的回头路。",
+   "wires": [
+    "d-denied"
+   ],
+   "lines": [
+    [
+     "c-orch2",
+     8
+    ],
+    [
+     "c-orch2",
+     39
+    ],
+    [
+     "c-orch2",
+     58
+    ],
+    [
+     "c-orch2",
+     88
+    ]
+   ],
+   "expand": [
+    "c-orch2"
+   ],
+   "unfold": [
+    [
+     "c-orch2",
+     "重试前再审批"
+    ],
+    [
+     "c-orch2",
+     "重选沙箱：通常裸跑"
+    ]
+   ],
+   "focus": [
+    "c-final",
+    "c-orch2"
+   ]
+  },
+  {
+   "title": "⑩ 结果回家",
+   "storyline": "A",
+   "caption": "ExecToolCallOutput 一路向左：折成 Exit code / Wall time / Output 文本，装进 function_call_output，下一轮模型读到它。",
+   "wires": [
+    "d-output",
+    "w-format",
+    "d-fco"
+   ],
+   "lines": [
+    [
+     "c-format",
+     19
+    ],
+    [
+     "c-format",
+     20
+    ],
+    [
+     "c-runexec",
+     68
+    ]
+   ],
+   "expand": [
+    "c-format"
+   ],
+   "unfold": [
+    [
+     "c-runexec",
+     "回礼给模型"
+    ]
+   ],
+   "focus": [
+    "c-runexec",
+    "c-format",
+    "c-loop"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "codex-nav",
+    "repo": "https://github.com/openai/codex",
+    "mode": "orientation",
+    "task": "我刚接手这个仓库，帮我用 code-canvas 建立对它的整体认识。",
+    "audience": "有经验的后端工程师，第一次接触这个仓库，中文"
+  },
+  {
+    "id": "codex-exec",
+    "repo": "https://github.com/openai/codex",
+    "mode": "deep",
+    "task": "用 code-canvas 给我讲讲这个主题：一条 shell 命令从「模型提出要执行」到「真的在沙箱里被执行、结果返回给模型」的完整流程。",
+    "audience": "有经验的后端工程师，Rust 一般，想搞懂执行与沙箱机制，中文"
+  },
+  {
+    "id": "nanovllm-deep",
+    "repo": "https://github.com/GeeeekExplorer/nano-vllm",
+    "mode": "deep",
+    "task": "用 code-canvas 给我讲讲：一个请求从进入引擎到吐出 token 的完整循环，以及 KV cache 是怎么管理的。",
+    "audience": "有后端经验、想读懂推理引擎内部机制的工程师，中文"
+  },
+  {
+    "id": "requests-nav",
+    "repo": "https://github.com/psf/requests",
+    "mode": "orientation",
+    "task": "帮我用 code-canvas 建立对这个库内部结构的整体认识。",
+    "audience": "写过 Python 的工程师，想知道 requests 内部怎么组织，中文"
+  }
+]

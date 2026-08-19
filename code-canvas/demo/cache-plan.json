@@ -1,0 +1,177 @@
+{
+  "meta": {
+    "title": "计划画布 · 缓存防雪崩",
+    "subtitle": "动手前的变更计划 · 与 diff 画布同底图",
+    "audience": "审批这次变更计划的作者；中文；关注改哪里、为什么、有什么险",
+    "mode": "plan"
+  },
+  "regions": [
+    {
+      "id": "A",
+      "title": "故事线 A · 计划的变更",
+      "blurb": "两招：击穿锁、TTL 抖动",
+      "hue": "amber",
+      "cards": ["handler", "jittered"]
+    },
+    {
+      "id": "B",
+      "title": "故事线 B · 计划不动的邻居",
+      "blurb": "受影响但不打算改的上下文",
+      "hue": "blue",
+      "cards": ["get", "fetch"]
+    }
+  ],
+  "cards": [
+    {
+      "id": "handler",
+      "name": "handle_request(req)",
+      "file": "server/handler.py:12",
+      "lang": "py",
+      "layout": { "col": 0, "band": 0 },
+      "collapsed": false,
+      "plan": "modify",
+      "code": "def handle_request(req):\n    key = cache_key(req)\n    cached = get_cached(key)\n    if cached is not None:\n        metrics.hit()\n        return cached\n    resp = fetch_upstream(req)\n    store(key, resp, ttl=req.ttl)\n    return resp",
+      "terms": [
+        {
+          "line": 7,
+          "token": "fetch_upstream",
+          "note": "现状：未命中就裸奔回源——热 key 过期瞬间的并发会全部打到上游。"
+        }
+      ]
+    },
+    {
+      "id": "jittered",
+      "name": "jittered(ttl)  — 计划新建",
+      "file": "server/cache.py（新函数）",
+      "lang": "py",
+      "layout": { "col": 1, "band": 0 },
+      "collapsed": false,
+      "plan": "add",
+      "code": "def jittered(ttl):\n    # 计划：均匀抖动 ±10%，打散同批 key 的过期时刻\n    ..."
+    },
+    {
+      "id": "store",
+      "name": "store(key, resp, ttl)",
+      "file": "server/cache.py:14",
+      "lang": "py",
+      "layout": { "col": 1, "band": 1 },
+      "collapsed": true,
+      "code": "def store(key, resp, ttl):\n    _table[key] = Entry(resp, now() + ttl)\n    _evict_if_needed()"
+    },
+    {
+      "id": "get",
+      "name": "get_cached(key)",
+      "file": "server/cache.py:24",
+      "lang": "py",
+      "layout": { "col": 2, "band": 0 },
+      "collapsed": true,
+      "code": "def get_cached(key):\n    entry = _table.get(key)\n    if entry is None or entry.expired():\n        return None\n    return entry.value"
+    },
+    {
+      "id": "fetch",
+      "name": "fetch_upstream(req)",
+      "file": "server/upstream.py:31",
+      "lang": "py",
+      "layout": { "col": 2, "band": 2 },
+      "collapsed": true,
+      "code": "def fetch_upstream(req):\n    conn = pool.acquire(req.host)\n    try:\n        return conn.send(req)\n    finally:\n        pool.release(conn)"
+    }
+  ],
+  "wires": [
+    {
+      "id": "w-get",
+      "kind": "call",
+      "from": { "card": "handler", "line": 3 },
+      "to": { "card": "get" }
+    },
+    {
+      "id": "w-fetch",
+      "kind": "call",
+      "from": { "card": "handler", "line": 7 },
+      "to": { "card": "fetch", "side": "left" }
+    },
+    {
+      "id": "w-store",
+      "kind": "call",
+      "from": { "card": "handler", "line": 8 },
+      "to": { "card": "store" }
+    },
+    {
+      "id": "p-jit",
+      "kind": "call",
+      "plan": "add",
+      "from": { "card": "handler", "line": 8 },
+      "to": { "card": "jittered" }
+    }
+  ],
+  "notes": [
+    {
+      "id": "bg0",
+      "flavor": "bg",
+      "tag": "背景 · 这次打算治什么病",
+      "text": "雪崩：大批 key 同秒过期，回源洪峰打垮上游；击穿：热 key 过期瞬间并发全部回源。计划各用一招：TTL 抖动 + singleflight 锁。虚线 = 尚不存在。",
+      "place": { "corner": "nw" },
+      "step": 0
+    },
+    {
+      "id": "n-lock",
+      "flavor": "intent",
+      "tag": "计划 · handler 包锁",
+      "text": "未命中路径包 keyed_lock：同 key 只放一个去回源；拿到锁先双重检查——排队期间可能已被回填。",
+      "anchor": { "card": "handler", "line": 7 },
+      "place": { "side": "left", "of": "handler" },
+      "step": 1
+    },
+    {
+      "id": "n-jit",
+      "flavor": "intent",
+      "tag": "计划 · 新建 jittered()",
+      "text": "±10% 均匀抖动：足够打散过期时刻，又不让 TTL 明显失真。计划在 handler 写入处调用。",
+      "anchor": { "card": "jittered", "line": 2 },
+      "place": { "side": "above", "of": "jittered" },
+      "step": 2
+    },
+    {
+      "id": "n-risk",
+      "flavor": "intent",
+      "tag": "风险预判",
+      "text": "抖动后 TTL 观测值 ≠ 配置值，按精确 TTL 报警的规则会误报；锁持有期含整个回源耗时，慢上游会堆积等待。",
+      "anchor": { "card": "handler", "line": 8 },
+      "place": { "side": "left", "of": "store" },
+      "step": 3
+    }
+  ],
+  "steps": [
+    {
+      "title": "总览 · 这次计划动什么",
+      "caption": "计划画布：琥珀区是要动的——handler 将改、jittered 将新建（虚线=尚不存在）；蓝区计划不碰。批准后 agent 才动手，事后 diff 画布同底图对照。",
+      "fit": true
+    },
+    {
+      "title": "① 计划一 · 击穿锁",
+      "storyline": "A",
+      "caption": "handler 未命中路径包进 keyed_lock：同 key 并发只放一个回源，其余等回填。高亮的两行是将被改写的裸奔回源。",
+      "wires": ["w-fetch"],
+      "lines": [["handler", 7], ["handler", 8]],
+      "expand": ["handler"],
+      "focus": ["handler", "n-lock", "fetch"]
+    },
+    {
+      "title": "② 计划二 · 新建 jittered 并接线",
+      "storyline": "A",
+      "caption": "新建 jittered(ttl)（幽灵卡），计划在 handler 的写入行调用——虚绿线是计划加的调用线。写入的 TTL 从此带 ±10% 抖动。",
+      "wires": ["p-jit", "w-store"],
+      "lines": [["handler", 8]],
+      "expand": ["jittered"],
+      "focus": ["handler", "jittered", "n-jit"]
+    },
+    {
+      "title": "③ 风险预判",
+      "storyline": "A",
+      "caption": "两条预判：TTL 观测值偏离配置值，相关告警规则要跟着改；keyed_lock 持锁含回源耗时，慢上游会让排队堆积。批准即开工。",
+      "wires": ["w-store"],
+      "lines": [["handler", 8]],
+      "focus": ["handler", "store", "n-risk"]
+    }
+  ]
+}
