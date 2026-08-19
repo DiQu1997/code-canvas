@@ -113,7 +113,11 @@
       "lines": [["handler", 2]],      // 本步高亮的行
       "expand": ["cachekey"],         // 本步自动展开的卡
       "unfold": [["evict", "全表扫描打分"]], // 本步自动展开的块（[卡 id, 块名]）
-      "focus": ["handler", "cachekey", "n3"] } // 取景元素（卡/note id）；镜头自动计算
+      "focus": ["handler", "cachekey", "n3"], // 取景元素（卡/note id）；镜头自动计算。
+                                      // focus 的书写顺序 = 本步的阅读顺序：焦点元素
+                                      // ≥2 个时渲染器在各元素左上角钉 ①②③ 序号标，
+                                      // 随步进更换——所以按"先读哪个"排 focus
+      "order": ["cachekey", "handler"] } // 可选：阅读顺序与取景顺序不一致时显式覆盖
   ]
 }
 ```

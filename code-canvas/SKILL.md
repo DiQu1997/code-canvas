@@ -43,7 +43,9 @@ description: Turns code reading, change planning, or diff review into an interac
 5. **背景三层**：画布级 bg note（corner nw，step 0 点亮）、region blurb、
    概念级 bg note（锚到行，在相关 step 点亮）。字数硬上限见 schema.md
 6. **写 steps**：第 0 步总览（fit），后续每步 = 点亮的线 + 高亮的行 +
-   focus 取景元素 + ≤80 字 caption。步子按"读者的问题"排，不按文件序
+   focus 取景元素 + ≤80 字 caption。步子按"读者的问题"排，不按文件序。
+   **focus 的书写顺序 = 该步的阅读顺序**（渲染器据此钉 ①②③ 序号标）——
+   先读的元素写前面；取景与阅读顺序冲突时用 `order` 显式覆盖
 7. **产出 JSON，先过验证器再渲染**（不可跳过）：
 
    ```bash

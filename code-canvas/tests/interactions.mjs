@@ -19,6 +19,17 @@ const check = (name, ok) => results.push(`${ok ? 'PASS' : 'FAIL'} ${name}`);
 
 check('home link hidden on static file', !(await page.isVisible('#home-link')));
 
+// reading-order chips: none on overview, appear on a multi-focus step, renumber on step change
+check('no order chips on overview', (await page.$$('.ordchip')).length === 0);
+await page.click('#next'); await page.waitForTimeout(700);
+const s1chips = await page.$$eval('.ordchip', els => els.map(e => e.textContent));
+check('order chips on step 1 follow focus order', s1chips.length >= 2 && s1chips[0] === '1');
+await page.click('#next'); await page.waitForTimeout(700);
+const s2chips = await page.$$('.ordchip');
+check('chips refresh on step change', s2chips.length >= 2);
+check('lit wire has direction arrow', await page.$('svg path.wire.on[marker-end]') !== null);
+await page.click('#prev'); await page.click('#prev'); await page.waitForTimeout(600);
+
 const term = await page.$('.term');
 if (term) {
   const tn = await term.getAttribute('data-tn');
