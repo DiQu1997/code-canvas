@@ -67,6 +67,8 @@ def grade(out_dir: Path, repo: Path, mode: str | None) -> dict:
 
     traced = missing = broken = 0
     for c in cards:
+        if c.get("kind") in ("state", "district"):
+            continue  # 叙事/索引卡：不承诺 file:line 逐字契约，不进溯源分母
         m = re.match(r"([^:]+):(\d+)$", c.get("file", "") or "")
         if not m:
             missing += 1

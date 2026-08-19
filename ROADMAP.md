@@ -38,6 +38,7 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
 | codex-nav 领航 | PASS | 9/9 | 22 min | 手工（Rust） |
 | codex-exec 深潜 | PASS | 15/15 | 34 min | 手工（Rust） |
 | nanovllm-deep 深潜 | PASS (warn:18卡>16) | 18/18 | **16 min** | **结构层先行** |
+| nanovllm-deep 深潜 v2（2026-08-19） | **PASS 全绿** | 15/15 | 20.7 min | 结构层 + **数据结构四件套**：考生零上下文自发产出 KV 块池快照卡（三态、含惰性失效细节）、struct 线、step.detail；16 卡压线（上场超预算已改）。产物 examples/nanovllm-deep-v2/ |
 
 未跑：requests-nav。评分器容忍面已补：`#`/`\` 续行（sglang 审计与考试各暴露一处）。
 真实用户产物审计：sglang 8/9（engine 卡省略中段违规——提取器管线根治此类）。

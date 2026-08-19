@@ -1,0 +1,415 @@
+{
+  "meta": {
+    "title": "nano-vllm · 请求的一生与 KV cache",
+    "subtitle": "github.com/GeeeekExplorer/nano-vllm · 跟一个请求走完 prefill→decode，并拆开 KV cache 的两层",
+    "audience": "有后端经验、想读懂推理引擎内部机制的工程师；中文；准确优先，类比点到为止"
+  },
+  "regions": [
+    { "id": "A", "title": "故事线 A · 请求进入 & 引擎循环", "blurb": "进队 → step 到收敛", "hue": "blue",
+      "cards": ["generate", "step", "add_request"] },
+    { "id": "B", "title": "故事线 B · 调度决策", "blurb": "先凑 prefill 批，收不到才 decode", "hue": "violet",
+      "cards": ["schedule", "postprocess", "preempt"] },
+    { "id": "C", "title": "故事线 C · 前向：算出 token", "blurb": "备输入 → 前向 → 采样", "hue": "amber",
+      "cards": ["run", "prepare_decode", "sampler"] },
+    { "id": "D", "title": "故事线 D · KV cache 管理（物理写入 + 逻辑账本）", "blurb": "两层：显存张量 + 块账本", "hue": "green",
+      "cards": ["attn", "store_kv", "allocate_kv_cache", "can_allocate", "allocate", "hash_blocks", "kv-pool"] }
+  ],
+  "cards": [
+    {
+      "id": "generate",
+      "name": "LLMEngine.generate()",
+      "file": "nanovllm/engine/llm_engine.py:60",
+      "lang": "py",
+      "layout": { "col": 0, "band": 0 },
+      "collapsed": false,
+      "code": "def generate(\n    self,\n    prompts: list[str] | list[list[int]],\n    sampling_params: SamplingParams | list[SamplingParams],\n    use_tqdm: bool = True,\n) -> list[str]:\n    pbar = tqdm(total=len(prompts), desc=\"Generating\", dynamic_ncols=True, disable=not use_tqdm)\n    if not isinstance(sampling_params, list):\n        sampling_params = [sampling_params] * len(prompts)\n    for prompt, sp in zip(prompts, sampling_params):\n        self.add_request(prompt, sp)\n    outputs = {}\n    prefill_throughput = decode_throughput = 0.\n    while not self.is_finished():\n        t = perf_counter()\n        output, num_tokens = self.step()\n        if num_tokens > 0:\n            prefill_throughput = num_tokens / (perf_counter() - t)\n        else:\n            decode_throughput = -num_tokens / (perf_counter() - t)\n        pbar.set_postfix({\n            \"Prefill\": f\"{int(prefill_throughput)}tok/s\",\n            \"Decode\": f\"{int(decode_throughput)}tok/s\",\n        })\n        for seq_id, token_ids in output:\n            outputs[seq_id] = token_ids\n            pbar.update(1)\n    pbar.close()\n    outputs = [outputs[seq_id] for seq_id in sorted(outputs.keys())]\n    outputs = [{\"text\": self.tokenizer.decode(token_ids),\n                \"token_ids\": token_ids} for token_ids in outputs]\n    return outputs",
+      "blocks": [
+        { "name": "喂入请求", "summary": "逐条 add_request 入队", "lines": [10, 11] },
+        { "name": "驱动 step 直到收敛", "summary": "step 到队列皆空", "lines": [14, 27],
+          "explain": "引擎主循环：只要 waiting 或 running 非空就不停 step。每步返回本轮完成的 seq 与 token 计数（正=prefill，负=decode），仅用于吞吐统计。",
+          "children": [
+            { "name": "吞吐统计", "summary": "prefill/decode tok/s", "lines": [17, 24], "folded": true }
+          ]
+        },
+        { "name": "整理输出", "summary": "按 seq_id 排序后解码", "lines": [28, 32] }
+      ]
+    },
+    {
+      "id": "step",
+      "name": "LLMEngine.step()",
+      "file": "nanovllm/engine/llm_engine.py:49",
+      "lang": "py",
+      "layout": { "col": 0, "band": 1 },
+      "collapsed": false,
+      "code": "def step(self):\n    seqs, is_prefill = self.scheduler.schedule()\n    num_tokens = sum(seq.num_scheduled_tokens for seq in seqs) if is_prefill else -len(seqs)\n    token_ids = self.model_runner.call(\"run\", seqs, is_prefill)\n    self.scheduler.postprocess(seqs, token_ids, is_prefill)\n    outputs = [(seq.seq_id, seq.completion_token_ids) for seq in seqs if seq.is_finished]\n    return outputs, num_tokens",
+      "terms": [
+        { "line": 2, "token": "is_prefill", "note": "整批同型标志：一轮要么全 prefill、要么全 decode。attention、slot 构造都按它切换两条路径。" }
+      ]
+    },
+    {
+      "id": "add_request",
+      "name": "LLMEngine.add_request()",
+      "file": "nanovllm/engine/llm_engine.py:43",
+      "lang": "py",
+      "layout": { "col": 0, "band": 2 },
+      "collapsed": true,
+      "code": "def add_request(self, prompt: str | list[int], sampling_params: SamplingParams):\n    if isinstance(prompt, str):\n        prompt = self.tokenizer.encode(prompt)\n    seq = Sequence(prompt, sampling_params)\n    self.scheduler.add(seq)",
+      "terms": [
+        { "line": 4, "token": "Sequence", "note": "请求的载体：装 token_ids、采样参数、block_table（页表）、各类计数。进来先挂进 waiting 队列。" }
+      ]
+    },
+    {
+      "id": "schedule",
+      "name": "Scheduler.schedule()",
+      "file": "nanovllm/engine/scheduler.py:25",
+      "lang": "py",
+      "layout": { "col": 1, "band": 0 },
+      "collapsed": false,
+      "code": "def schedule(self) -> tuple[list[Sequence], bool]:\n    scheduled_seqs = []\n    num_batched_tokens = 0\n\n    # prefill\n    while self.waiting and len(scheduled_seqs) < self.max_num_seqs:\n        seq = self.waiting[0]\n        remaining = self.max_num_batched_tokens - num_batched_tokens\n        if remaining == 0:\n            break\n        if not seq.block_table:\n            num_cached_blocks = self.block_manager.can_allocate(seq)\n            if num_cached_blocks == -1:\n                break\n            num_tokens = seq.num_tokens - num_cached_blocks * self.block_size\n        else:\n            num_tokens = seq.num_tokens - seq.num_cached_tokens\n        if remaining < num_tokens and scheduled_seqs:  # only allow chunked prefill for the first seq\n            break\n        if not seq.block_table:\n            self.block_manager.allocate(seq, num_cached_blocks)\n        seq.num_scheduled_tokens = min(num_tokens, remaining)\n        num_batched_tokens += seq.num_scheduled_tokens\n        if seq.num_cached_tokens + seq.num_scheduled_tokens == seq.num_tokens:\n            seq.status = SequenceStatus.RUNNING\n            self.waiting.popleft()\n            self.running.append(seq)\n        scheduled_seqs.append(seq)\n\n    if scheduled_seqs:\n        return scheduled_seqs, True\n\n    # decode\n    while self.running and len(scheduled_seqs) < self.max_num_seqs:\n        seq = self.running.popleft()\n        while not self.block_manager.can_append(seq):\n            if self.running:\n                self.preempt(self.running.pop())\n            else:\n                self.preempt(seq)\n                break\n        else:\n            seq.num_scheduled_tokens = 1\n            seq.is_prefill = False\n            self.block_manager.may_append(seq)\n            scheduled_seqs.append(seq)\n    assert scheduled_seqs\n    self.running.extendleft(reversed(scheduled_seqs))\n    return scheduled_seqs, False",
+      "blocks": [
+        { "name": "Prefill 批次", "summary": "waiting 队头能塞就塞", "lines": [5, 31],
+          "explain": "为什么 prefill 绝对优先？新请求的首 token 延迟对体验影响最大，且 prefill 一次能吃进大量 token、GPU 利用率最高。只要 waiting 里还有装得下的就先不 decode——这是吞吐与首字延迟之间最简单的一边。",
+          "children": [
+            { "name": "前缀缓存探测", "summary": "先问账本命中几块", "lines": [11, 17],
+              "explain": "can_allocate 返回的是「命中了几块」，-1 表示装不下。它只探测不落账——真正把块挂到 seq 的是 allocate。探测与分配分离，预算判断失败时才能无副作用地退出。" }
+          ]
+        },
+        { "name": "Decode 批次", "summary": "逐条续 1 token，缺块就抢占", "lines": [33, 46],
+          "explain": "一条新请求都收不进来才轮到 decode，每条 running 只续 1 个 token。注意 while…else：只有内层抢占循环正常结束（无 break）才会调度这条 seq。",
+          "children": [
+            { "name": "抢占腾块", "summary": "先牺牲队尾，实在不行牺牲自己", "lines": [36, 41],
+              "explain": "can_append 只在「下一个 token 恰好开新块」时才需要空块。没有空块：从队尾抢占一条（块全回收、打回 waiting）；最坏牺牲的是自己——此时 break，本条不进批。" }
+          ]
+        },
+        { "name": "收尾", "summary": "断言非空 + 恢复队序", "lines": [47, 49],
+          "explain": "assert 兜底：decode 分支至少产出一条，否则说明块账本泄漏。extendleft(reversed(…)) 把这批放回队头、保持原序，下轮还是它们先跑。" }
+      ],
+      "terms": [
+        { "line": 3, "token": "num_batched_tokens", "note": "本批已占用的 token 预算，对着 max_num_batched_tokens 卡上限——prefill 批的大小由它决定。" },
+        { "line": 22, "token": "num_scheduled_tokens", "note": "这条 seq 本轮真正要算的 token 数；chunked prefill 时小于全量，decode 时恒为 1。" }
+      ]
+    },
+    {
+      "id": "postprocess",
+      "name": "Scheduler.postprocess()",
+      "file": "nanovllm/engine/scheduler.py:81",
+      "lang": "py",
+      "layout": { "col": 1, "band": 1 },
+      "collapsed": true,
+      "code": "def postprocess(self, seqs: list[Sequence], token_ids: list[int], is_prefill: bool):\n    for seq, token_id in zip(seqs, token_ids):\n        self.block_manager.hash_blocks(seq)\n        seq.num_cached_tokens += seq.num_scheduled_tokens\n        seq.num_scheduled_tokens = 0\n        if is_prefill and seq.num_cached_tokens < seq.num_tokens:\n            continue\n        seq.append_token(token_id)\n        if (not seq.ignore_eos and token_id == self.eos) or seq.num_completion_tokens == seq.max_tokens:\n            seq.status = SequenceStatus.FINISHED\n            self.block_manager.deallocate(seq)\n            self.running.remove(seq)",
+      "terms": [
+        { "line": 4, "token": "num_cached_tokens", "note": "已写入 KV cache 的 token 数；prefill 分几轮时靠它记录进度，也是下次增量的起点。" }
+      ]
+    },
+    {
+      "id": "preempt",
+      "name": "Scheduler.preempt()",
+      "file": "nanovllm/engine/scheduler.py:75",
+      "lang": "py",
+      "layout": { "col": 1, "band": 2 },
+      "collapsed": true,
+      "code": "def preempt(self, seq: Sequence):\n    seq.status = SequenceStatus.WAITING\n    seq.is_prefill = True\n    self.block_manager.deallocate(seq)\n    self.waiting.appendleft(seq)"
+    },
+    {
+      "id": "run",
+      "name": "ModelRunner.run()",
+      "file": "nanovllm/engine/model_runner.py:214",
+      "lang": "py",
+      "layout": { "col": 2, "band": 0 },
+      "collapsed": true,
+      "code": "def run(self, seqs: list[Sequence], is_prefill: bool) -> list[int]:\n    input_ids, positions = self.prepare_prefill(seqs) if is_prefill else self.prepare_decode(seqs)\n    temperatures = self.prepare_sample(seqs) if self.rank == 0 else None\n    logits = self.run_model(input_ids, positions, is_prefill)\n    token_ids = self.sampler(logits, temperatures).tolist() if self.rank == 0 else None\n    reset_context()\n    return token_ids",
+      "terms": [
+        { "line": 4, "token": "run_model", "note": "跑一次前向拿 logits；decode 且批不大时走预捕获的 CUDA Graph 重放，省 kernel 启动开销。" }
+      ]
+    },
+    {
+      "id": "prepare_decode",
+      "name": "ModelRunner.prepare_decode()",
+      "file": "nanovllm/engine/model_runner.py:172",
+      "lang": "py",
+      "layout": { "col": 2, "band": 1 },
+      "collapsed": true,
+      "code": "def prepare_decode(self, seqs: list[Sequence]):\n    input_ids = []\n    positions = []\n    slot_mapping = []\n    context_lens = []\n    for seq in seqs:\n        input_ids.append(seq.last_token)\n        positions.append(len(seq) - 1)\n        context_lens.append(len(seq))\n        slot_mapping.append(seq.block_table[-1] * self.block_size + seq.last_block_num_tokens  - 1)",
+      "terms": [
+        { "line": 7, "token": "last_token", "note": "decode 每步只喂 1 个 token：上一步刚采出的那个。历史 KV 全在 cache 里，不必重算。" },
+        { "line": 10, "token": "slot_mapping", "note": "每个新 token 的落盘位置：物理块号×块大小 + 块内偏移 = kv_cache 里的行号。" }
+      ]
+    },
+    {
+      "id": "sampler",
+      "name": "Sampler.forward()",
+      "file": "nanovllm/layers/sampler.py:7",
+      "lang": "py",
+      "layout": { "col": 2, "band": 2 },
+      "collapsed": true,
+      "code": "@torch.compile\ndef forward(self, logits: torch.Tensor, temperatures: torch.Tensor):\n    logits = logits.float().div_(temperatures.unsqueeze(dim=1))\n    probs = torch.softmax(logits, dim=-1)\n    sample_tokens = probs.div_(\n        torch.empty_like(probs).exponential_(1).clamp_min_(1e-10)).argmax(dim=-1)\n    return sample_tokens"
+    },
+    {
+      "id": "attn",
+      "name": "Attention.forward()",
+      "file": "nanovllm/layers/attention.py:59",
+      "lang": "py",
+      "layout": { "col": 3, "band": 0 },
+      "collapsed": true,
+      "code": "def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):\n    context = get_context()\n    k_cache, v_cache = self.k_cache, self.v_cache\n    if k_cache.numel() and v_cache.numel():\n        store_kvcache(k, v, k_cache, v_cache, context.slot_mapping)\n    if context.is_prefill:\n        if context.block_tables is not None:    # prefix cache\n            k, v = k_cache, v_cache\n        o = flash_attn_varlen_func(q, k, v,\n            max_seqlen_q=context.max_seqlen_q, cu_seqlens_q=context.cu_seqlens_q,\n            max_seqlen_k=context.max_seqlen_k, cu_seqlens_k=context.cu_seqlens_k,\n            softmax_scale=self.scale, causal=True, block_table=context.block_tables)\n    else:    # decode\n        o = flash_attn_with_kvcache(q.unsqueeze(1), k_cache, v_cache,\n            cache_seqlens=context.context_lens, block_table=context.block_tables,\n            softmax_scale=self.scale, causal=True)\n    return o",
+      "blocks": [
+        { "name": "写入 KV cache", "summary": "本步 k/v 先落物理槽位", "lines": [4, 5] },
+        { "name": "prefill · 变长注意力", "summary": "整段 prompt 一次算", "lines": [6, 12],
+          "explain": "命中前缀缓存时（block_tables 非空）把 k,v 换成整块 cache 视图，flash_attn 按 block_table 分页取历史 KV；否则就用本批新算的 k,v。causal=True 保证只看左侧。" },
+        { "name": "decode · 分页注意力", "summary": "1 个 q 查全历史 KV", "lines": [13, 16] }
+      ],
+      "terms": [
+        { "line": 5, "token": "slot_mapping", "note": "prepare_* 摊平出的落盘位置表，随 context 传进来；下一行 kernel 按它把 k/v 散写进 cache。" },
+        { "line": 7, "token": "block_tables", "note": "每条 seq 的页表（逻辑块→物理块）打包成批张量，让 flash_attn 直接在分页 cache 上取 KV。" }
+      ]
+    },
+    {
+      "id": "store_kv",
+      "name": "store_kvcache_kernel()",
+      "file": "nanovllm/layers/attention.py:10",
+      "lang": "py",
+      "layout": { "col": 3, "band": 1 },
+      "collapsed": true,
+      "code": "@triton.jit\ndef store_kvcache_kernel(\n    key_ptr,\n    key_stride,\n    value_ptr,\n    value_stride,\n    k_cache_ptr,\n    v_cache_ptr,\n    slot_mapping_ptr,\n    D: tl.constexpr,\n):\n    idx = tl.program_id(0)\n    slot = tl.load(slot_mapping_ptr + idx)\n    if slot == -1: return\n    key_offsets = idx * key_stride + tl.arange(0, D)\n    value_offsets = idx * value_stride + tl.arange(0, D)\n    key = tl.load(key_ptr + key_offsets)\n    value = tl.load(value_ptr + value_offsets)\n    cache_offsets = slot * D + tl.arange(0, D)\n    tl.store(k_cache_ptr + cache_offsets, key)\n    tl.store(v_cache_ptr + cache_offsets, value)",
+      "blocks": [
+        { "name": "核参数（指针 + 步长）", "summary": "输入 k/v 与 cache 的地址", "lines": [2, 11], "folded": true }
+      ],
+      "terms": [
+        { "line": 13, "token": "slot", "note": "本行 token 的落盘槽位；slot==-1 表示这一行是 padding，直接跳过不写。" },
+        { "line": 19, "token": "cache_offsets", "note": "slot×D 就是这行 K/V 在全局 kv_cache 里的起始地址——逻辑槽位在此变成显存偏移。" }
+      ]
+    },
+    {
+      "id": "allocate_kv_cache",
+      "name": "ModelRunner.allocate_kv_cache()",
+      "file": "nanovllm/engine/model_runner.py:103",
+      "lang": "py",
+      "layout": { "col": 3, "band": 2 },
+      "collapsed": true,
+      "code": "def allocate_kv_cache(self):\n    config = self.config\n    hf_config = config.hf_config\n    free, total = torch.cuda.mem_get_info()\n    used = total - free\n    peak = torch.cuda.memory_stats()[\"allocated_bytes.all.peak\"]\n    current = torch.cuda.memory_stats()[\"allocated_bytes.all.current\"]\n    num_kv_heads = hf_config.num_key_value_heads // self.world_size\n    head_dim = getattr(hf_config, \"head_dim\",\n        hf_config.hidden_size // hf_config.num_attention_heads)\n    block_bytes = 2 * hf_config.num_hidden_layers * self.block_size * num_kv_heads \\\n        * head_dim * hf_config.dtype.itemsize\n    config.num_kvcache_blocks = int(\n        total * config.gpu_memory_utilization - used - peak + current) // block_bytes\n    assert config.num_kvcache_blocks > 0\n    self.kv_cache = torch.empty(2, hf_config.num_hidden_layers,\n        config.num_kvcache_blocks, self.block_size, num_kv_heads, head_dim)\n    layer_id = 0\n    for module in self.model.modules():\n        if hasattr(module, \"k_cache\") and hasattr(module, \"v_cache\"):\n            module.k_cache = self.kv_cache[0, layer_id]\n            module.v_cache = self.kv_cache[1, layer_id]\n            layer_id += 1",
+      "blocks": [
+        { "name": "量显存余量", "summary": "free / used / peak", "lines": [4, 7], "folded": true },
+        { "name": "算每块字节 & 总块数", "summary": "剩余显存能装几块", "lines": [8, 14],
+          "explain": "一块的字节 = 2(K+V) × 层数 × 块大小 × KV 头数 × 头维 × 元素字节。用 gpu_memory_utilization 圈出的显存预算除以它，得出整机能开多少个 KV 块——这就是并发的物理上限。" },
+        { "name": "开 KV 张量并绑定各层", "summary": "一块大张量，切片挂到每层", "lines": [15, 23],
+          "explain": "所有层的 KV 是一整块连续张量 kv_cache[2, L, blocks, block_size, heads, dim]，按层切片挂到各 Attention 的 k_cache/v_cache。块池是全局的、跨请求共用。" }
+      ],
+      "terms": [
+        { "line": 11, "token": "block_bytes", "note": "单个 KV 块占的字节数；块大小固定，所以每块容量恒定，便于按块整存整取。" },
+        { "line": 13, "token": "num_kvcache_blocks", "note": "整个引擎能容纳的 KV 块总数，一次算定。BlockManager 后续只在这个池子里发号、回收。" }
+      ]
+    },
+    {
+      "id": "can_allocate",
+      "name": "BlockManager.can_allocate()",
+      "file": "nanovllm/engine/block_manager.py:58",
+      "lang": "py",
+      "layout": { "col": 4, "band": 0 },
+      "collapsed": true,
+      "code": "def can_allocate(self, seq: Sequence) -> int:\n    h = -1\n    num_cached_blocks = 0\n    num_new_blocks = seq.num_blocks\n    for i in range(seq.num_blocks - 1):\n        token_ids = seq.block(i)\n        h = self.compute_hash(token_ids, h)\n        block_id = self.hash_to_block_id.get(h, -1)\n        if block_id == -1 or self.blocks[block_id].token_ids != token_ids:\n            break\n        num_cached_blocks += 1\n        if block_id in self.used_block_ids:\n            num_new_blocks -= 1\n    if len(self.free_block_ids) < num_new_blocks:\n        return -1\n    return num_cached_blocks",
+      "terms": [
+        { "line": 4, "token": "num_new_blocks", "note": "按全新分配估算的块数；每命中一个「在用」的共享块就减一，用来判断 free 池够不够。" }
+      ]
+    },
+    {
+      "id": "allocate",
+      "name": "BlockManager.allocate()",
+      "file": "nanovllm/engine/block_manager.py:75",
+      "lang": "py",
+      "layout": { "col": 4, "band": 1 },
+      "collapsed": true,
+      "code": "def allocate(self, seq: Sequence, num_cached_blocks: int):\n    assert not seq.block_table\n    h = -1\n    for i in range(num_cached_blocks):\n        token_ids = seq.block(i)\n        h = self.compute_hash(token_ids, h)\n        block_id = self.hash_to_block_id[h]\n        block = self.blocks[block_id]\n        if block_id in self.used_block_ids:\n            block.ref_count += 1\n        else:\n            block.ref_count = 1\n            self.free_block_ids.remove(block_id)\n            self.used_block_ids.add(block_id)\n        seq.block_table.append(block_id)\n    for i in range(num_cached_blocks, seq.num_blocks):\n        seq.block_table.append(self._allocate_block())\n    seq.num_cached_tokens = num_cached_blocks * self.block_size",
+      "blocks": [
+        { "name": "认领命中块", "summary": "命中块挂进页表，ref +1", "lines": [4, 15],
+          "explain": "沿同一条哈希链重放认领：块可能正被别的 seq 用着（ref_count +1 共享），也可能已回到 free 队列但内容未被覆盖（从 free 捞回复活）。前缀缓存不需要独立存储——它就住在 KV 块里。" },
+        { "name": "增量新块", "summary": "没命中的部分拿新块", "lines": [16, 18],
+          "explain": "缓存没覆盖的尾部照常拿新块。num_cached_tokens 按整块计，最后一个不满的块永远要重算。" }
+      ],
+      "terms": [
+        { "line": 15, "token": "block_table", "note": "seq 的页表：逻辑块序号 → 物理块 id。attention 用它把逻辑位置翻译成显存里的块。" }
+      ]
+    },
+    {
+      "id": "hash_blocks",
+      "name": "BlockManager.hash_blocks()",
+      "file": "nanovllm/engine/block_manager.py:110",
+      "lang": "py",
+      "layout": { "col": 4, "band": 2 },
+      "collapsed": true,
+      "code": "def hash_blocks(self, seq: Sequence):\n    start = seq.num_cached_tokens // self.block_size\n    end = (seq.num_cached_tokens + seq.num_scheduled_tokens) // self.block_size\n    if start == end: return\n    h = self.blocks[seq.block_table[start - 1]].hash if start > 0 else -1\n    for i in range(start, end):\n        block = self.blocks[seq.block_table[i]]\n        token_ids = seq.block(i)\n        h = self.compute_hash(token_ids, h)\n        block.update(h, token_ids)\n        self.hash_to_block_id[h] = block.block_id",
+      "blocks": [
+        { "name": "链式哈希并登记账本", "summary": "写满的整块记进 hash→block_id", "lines": [6, 11],
+          "explain": "只有写满的整块才登记：把 hash→block_id 记进账本，后来者 can_allocate 时才能命中复用。不满的尾块不登记（内容还会变）。" }
+      ],
+      "terms": [
+        { "line": 5, "token": "h", "note": "链式前缀哈希：每块的哈希以上一块哈希为种子，所以同一前缀序列必得同一条哈希链。" }
+      ]
+    },
+    {
+      "id": "kv-pool",
+      "kind": "state",
+      "name": "KV 块池 · 实例快照",
+      "file": "nanovllm/engine/block_manager.py",
+      "lang": "py",
+      "layout": { "col": 4, "band": 3 },
+      "collapsed": false,
+      "nodes": [
+        { "id": "fq", "kind": "array", "label": "free_block_ids · 空闲块队列" },
+        { "id": "btA", "kind": "array", "label": "SeqA.block_table" },
+        { "id": "btB", "kind": "array", "label": "SeqB.block_table" },
+        { "id": "blk", "kind": "record", "label": "Block 3 · 共享前缀块" },
+        { "id": "h2b", "kind": "map", "label": "hash_to_block_id · 前缀账本" }
+      ],
+      "states": [
+        { "step": 3,
+          "note": "两条 seq 已就位：SeqB 前缀命中 3 号块（ref=2 共享），只为增量借了 0 号新块",
+          "nodes": {
+            "fq": { "cells": [2, 4, 5] },
+            "btA": { "cells": [3, 1] },
+            "btB": { "cells": [3, 0] },
+            "blk": { "rows": [["ref_count", 2], ["hash", "h(sys)"]] },
+            "h2b": { "rows": [["h(sys)", 3], ["h(sys+a)", 1]] }
+          }
+        },
+        { "step": 8,
+          "note": "SeqB 写满 0 号块：hash_blocks 登记入账本供复用；续 token 触发 may_append，借 2 号新块",
+          "nodes": {
+            "fq": { "cells": [4, 5] },
+            "btA": { "cells": [3, 1] },
+            "btB": { "cells": [3, 0, 2] },
+            "blk": { "rows": [["ref_count", 2], ["hash", "h(sys)"]] },
+            "h2b": { "rows": [["h(sys)", 3], ["h(sys+a)", 1], ["h(sys+b)", 0]] }
+          }
+        },
+        { "step": 9,
+          "note": "抢占 SeqB：私有块 0/2 归还队尾，共享块 3 仅 ref−1、内容不清空，账本条目原样保留",
+          "nodes": {
+            "fq": { "cells": [4, 5, 0, 2] },
+            "btA": { "cells": [3, 1] },
+            "btB": { "cells": [] },
+            "blk": { "rows": [["ref_count", 1], ["hash", "h(sys)"]] },
+            "h2b": { "rows": [["h(sys)", 3], ["h(sys+a)", 1], ["h(sys+b)", 0]] }
+          }
+        }
+      ]
+    }
+  ],
+  "wires": [
+    { "id": "w-g-add", "kind": "call", "from": { "card": "generate", "line": 11 }, "to": { "card": "add_request" } },
+    { "id": "w-g-step", "kind": "call", "from": { "card": "generate", "line": 16 }, "to": { "card": "step" } },
+    { "id": "w-sched", "kind": "call", "from": { "card": "step", "line": 2 }, "to": { "card": "schedule" } },
+    { "id": "w-run", "kind": "call", "from": { "card": "step", "line": 4 }, "to": { "card": "run" } },
+    { "id": "w-post", "kind": "call", "from": { "card": "step", "line": 5 }, "to": { "card": "postprocess" } },
+    { "id": "d-token", "kind": "data", "label": "token_ids", "from": { "card": "run", "line": 5 }, "to": { "card": "postprocess" } },
+    { "id": "w-canalloc", "kind": "call", "from": { "card": "schedule", "line": 12 }, "to": { "card": "can_allocate" } },
+    { "id": "w-alloc", "kind": "call", "from": { "card": "schedule", "line": 21 }, "to": { "card": "allocate" } },
+    { "id": "d-cached", "kind": "data", "label": "num_cached_blocks", "from": { "card": "can_allocate", "line": 16, "side": "left" }, "to": { "card": "allocate", "side": "left" } },
+    { "id": "s-pool", "kind": "struct", "label": "按 hash 索引", "from": { "card": "allocate", "line": 15 }, "to": { "card": "kv-pool" } },
+    { "id": "w-preempt", "kind": "call", "from": { "card": "schedule", "line": 38, "side": "left" }, "to": { "card": "preempt", "side": "left" } },
+    { "id": "w-hash", "kind": "call", "from": { "card": "postprocess", "line": 3 }, "to": { "card": "hash_blocks" } },
+    { "id": "w-prep", "kind": "call", "from": { "card": "run", "line": 2 }, "to": { "card": "prepare_decode" } },
+    { "id": "d-slot", "kind": "data", "label": "slot_mapping", "from": { "card": "prepare_decode", "line": 10 }, "to": { "card": "attn", "line": 5 } },
+    { "id": "w-fwd", "kind": "call", "from": { "card": "run", "line": 4 }, "to": { "card": "attn" } },
+    { "id": "w-store", "kind": "call", "from": { "card": "attn", "line": 5 }, "to": { "card": "store_kv" } },
+    { "id": "w-sampler", "kind": "call", "from": { "card": "run", "line": 5, "side": "left" }, "to": { "card": "sampler", "side": "left" } },
+    { "id": "d-pool", "kind": "data", "label": "kv_cache 张量", "from": { "card": "allocate_kv_cache", "line": 15 }, "to": { "card": "store_kv" } }
+  ],
+  "notes": [
+    { "id": "bg0", "flavor": "bg", "tag": "背景 · 这是什么",
+      "text": "nano-vllm：vLLM 的极简重写。跟一个请求走完全程——进队→调度→前向→采样→写回——并拆开 KV cache 的两层：物理张量 + 逻辑块账本。",
+      "place": { "corner": "nw" }, "step": 0 },
+    { "id": "bg-paged", "flavor": "bg", "tag": "背景 · PagedAttention",
+      "text": "KV 按定长块分页存放，seq 只握 block_table（页表：逻辑块→物理块）。相同前缀的块可多 seq 共享——省显存的根源。",
+      "anchor": { "card": "can_allocate", "line": 5 }, "place": { "side": "above", "of": "can_allocate" }, "step": 3 },
+    { "id": "bg-slot", "flavor": "bg", "tag": "背景 · 逻辑块→物理槽",
+      "text": "slot = 物理块号×块大小 + 块内偏移；prepare_* 把它摊平成 slot_mapping，交给 attention 落盘。",
+      "anchor": { "card": "prepare_decode", "line": 10 }, "place": { "side": "above", "of": "prepare_decode" }, "step": 4 },
+    { "id": "n-chunk", "flavor": "intent", "tag": "NOTE · scheduler.py:42",
+      "text": "只允许批里第一条 seq 做 chunked prefill：长 prompt 不会饿死，批的形状也保持简单。",
+      "anchor": { "card": "schedule", "line": 18 }, "place": { "side": "left", "of": "schedule" }, "step": 3 },
+    { "id": "n-preempt", "flavor": "intent", "tag": "NOTE · scheduler.py:60",
+      "text": "抢占 = 块全退回、状态打回 WAITING、下次重新 prefill。代价是重算，换来的是 decode 批永远能推进。",
+      "anchor": { "card": "schedule", "line": 38 }, "place": { "side": "left", "of": "schedule" }, "step": 9 },
+    { "id": "n-store", "flavor": "intent", "tag": "NOTE · attention.py:28",
+      "text": "cache_offsets = slot×D：把这一行 K/V 写进全局 kv_cache 的第 slot 行。逻辑块号在此变成显存地址。",
+      "anchor": { "card": "store_kv", "line": 19 }, "place": { "side": "above", "of": "store_kv" }, "step": 5 },
+    { "id": "n-gumbel", "flavor": "intent", "tag": "NOTE · sampler.py:11",
+      "text": "除以指数噪声再 argmax = Gumbel-max 技巧：一行完成按概率采样，全程留在 GPU。",
+      "anchor": { "card": "sampler", "line": 6 }, "place": { "side": "left", "of": "sampler" }, "step": 7 },
+    { "id": "n-finish", "flavor": "intent", "tag": "NOTE · scheduler.py:91",
+      "text": "命中 EOS 或超长：状态置 FINISHED，块全部 deallocate 归还——请求的显存到此清零。",
+      "anchor": { "card": "postprocess", "line": 11 }, "place": { "side": "left", "of": "postprocess" }, "step": 8 }
+  ],
+  "steps": [
+    { "title": "总览",
+      "caption": "四条线：左列引擎循环、次列调度、第三列前向、右侧 KV cache 两层。灰线=调用，琥珀线=数据流，紫虚线=结构关系。▶ 沿故事线走，或拖拽自由看。",
+      "fit": true },
+    { "title": "① 请求进入引擎", "storyline": "A",
+      "caption": "generate 把 prompt 交给 add_request：编码、包成 Sequence、挂进 waiting；随后主循环反复 step，直到队列皆空。",
+      "detail": "add_request 是唯一入口：字符串 prompt 先过 tokenizer.encode，再和采样参数一起封进 Sequence（此时状态 WAITING、block_table 为空、还没占任何显存）。generate 的主循环本身不含业务逻辑——它只负责「还没跑完就再 step 一次」，并把每步返回的 num_tokens 拿去算 prefill/decode 吞吐。真正的决策全在 step 里。",
+      "wires": ["w-g-add", "w-g-step"],
+      "lines": [["generate", 10], ["generate", 11], ["generate", 16]],
+      "expand": ["generate"],
+      "focus": ["generate", "add_request", "step"] },
+    { "title": "② 一次 step 的骨架", "storyline": "A",
+      "caption": "每个 step 三拍：schedule 挑一批 → run 前向拿 token → postprocess 写回。整批要么全 prefill 要么全 decode。",
+      "detail": "step 是引擎的心跳。schedule 返回 (seqs, is_prefill)——这批的同型标志决定后面每一层走哪条路。model_runner.call(\"run\", …) 在张量并行时会把请求广播给其它进程，单卡就是直接调用。token_ids 拿回来后交给 postprocess：它负责把新 token 接到序列上、并处理完成/显存回收。outputs 只收本轮 is_finished 的序列。",
+      "wires": ["w-sched", "w-run", "w-post", "d-token"],
+      "lines": [["step", 2], ["step", 4], ["step", 5]],
+      "focus": ["step", "schedule", "run", "postprocess"] },
+    { "title": "③ 调度：prefill 优先 + 前缀缓存", "storyline": "B",
+      "caption": "prefill 绝对优先：waiting 队头能塞就塞。塞之前先问账本 can_allocate 命中几块，命中的直接认领（ref+1），只为增量借新块——省下的就是不用重算的 KV。",
+      "detail": "can_allocate 只探测不落账，返回命中块数（-1=装不下），失败时能无副作用退出循环；真正挂块的是 allocate，它沿同一条哈希链认领共享块、再补增量新块。右侧快照是此刻的块池：SeqA 已驻留，SeqB 刚入场，前缀相同所以两者的 block_table 都指向 3 号块，Block 3 的 ref_count=2。这就是「相同前缀零拷贝共享」的物理形态。",
+      "wires": ["w-canalloc", "w-alloc", "d-cached", "s-pool"],
+      "lines": [["schedule", 12], ["schedule", 21]],
+      "unfold": [["schedule", "Prefill 批次"], ["schedule", "前缀缓存探测"], ["allocate", "认领命中块"]],
+      "expand": ["can_allocate", "allocate"],
+      "focus": ["schedule", "can_allocate", "allocate", "kv-pool", "bg-paged", "n-chunk"] },
+    { "title": "④ 逻辑块 → 物理槽位", "storyline": "C",
+      "caption": "前向前先备输入。decode 每条只喂 last_token；关键是把「新 token 写进 cache 的哪一行」算成 slot_mapping，随 context 下传。",
+      "detail": "slot = block_table[-1]×block_size + 块内偏移 − 1，即「序列最后一块的物理块号」换算成 kv_cache 的行号。prefill 版（prepare_prefill）要为整段 prompt 的每个位置都构造 slot，逻辑更绕但同理。这层是逻辑块账本与物理显存之间的翻译官：BlockManager 只管发块号，slot_mapping 才把块号落成真正的地址，交给下一步的 attention。",
+      "wires": ["w-prep", "d-slot"],
+      "lines": [["prepare_decode", 7], ["prepare_decode", 10]],
+      "expand": ["prepare_decode"],
+      "focus": ["run", "prepare_decode", "attn", "bg-slot"] },
+    { "title": "⑤ 注意力：写 KV + 读 KV", "storyline": "D",
+      "caption": "attention 先把本步 k/v 用 triton kernel 按 slot 散写进全局 kv_cache，再算注意力：prefill 走变长、decode 走分页。",
+      "detail": "store_kvcache_kernel 每行一个 program：读 slot，slot×D 得到显存偏移，把这行 K/V 写进 k_cache/v_cache（slot==-1 的 padding 行跳过）。写完才算注意力——decode 用 flash_attn_with_kvcache，1 个 query 按 block_table 在分页 cache 上查全部历史 KV；prefill 命中前缀缓存时把 k,v 换成整块 cache 视图。读写共用同一份 slot_mapping / block_table。",
+      "wires": ["w-fwd", "w-store", "d-slot"],
+      "lines": [["attn", 5], ["store_kv", 13], ["store_kv", 19]],
+      "unfold": [["attn", "写入 KV cache"], ["attn", "decode · 分页注意力"]],
+      "expand": ["attn", "store_kv"],
+      "focus": ["attn", "store_kv", "n-store"] },
+    { "title": "⑥ 这块显存从哪来：KV 池", "storyline": "D",
+      "caption": "store 写进去的 kv_cache 有多大？启动时 allocate_kv_cache 用「显存预算 ÷ 每块字节」算出块总数，开一整块连续张量，切片挂给每层——并发上限就是这个数。",
+      "detail": "block_bytes = 2(K+V) × 层数 × 块大小 × KV 头数 × 头维 × 元素字节；用 gpu_memory_utilization 圈出的预算减去已用/峰值后除以它，得到 num_kvcache_blocks。这块池子全局共用、跨请求复用——右侧快照就是它的逻辑视图：BlockManager 只在这个固定容量里发号、回收、按前缀哈希复用。KV cache 管理的「物理层」到此闭环：一整块张量 + slot_mapping 定址。",
+      "wires": ["d-pool"],
+      "lines": [["allocate_kv_cache", 11], ["allocate_kv_cache", 13]],
+      "unfold": [["allocate_kv_cache", "算每块字节 & 总块数"]],
+      "expand": ["allocate_kv_cache"],
+      "focus": ["allocate_kv_cache", "kv-pool"] },
+    { "title": "⑦ 采样出 token", "storyline": "C",
+      "caption": "logits 回到 sampler：除温度→softmax→除指数噪声取 argmax（Gumbel-max），一行按概率采样、不离 GPU。token 由 run 返回。",
+      "detail": "temperature 越大分布越平、采样越随机；除以 temperature 后 softmax 得概率。probs 再除以一份 Exp(1) 噪声然后 argmax，等价于按 probs 做多项式采样——这就是 Gumbel-max 技巧，避免了逐条 CPU 采样。@torch.compile 把这几步融成一个 kernel。rank>0 的并行进程不采样，只有 rank 0 出 token。",
+      "wires": ["w-sampler", "d-token"],
+      "lines": [["sampler", 5], ["sampler", 6]],
+      "expand": ["run", "sampler"],
+      "focus": ["run", "sampler", "n-gumbel"] },
+    { "title": "⑧ 写回 & 前缀入账", "storyline": "B",
+      "caption": "postprocess 收尾：先 hash_blocks 把写满的整块登记进账本，再 append 新 token；命中 EOS 或超长就归还全部块。",
+      "detail": "顺序很关键：先 hash_blocks 再 append_token。写满的整块此刻内容已定，登记 hash→block_id 后，下一个撞上相同前缀的请求在 can_allocate 时就能命中复用。快照显示 SeqB 写满 0 号块后账本新增了 h(sys+b)→0，同时续 token 触发 may_append 借来 2 号块。若这步判定完成，deallocate 会把该 seq 的块逐个 ref−1、归零的才真正回收。",
+      "wires": ["w-hash", "w-post"],
+      "lines": [["postprocess", 3], ["postprocess", 8], ["postprocess", 9]],
+      "unfold": [["hash_blocks", "链式哈希并登记账本"]],
+      "expand": ["postprocess", "hash_blocks"],
+      "focus": ["postprocess", "hash_blocks", "kv-pool", "n-finish"] },
+    { "title": "⑨ 显存压力：抢占", "storyline": "B",
+      "caption": "decode 每条只续 1 token，但可能正好要开新块。没有空块时：牺牲 running 队尾去抢占（块全退、打回 waiting），保住这一批推进；只剩自己就把自己也退回。",
+      "detail": "这是 KV cache 有限带来的必然。can_append 判断「下一 token 是否恰好跨到新块」，是才需要 1 个空块。抢占的代价是被牺牲者下次要从 prefill 重算——但换来 decode 批永不卡死。快照第三态展示抢占 SeqB 的效果：私有块 0/2 回到 free 队尾，而共享块 3 只是 ref−1（SeqA 还用着，内容和账本条目都不动）。这正是引用计数存在的意义。",
+      "wires": ["w-preempt"],
+      "lines": [["schedule", 38], ["schedule", 40]],
+      "unfold": [["schedule", "Decode 批次"], ["schedule", "抢占腾块"]],
+      "expand": ["preempt"],
+      "focus": ["schedule", "preempt", "kv-pool", "n-preempt"] }
+  ]
+}
