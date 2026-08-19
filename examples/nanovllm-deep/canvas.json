@@ -1,0 +1,1090 @@
+{
+  "meta": {
+    "title": "nano-vllm · 一个请求的一生 + KV cache",
+    "subtitle": "github.com/GeeeekExplorer/nano-vllm · engine/ 与 layers/attention",
+    "audience": "有后端经验、想读懂推理引擎内部机制的工程师；中文；准确优先，类比点到为止"
+  },
+  "regions": [
+    {
+      "id": "A",
+      "title": "故事线 A · 请求的一生（连续批处理主循环）",
+      "blurb": "进队→组批→前向→采样→落库",
+      "hue": "blue",
+      "cards": [
+        "add_request",
+        "generate",
+        "step",
+        "schedule",
+        "postprocess",
+        "preempt",
+        "run",
+        "prepare_prefill",
+        "run_model",
+        "sampler_forward"
+      ]
+    },
+    {
+      "id": "B",
+      "title": "故事线 B · KV cache（分页显存管理）",
+      "blurb": "块池·前缀复用·槽位映射",
+      "hue": "green",
+      "cards": [
+        "blockmanager___init__",
+        "can_allocate",
+        "allocate",
+        "may_append",
+        "hash_blocks",
+        "deallocate",
+        "attention_forward",
+        "store_kvcache"
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "id": "add_request",
+      "name": "LLMEngine.add_request()",
+      "file": "nanovllm/engine/llm_engine.py:43",
+      "lang": "py",
+      "layout": {
+        "col": 0,
+        "band": 0
+      },
+      "collapsed": true,
+      "code": "    def add_request(self, prompt: str | list[int], sampling_params: SamplingParams):\n        if isinstance(prompt, str):\n            prompt = self.tokenizer.encode(prompt)\n        seq = Sequence(prompt, sampling_params)\n        self.scheduler.add(seq)"
+    },
+    {
+      "id": "generate",
+      "name": "LLMEngine.generate()",
+      "file": "nanovllm/engine/llm_engine.py:60",
+      "lang": "py",
+      "layout": {
+        "col": 0,
+        "band": 1
+      },
+      "collapsed": false,
+      "code": "    def generate(\n        self,\n        prompts: list[str] | list[list[int]],\n        sampling_params: SamplingParams | list[SamplingParams],\n        use_tqdm: bool = True,\n    ) -> list[str]:\n        pbar = tqdm(total=len(prompts), desc=\"Generating\", dynamic_ncols=True, disable=not use_tqdm)\n        if not isinstance(sampling_params, list):\n            sampling_params = [sampling_params] * len(prompts)\n        for prompt, sp in zip(prompts, sampling_params):\n            self.add_request(prompt, sp)\n        outputs = {}\n        prefill_throughput = decode_throughput = 0.\n        while not self.is_finished():\n            t = perf_counter()\n            output, num_tokens = self.step()\n            if num_tokens > 0:\n                prefill_throughput = num_tokens / (perf_counter() - t)\n            else:\n                decode_throughput = -num_tokens / (perf_counter() - t)\n            pbar.set_postfix({\n                \"Prefill\": f\"{int(prefill_throughput)}tok/s\",\n                \"Decode\": f\"{int(decode_throughput)}tok/s\",\n            })\n            for seq_id, token_ids in output:\n                outputs[seq_id] = token_ids\n                pbar.update(1)\n        pbar.close()\n        outputs = [outputs[seq_id] for seq_id in sorted(outputs.keys())]\n        outputs = [{\"text\": self.tokenizer.decode(token_ids), \"token_ids\": token_ids}\n                   for token_ids in outputs]\n        return outputs",
+      "blocks": [
+        {
+          "name": "建请求队列",
+          "summary": "把每个 prompt 入队",
+          "lines": [
+            7,
+            11
+          ],
+          "folded": true
+        },
+        {
+          "name": "驱动循环",
+          "summary": "反复 step 直到全部完成",
+          "lines": [
+            14,
+            27
+          ],
+          "folded": true,
+          "explain": "连续批处理的心脏：不等一条序列生成完，每轮 step 都重新组批——新来的请求和在跑的解码混在一批里，GPU 始终喂饱。"
+        },
+        {
+          "name": "收尾·解码文本",
+          "summary": "按 seq_id 排序后 detokenize",
+          "lines": [
+            28,
+            32
+          ],
+          "folded": true
+        }
+      ]
+    },
+    {
+      "id": "step",
+      "name": "LLMEngine.step()",
+      "file": "nanovllm/engine/llm_engine.py:49",
+      "lang": "py",
+      "layout": {
+        "col": 1,
+        "band": 0
+      },
+      "collapsed": false,
+      "code": "    def step(self):\n        seqs, is_prefill = self.scheduler.schedule()\n        num_tokens = sum(seq.num_scheduled_tokens for seq in seqs) if is_prefill else -len(seqs)\n        token_ids = self.model_runner.call(\"run\", seqs, is_prefill)\n        self.scheduler.postprocess(seqs, token_ids, is_prefill)\n        outputs = [(seq.seq_id, seq.completion_token_ids) for seq in seqs if seq.is_finished]\n        return outputs, num_tokens",
+      "terms": [
+        {
+          "line": 2,
+          "token": "is_prefill",
+          "note": "整批同型标志：一轮要么全 prefill、要么全 decode，attention 据此切两条路径。"
+        }
+      ]
+    },
+    {
+      "id": "schedule",
+      "name": "Scheduler.schedule()",
+      "file": "nanovllm/engine/scheduler.py:25",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 0
+      },
+      "collapsed": false,
+      "code": "    def schedule(self) -> tuple[list[Sequence], bool]:\n        scheduled_seqs = []\n        num_batched_tokens = 0\n\n        # prefill\n        while self.waiting and len(scheduled_seqs) < self.max_num_seqs:\n            seq = self.waiting[0]\n            remaining = self.max_num_batched_tokens - num_batched_tokens\n            if remaining == 0:\n                break\n            if not seq.block_table:\n                num_cached_blocks = self.block_manager.can_allocate(seq)\n                if num_cached_blocks == -1:\n                    break\n                num_tokens = seq.num_tokens - num_cached_blocks * self.block_size\n            else:\n                num_tokens = seq.num_tokens - seq.num_cached_tokens\n            if remaining < num_tokens and scheduled_seqs:  # only allow chunked prefill for the first seq\n                break\n            if not seq.block_table:\n                self.block_manager.allocate(seq, num_cached_blocks)\n            seq.num_scheduled_tokens = min(num_tokens, remaining)\n            num_batched_tokens += seq.num_scheduled_tokens\n            if seq.num_cached_tokens + seq.num_scheduled_tokens == seq.num_tokens:\n                seq.status = SequenceStatus.RUNNING\n                self.waiting.popleft()\n                self.running.append(seq)\n            scheduled_seqs.append(seq)\n\n        if scheduled_seqs:\n            return scheduled_seqs, True\n\n        # decode\n        while self.running and len(scheduled_seqs) < self.max_num_seqs:\n            seq = self.running.popleft()\n            while not self.block_manager.can_append(seq):\n                if self.running:\n                    self.preempt(self.running.pop())\n                else:\n                    self.preempt(seq)\n                    break\n            else:\n                seq.num_scheduled_tokens = 1\n                seq.is_prefill = False\n                self.block_manager.may_append(seq)\n                scheduled_seqs.append(seq)\n        assert scheduled_seqs\n        self.running.extendleft(reversed(scheduled_seqs))\n        return scheduled_seqs, False",
+      "blocks": [
+        {
+          "name": "组 prefill 批",
+          "summary": "优先填新请求，受 token 预算约束",
+          "lines": [
+            5,
+            28
+          ],
+          "folded": true,
+          "explain": "prefill 吃显存也吃算力：只在 token 预算内塞新序列；预算不足时只允许「批里第一条」做分块预填，其余留到下轮。"
+        },
+        {
+          "name": "组 decode 批",
+          "summary": "每条在跑序列各推 1 个 token",
+          "lines": [
+            33,
+            46
+          ],
+          "folded": true,
+          "explain": "decode 阶段每序列只前进 1 个 token；若某序列要新块而池子空了，就抢占队尾序列（甚至自己）来腾显存。"
+        }
+      ],
+      "terms": [
+        {
+          "line": 3,
+          "token": "num_batched_tokens",
+          "note": "本轮已排进批的 token 数，用来卡住 max_num_batched_tokens 预算。"
+        },
+        {
+          "line": 12,
+          "token": "num_cached_blocks",
+          "note": "前缀缓存能复用的块数；-1 表示空闲块不够，这条得等下轮。"
+        }
+      ]
+    },
+    {
+      "id": "postprocess",
+      "name": "Scheduler.postprocess()",
+      "file": "nanovllm/engine/scheduler.py:81",
+      "lang": "py",
+      "layout": {
+        "col": 1,
+        "band": 1
+      },
+      "collapsed": false,
+      "code": "    def postprocess(self, seqs: list[Sequence], token_ids: list[int], is_prefill: bool):\n        for seq, token_id in zip(seqs, token_ids):\n            self.block_manager.hash_blocks(seq)\n            seq.num_cached_tokens += seq.num_scheduled_tokens\n            seq.num_scheduled_tokens = 0\n            if is_prefill and seq.num_cached_tokens < seq.num_tokens:\n                continue\n            seq.append_token(token_id)\n            if (not seq.ignore_eos and token_id == self.eos) \\\n                    or seq.num_completion_tokens == seq.max_tokens:\n                seq.status = SequenceStatus.FINISHED\n                self.block_manager.deallocate(seq)\n                self.running.remove(seq)",
+      "terms": [
+        {
+          "line": 4,
+          "token": "num_cached_tokens",
+          "note": "已算进 KV cache 的 token 数；prefill 分块时用它判断整段是否填完。"
+        }
+      ]
+    },
+    {
+      "id": "preempt",
+      "name": "Scheduler.preempt()",
+      "file": "nanovllm/engine/scheduler.py:75",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 2
+      },
+      "collapsed": true,
+      "code": "    def preempt(self, seq: Sequence):\n        seq.status = SequenceStatus.WAITING\n        seq.is_prefill = True\n        self.block_manager.deallocate(seq)\n        self.waiting.appendleft(seq)"
+    },
+    {
+      "id": "run",
+      "name": "ModelRunner.run()",
+      "file": "nanovllm/engine/model_runner.py:214",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 1
+      },
+      "collapsed": false,
+      "code": "    def run(self, seqs: list[Sequence], is_prefill: bool) -> list[int]:\n        input_ids, positions = self.prepare_prefill(seqs) \\\n                               if is_prefill else self.prepare_decode(seqs)\n        temperatures = self.prepare_sample(seqs) if self.rank == 0 else None\n        logits = self.run_model(input_ids, positions, is_prefill)\n        token_ids = self.sampler(logits, temperatures).tolist() if self.rank == 0 else None\n        reset_context()\n        return token_ids"
+    },
+    {
+      "id": "prepare_prefill",
+      "name": "ModelRunner.prepare_prefill()",
+      "file": "nanovllm/engine/model_runner.py:129",
+      "lang": "py",
+      "layout": {
+        "col": 3,
+        "band": 1
+      },
+      "collapsed": false,
+      "code": "    def prepare_prefill(self, seqs: list[Sequence]):\n        input_ids = []\n        positions = []\n        cu_seqlens_q = [0]\n        cu_seqlens_k = [0]\n        max_seqlen_q = 0\n        max_seqlen_k = 0\n        slot_mapping = []\n        block_tables = None\n        for seq in seqs:\n            start = seq.num_cached_tokens\n            seqlen_q = seq.num_scheduled_tokens\n            end = start + seqlen_q\n            seqlen_k = end\n            input_ids.extend(seq[start:end])\n            positions.extend(range(start, end))\n            cu_seqlens_q.append(cu_seqlens_q[-1] + seqlen_q)\n            cu_seqlens_k.append(cu_seqlens_k[-1] + seqlen_k)\n            max_seqlen_q = max(seqlen_q, max_seqlen_q)\n            max_seqlen_k = max(seqlen_k, max_seqlen_k)\n            if not seq.block_table:    # warmup\n                continue\n            start_block = start // self.block_size\n            end_block = (end + self.block_size - 1) // self.block_size\n            for i in range(start_block, end_block):\n                slot_start = seq.block_table[i] * self.block_size\n                if i == start_block:\n                    slot_start += start % self.block_size\n                if i != end_block - 1:\n                    slot_end = seq.block_table[i] * self.block_size + self.block_size\n                else:\n                    slot_end = seq.block_table[i] * self.block_size + end - i * self.block_size\n                slot_mapping.extend(range(slot_start, slot_end))\n        if cu_seqlens_k[-1] > cu_seqlens_q[-1]:    # prefix cache\n            block_tables = self.prepare_block_tables(seqs)\n        input_ids = torch.tensor(input_ids, dtype=torch.int64, pin_memory=True).cuda(non_blocking=True)\n        positions = torch.tensor(positions, dtype=torch.int64, pin_memory=True).cuda(non_blocking=True)\n        cu_seqlens_q = torch.tensor(cu_seqlens_q, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)\n        cu_seqlens_k = torch.tensor(cu_seqlens_k, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)\n        slot_mapping = torch.tensor(slot_mapping, dtype=torch.int32, pin_memory=True).cuda(non_blocking=True)\n        set_context(True, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, slot_mapping, None, block_tables)\n        return input_ids, positions",
+      "blocks": [
+        {
+          "name": "逐序列建 slot_mapping",
+          "summary": "算每个 token 落哪个物理槽",
+          "lines": [
+            10,
+            33
+          ],
+          "folded": true,
+          "explain": "slot_mapping 是逻辑到物理的翻译表：block_table 给出逻辑块号，乘 block_size 加块内偏移，得到 KV cache 里每个 token 的绝对槽位。"
+        },
+        {
+          "name": "前缀缓存分支",
+          "summary": "复用了缓存就带 block_table",
+          "lines": [
+            34,
+            35
+          ],
+          "folded": true
+        },
+        {
+          "name": "搬上 GPU",
+          "summary": "张量 pin+异步拷贝，写进全局 Context",
+          "lines": [
+            36,
+            41
+          ],
+          "folded": true
+        }
+      ],
+      "terms": [
+        {
+          "line": 8,
+          "token": "slot_mapping",
+          "note": "长度 = 本批 token 数，每项是该 token 在 KV cache 里的绝对物理槽位。"
+        }
+      ]
+    },
+    {
+      "id": "run_model",
+      "name": "ModelRunner.run_model()",
+      "file": "nanovllm/engine/model_runner.py:195",
+      "lang": "py",
+      "layout": {
+        "col": 3,
+        "band": 0
+      },
+      "collapsed": false,
+      "code": "    @torch.inference_mode()\n    def run_model(self, input_ids: torch.Tensor, positions: torch.Tensor, is_prefill: bool):\n        if is_prefill or self.enforce_eager or input_ids.size(0) > 512:\n            return self.model.compute_logits(self.model(input_ids, positions))\n        else:\n            bs = input_ids.size(0)\n            context = get_context()\n            graph = self.graphs[next(x for x in self.graph_bs if x >= bs)]\n            graph_vars = self.graph_vars\n            graph_vars[\"input_ids\"][:bs] = input_ids\n            graph_vars[\"positions\"][:bs] = positions\n            graph_vars[\"slot_mapping\"].fill_(-1)\n            graph_vars[\"slot_mapping\"][:bs] = context.slot_mapping\n            graph_vars[\"context_lens\"].zero_()\n            graph_vars[\"context_lens\"][:bs] = context.context_lens\n            graph_vars[\"block_tables\"][:bs, :context.block_tables.size(1)] = context.block_tables\n            graph.replay()\n            return self.model.compute_logits(graph_vars[\"outputs\"][:bs])",
+      "blocks": [
+        {
+          "name": "prefill / eager 直算",
+          "summary": "直接跑前向拿 logits",
+          "lines": [
+            3,
+            4
+          ],
+          "folded": true
+        },
+        {
+          "name": "decode 走 CUDA Graph",
+          "summary": "定长重放，省 kernel launch 开销",
+          "lines": [
+            5,
+            18
+          ],
+          "folded": true,
+          "explain": "decode 每轮 batch 很小、形状固定，用预先 capture 的 CUDA Graph 重放，绕开 Python 逐 kernel 派发的开销。"
+        }
+      ]
+    },
+    {
+      "id": "sampler_forward",
+      "name": "Sampler.forward()",
+      "file": "nanovllm/layers/sampler.py:7",
+      "lang": "py",
+      "layout": {
+        "col": 4,
+        "band": 0
+      },
+      "collapsed": false,
+      "code": "    @torch.compile\n    def forward(self, logits: torch.Tensor, temperatures: torch.Tensor):\n        logits = logits.float().div_(temperatures.unsqueeze(dim=1))\n        probs = torch.softmax(logits, dim=-1)\n        sample_tokens = probs.div_(torch.empty_like(probs).exponential_(1).clamp_min_(1e-10)) \\\n                             .argmax(dim=-1)\n        return sample_tokens"
+    },
+    {
+      "id": "blockmanager___init__",
+      "name": "BlockManager.__init__()",
+      "file": "nanovllm/engine/block_manager.py:28",
+      "lang": "py",
+      "layout": {
+        "col": 1,
+        "band": 3
+      },
+      "collapsed": false,
+      "code": "    def __init__(self, num_blocks: int, block_size: int):\n        self.block_size = block_size\n        self.blocks: list[Block] = [Block(i) for i in range(num_blocks)]\n        self.hash_to_block_id: dict[int, int] = dict()\n        self.free_block_ids: deque[int] = deque(range(num_blocks))\n        self.used_block_ids: set[int] = set()",
+      "terms": [
+        {
+          "line": 5,
+          "token": "free_block_ids",
+          "note": "空闲物理块号的队列——分页显存的自由列表。"
+        },
+        {
+          "line": 4,
+          "token": "hash_to_block_id",
+          "note": "内容哈希→物理块号，前缀缓存靠它命中已算过的 KV。"
+        }
+      ]
+    },
+    {
+      "id": "can_allocate",
+      "name": "BlockManager.can_allocate()",
+      "file": "nanovllm/engine/block_manager.py:58",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 3
+      },
+      "collapsed": false,
+      "code": "    def can_allocate(self, seq: Sequence) -> int:\n        h = -1\n        num_cached_blocks = 0\n        num_new_blocks = seq.num_blocks\n        for i in range(seq.num_blocks - 1):\n            token_ids = seq.block(i)\n            h = self.compute_hash(token_ids, h)\n            block_id = self.hash_to_block_id.get(h, -1)\n            if block_id == -1 or self.blocks[block_id].token_ids != token_ids:\n                break\n            num_cached_blocks += 1\n            if block_id in self.used_block_ids:\n                num_new_blocks -= 1\n        if len(self.free_block_ids) < num_new_blocks:\n            return -1\n        return num_cached_blocks",
+      "blocks": [
+        {
+          "name": "逐块探前缀命中",
+          "summary": "命中的块可直接复用",
+          "lines": [
+            5,
+            13
+          ],
+          "folded": true
+        },
+        {
+          "name": "余量判定",
+          "summary": "空闲块够不够，返回可复用块数",
+          "lines": [
+            14,
+            16
+          ],
+          "folded": true
+        }
+      ]
+    },
+    {
+      "id": "allocate",
+      "name": "BlockManager.allocate()",
+      "file": "nanovllm/engine/block_manager.py:75",
+      "lang": "py",
+      "layout": {
+        "col": 2,
+        "band": 4
+      },
+      "collapsed": false,
+      "code": "    def allocate(self, seq: Sequence, num_cached_blocks: int):\n        assert not seq.block_table\n        h = -1\n        for i in range(num_cached_blocks):\n            token_ids = seq.block(i)\n            h = self.compute_hash(token_ids, h)\n            block_id = self.hash_to_block_id[h]\n            block = self.blocks[block_id]\n            if block_id in self.used_block_ids:\n                block.ref_count += 1\n            else:\n                block.ref_count = 1\n                self.free_block_ids.remove(block_id)\n                self.used_block_ids.add(block_id)\n            seq.block_table.append(block_id)\n        for i in range(num_cached_blocks, seq.num_blocks):\n            seq.block_table.append(self._allocate_block())\n        seq.num_cached_tokens = num_cached_blocks * self.block_size",
+      "blocks": [
+        {
+          "name": "复用已缓存块",
+          "summary": "命中前缀就 ref_count+1 共享",
+          "lines": [
+            4,
+            15
+          ],
+          "folded": true,
+          "explain": "前缀缓存的省显存点：多条序列若共享同一段 prompt 前缀，物理块只存一份，靠 ref_count 记录被几条序列引用。"
+        },
+        {
+          "name": "补分配新块",
+          "summary": "剩余部分从空闲池取新块",
+          "lines": [
+            16,
+            17
+          ],
+          "folded": true
+        }
+      ],
+      "terms": [
+        {
+          "line": 10,
+          "token": "ref_count",
+          "note": "共享计数：几条序列引用这个物理块，减到 0 才真正回收。"
+        }
+      ]
+    },
+    {
+      "id": "may_append",
+      "name": "BlockManager.may_append()",
+      "file": "nanovllm/engine/block_manager.py:106",
+      "lang": "py",
+      "layout": {
+        "col": 3,
+        "band": 3
+      },
+      "collapsed": false,
+      "code": "    def may_append(self, seq: Sequence):\n        if len(seq) % self.block_size == 1:\n            seq.block_table.append(self._allocate_block())",
+      "terms": [
+        {
+          "line": 2,
+          "token": "block_size",
+          "note": "每块固定装 block_size 个 token；刚好跨到新块的第 1 个 token 时才追加一块。"
+        }
+      ]
+    },
+    {
+      "id": "hash_blocks",
+      "name": "BlockManager.hash_blocks()",
+      "file": "nanovllm/engine/block_manager.py:110",
+      "lang": "py",
+      "layout": {
+        "col": 3,
+        "band": 4
+      },
+      "collapsed": false,
+      "code": "    def hash_blocks(self, seq: Sequence):\n        start = seq.num_cached_tokens // self.block_size\n        end = (seq.num_cached_tokens + seq.num_scheduled_tokens) // self.block_size\n        if start == end: return\n        h = self.blocks[seq.block_table[start - 1]].hash if start > 0 else -1\n        for i in range(start, end):\n            block = self.blocks[seq.block_table[i]]\n            token_ids = seq.block(i)\n            h = self.compute_hash(token_ids, h)\n            block.update(h, token_ids)\n            self.hash_to_block_id[h] = block.block_id"
+    },
+    {
+      "id": "deallocate",
+      "name": "BlockManager.deallocate()",
+      "file": "nanovllm/engine/block_manager.py:94",
+      "lang": "py",
+      "layout": {
+        "col": 1,
+        "band": 4
+      },
+      "collapsed": true,
+      "code": "    def deallocate(self, seq: Sequence):\n        for block_id in reversed(seq.block_table):\n            block = self.blocks[block_id]\n            block.ref_count -= 1\n            if block.ref_count == 0:\n                self._deallocate_block(block_id)\n        seq.num_cached_tokens = 0\n        seq.block_table.clear()"
+    },
+    {
+      "id": "attention_forward",
+      "name": "Attention.forward()",
+      "file": "nanovllm/layers/attention.py:59",
+      "lang": "py",
+      "layout": {
+        "col": 4,
+        "band": 2
+      },
+      "collapsed": false,
+      "code": "    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):\n        context = get_context()\n        k_cache, v_cache = self.k_cache, self.v_cache\n        if k_cache.numel() and v_cache.numel():\n            store_kvcache(k, v, k_cache, v_cache, context.slot_mapping)\n        if context.is_prefill:\n            if context.block_tables is not None:    # prefix cache\n                k, v = k_cache, v_cache\n            o = flash_attn_varlen_func(q, k, v,\n                                       max_seqlen_q=context.max_seqlen_q,\n                                       cu_seqlens_q=context.cu_seqlens_q,\n                                       max_seqlen_k=context.max_seqlen_k,\n                                       cu_seqlens_k=context.cu_seqlens_k,\n                                       softmax_scale=self.scale, causal=True,\n                                       block_table=context.block_tables)\n        else:    # decode\n            o = flash_attn_with_kvcache(q.unsqueeze(1), k_cache, v_cache,\n                                        cache_seqlens=context.context_lens,\n                                        block_table=context.block_tables,\n                                        softmax_scale=self.scale, causal=True)\n        return o",
+      "terms": [
+        {
+          "line": 5,
+          "token": "slot_mapping",
+          "note": "按它把这批新算的 K/V 写进分页 cache 的对应槽位。"
+        },
+        {
+          "line": 19,
+          "token": "block_tables",
+          "note": "解码时把逻辑块表交给 flash-attn，自己按页去 gather 历史 KV。"
+        }
+      ]
+    },
+    {
+      "id": "store_kvcache",
+      "name": "store_kvcache()",
+      "file": "nanovllm/layers/attention.py:33",
+      "lang": "py",
+      "layout": {
+        "col": 4,
+        "band": 3
+      },
+      "collapsed": false,
+      "code": "def store_kvcache(key: torch.Tensor, value: torch.Tensor,\n                  k_cache: torch.Tensor, v_cache: torch.Tensor, slot_mapping: torch.Tensor):\n    N, num_heads, head_dim = key.shape\n    D = num_heads * head_dim\n    assert key.stride(-1) == 1 and value.stride(-1) == 1\n    assert key.stride(1) == head_dim and value.stride(1) == head_dim\n    assert k_cache.stride(1) == D and v_cache.stride(1) == D\n    assert slot_mapping.numel() == N\n    store_kvcache_kernel[(N,)](key, key.stride(0), value, value.stride(0),\n                              k_cache, v_cache, slot_mapping, D)"
+    }
+  ],
+  "wires": [
+    {
+      "id": "c-gen-step",
+      "kind": "call",
+      "from": {
+        "card": "generate",
+        "line": 16
+      },
+      "to": {
+        "card": "step"
+      }
+    },
+    {
+      "id": "c-step-sched",
+      "kind": "call",
+      "from": {
+        "card": "step",
+        "line": 2
+      },
+      "to": {
+        "card": "schedule"
+      }
+    },
+    {
+      "id": "c-step-run",
+      "kind": "call",
+      "from": {
+        "card": "step",
+        "line": 4
+      },
+      "to": {
+        "card": "run"
+      }
+    },
+    {
+      "id": "c-step-post",
+      "kind": "call",
+      "from": {
+        "card": "step",
+        "line": 5
+      },
+      "to": {
+        "card": "postprocess"
+      }
+    },
+    {
+      "id": "c-run-prep",
+      "kind": "call",
+      "from": {
+        "card": "run",
+        "line": 2
+      },
+      "to": {
+        "card": "prepare_prefill"
+      }
+    },
+    {
+      "id": "c-run-model",
+      "kind": "call",
+      "from": {
+        "card": "run",
+        "line": 5
+      },
+      "to": {
+        "card": "run_model"
+      }
+    },
+    {
+      "id": "c-run-samp",
+      "kind": "call",
+      "from": {
+        "card": "run",
+        "line": 6
+      },
+      "to": {
+        "card": "sampler_forward"
+      }
+    },
+    {
+      "id": "c-sched-canalloc",
+      "kind": "call",
+      "from": {
+        "card": "schedule",
+        "line": 12
+      },
+      "to": {
+        "card": "can_allocate"
+      }
+    },
+    {
+      "id": "c-sched-alloc",
+      "kind": "call",
+      "from": {
+        "card": "schedule",
+        "line": 21
+      },
+      "to": {
+        "card": "allocate"
+      }
+    },
+    {
+      "id": "c-sched-append",
+      "kind": "call",
+      "from": {
+        "card": "schedule",
+        "line": 45
+      },
+      "to": {
+        "card": "may_append"
+      }
+    },
+    {
+      "id": "c-sched-preempt",
+      "kind": "call",
+      "from": {
+        "card": "schedule",
+        "line": 38
+      },
+      "to": {
+        "card": "preempt"
+      }
+    },
+    {
+      "id": "c-preempt-dealloc",
+      "kind": "call",
+      "from": {
+        "card": "preempt",
+        "line": 4
+      },
+      "to": {
+        "card": "deallocate"
+      }
+    },
+    {
+      "id": "c-post-hash",
+      "kind": "call",
+      "from": {
+        "card": "postprocess",
+        "line": 3
+      },
+      "to": {
+        "card": "hash_blocks"
+      }
+    },
+    {
+      "id": "c-post-dealloc",
+      "kind": "call",
+      "from": {
+        "card": "postprocess",
+        "line": 12
+      },
+      "to": {
+        "card": "deallocate"
+      }
+    },
+    {
+      "id": "c-attn-store",
+      "kind": "call",
+      "from": {
+        "card": "attention_forward",
+        "line": 5
+      },
+      "to": {
+        "card": "store_kvcache"
+      }
+    },
+    {
+      "id": "d-blocktable",
+      "kind": "data",
+      "label": "block_table",
+      "from": {
+        "card": "allocate",
+        "line": 15
+      },
+      "to": {
+        "card": "prepare_prefill",
+        "line": 26
+      }
+    },
+    {
+      "id": "d-slotmap",
+      "kind": "data",
+      "label": "slot_mapping",
+      "from": {
+        "card": "prepare_prefill",
+        "line": 40
+      },
+      "to": {
+        "card": "store_kvcache",
+        "line": 8
+      }
+    },
+    {
+      "id": "d-logits",
+      "kind": "data",
+      "label": "logits",
+      "from": {
+        "card": "run_model",
+        "line": 4
+      },
+      "to": {
+        "card": "sampler_forward",
+        "line": 3
+      }
+    },
+    {
+      "id": "d-token",
+      "kind": "data",
+      "label": "token_id",
+      "from": {
+        "card": "sampler_forward",
+        "line": 7
+      },
+      "to": {
+        "card": "postprocess",
+        "line": 8
+      }
+    }
+  ],
+  "notes": [
+    {
+      "id": "bg0",
+      "flavor": "bg",
+      "tag": "背景 · 这是什么",
+      "text": "nano-vllm：~1200 行重写 vLLM。两件事交织——一个连续批处理循环反复吐 token，一套分页 KV cache 管显存。",
+      "place": {
+        "corner": "nw"
+      },
+      "step": 0
+    },
+    {
+      "id": "bg-loop",
+      "flavor": "bg",
+      "tag": "背景 · 一轮 = 一批",
+      "text": "每次 step 只前进「一批」：要么给若干新请求做 prefill，要么让所有在跑序列各解码 1 个 token。",
+      "anchor": {
+        "card": "step",
+        "line": 2
+      },
+      "place": {
+        "side": "above",
+        "of": "step"
+      },
+      "step": 2
+    },
+    {
+      "id": "bg-paged",
+      "flavor": "bg",
+      "tag": "背景 · 为什么分页",
+      "text": "KV cache 按定长块切分，像操作系统分页：序列拿到的是逻辑块表，物理块可共享、可回收、可抢占。",
+      "anchor": {
+        "card": "blockmanager___init__",
+        "line": 5
+      },
+      "place": {
+        "side": "above",
+        "of": "blockmanager___init__"
+      },
+      "step": 4
+    },
+    {
+      "id": "n-slot",
+      "flavor": "intent",
+      "tag": "NOTE · slot_mapping 是桥",
+      "text": "逻辑块表 × block_size + 偏移 = 物理槽位。attention 靠这张翻译表把新 KV 写对地方。",
+      "anchor": {
+        "card": "prepare_prefill",
+        "line": 33
+      },
+      "place": {
+        "side": "left",
+        "of": "prepare_prefill"
+      },
+      "step": 6
+    },
+    {
+      "id": "n-preempt",
+      "flavor": "intent",
+      "tag": "NOTE · 抢占即回退",
+      "text": "显存不够时把队尾序列整段 KV 回收、状态打回 WAITING，之后重新 prefill——省显存的代价是重算。",
+      "anchor": {
+        "card": "preempt",
+        "line": 4
+      },
+      "place": {
+        "side": "left",
+        "of": "preempt"
+      },
+      "step": 9
+    },
+    {
+      "id": "n-hash",
+      "flavor": "intent",
+      "tag": "NOTE · 填满才登记",
+      "text": "只有被写满的块才算进哈希表，成为下一条序列的可复用前缀；没填满的块不进缓存。",
+      "anchor": {
+        "card": "hash_blocks",
+        "line": 11
+      },
+      "place": {
+        "side": "left",
+        "of": "hash_blocks"
+      },
+      "step": 8
+    }
+  ],
+  "steps": [
+    {
+      "title": "总览",
+      "fit": true,
+      "caption": "两条故事线：蓝=请求主循环，绿=KV cache。先看请求怎么进来，再跟着一轮 step 走完前向与采样，最后看显存怎么分/回收。"
+    },
+    {
+      "title": "① 请求怎么进引擎",
+      "storyline": "A",
+      "caption": "generate 把每个 prompt 编码成 token、包成 Sequence 入 waiting 队列。请求此刻只排队，还没碰 GPU。",
+      "expand": [
+        "add_request"
+      ],
+      "lines": [
+        [
+          "add_request",
+          2
+        ],
+        [
+          "add_request",
+          4
+        ]
+      ],
+      "focus": [
+        "add_request",
+        "generate"
+      ]
+    },
+    {
+      "title": "② 驱动循环：一轮 step 干三件事",
+      "storyline": "A",
+      "caption": "generate 反复调 step 直到全部完成。每轮 step = 调度组批 → 跑一次前向 → 后处理落库。这就是连续批处理。",
+      "wires": [
+        "c-gen-step",
+        "c-step-sched",
+        "c-step-run",
+        "c-step-post"
+      ],
+      "lines": [
+        [
+          "step",
+          2
+        ],
+        [
+          "step",
+          4
+        ],
+        [
+          "step",
+          5
+        ]
+      ],
+      "unfold": [
+        [
+          "generate",
+          "驱动循环"
+        ]
+      ],
+      "focus": [
+        "generate",
+        "step",
+        "bg-loop"
+      ]
+    },
+    {
+      "title": "③ 调度决定这轮做什么",
+      "storyline": "A",
+      "caption": "有 waiting 就优先组 prefill 批（受 token 预算约束），否则给所有在跑序列各解码 1 token。返回 is_prefill 决定后续路径。",
+      "wires": [
+        "c-step-sched"
+      ],
+      "lines": [
+        [
+          "schedule",
+          5
+        ],
+        [
+          "schedule",
+          33
+        ]
+      ],
+      "expand": [
+        "schedule"
+      ],
+      "unfold": [
+        [
+          "schedule",
+          "组 prefill 批"
+        ],
+        [
+          "schedule",
+          "组 decode 批"
+        ]
+      ],
+      "focus": [
+        "step",
+        "schedule"
+      ]
+    },
+    {
+      "title": "④ prefill 先要显存：分页 + 前缀复用",
+      "storyline": "B",
+      "caption": "can_allocate 先探前缀缓存能复用几块、空闲够不够；allocate 据此建 block_table：命中的块共享(ref_count+1)，剩下的取新块。",
+      "wires": [
+        "c-sched-canalloc",
+        "c-sched-alloc"
+      ],
+      "lines": [
+        [
+          "can_allocate",
+          8
+        ],
+        [
+          "allocate",
+          9
+        ]
+      ],
+      "expand": [
+        "can_allocate",
+        "allocate"
+      ],
+      "unfold": [
+        [
+          "allocate",
+          "复用已缓存块"
+        ],
+        [
+          "can_allocate",
+          "逐块探前缀命中"
+        ]
+      ],
+      "focus": [
+        "blockmanager___init__",
+        "schedule",
+        "can_allocate",
+        "allocate",
+        "bg-paged"
+      ]
+    },
+    {
+      "title": "⑤ 一次前向怎么跑出 logits",
+      "storyline": "A",
+      "caption": "run 按 is_prefill 走 prepare_prefill/decode 建输入张量，run_model 跑模型（decode 用 CUDA Graph 重放）得到 logits。",
+      "wires": [
+        "c-step-run",
+        "c-run-prep",
+        "c-run-model"
+      ],
+      "lines": [
+        [
+          "run",
+          2
+        ],
+        [
+          "run",
+          4
+        ]
+      ],
+      "expand": [
+        "run",
+        "run_model"
+      ],
+      "unfold": [
+        [
+          "run_model",
+          "decode 走 CUDA Graph"
+        ]
+      ],
+      "focus": [
+        "run",
+        "prepare_prefill",
+        "run_model"
+      ]
+    },
+    {
+      "title": "⑥ KV 在哪读写：slot_mapping 之旅",
+      "storyline": "B",
+      "caption": "block_table 经 prepare_prefill 翻成 slot_mapping；store_kvcache 按槽位写入新 K/V，flash-attn 再按页读历史。",
+      "wires": [
+        "d-blocktable",
+        "d-slotmap",
+        "c-attn-store"
+      ],
+      "lines": [
+        [
+          "prepare_prefill",
+          33
+        ],
+        [
+          "attention_forward",
+          5
+        ]
+      ],
+      "expand": [
+        "prepare_prefill",
+        "attention_forward",
+        "store_kvcache"
+      ],
+      "unfold": [
+        [
+          "prepare_prefill",
+          "逐序列建 slot_mapping"
+        ]
+      ],
+      "focus": [
+        "prepare_prefill",
+        "attention_forward",
+        "store_kvcache",
+        "n-slot"
+      ]
+    },
+    {
+      "title": "⑦ logits 怎么变成 token",
+      "storyline": "A",
+      "caption": "run 把 logits 交给 Sampler：按温度缩放、softmax，再用 Gumbel 噪声一步 argmax 采样出 token_id。",
+      "wires": [
+        "c-run-samp",
+        "d-logits"
+      ],
+      "lines": [
+        [
+          "sampler_forward",
+          5
+        ]
+      ],
+      "expand": [
+        "sampler_forward"
+      ],
+      "focus": [
+        "run_model",
+        "sampler_forward"
+      ]
+    },
+    {
+      "title": "⑧ token 落库、块登记、序列收尾",
+      "storyline": "A",
+      "caption": "postprocess 把 token 追加进序列、hash_blocks 把填满的块登记成可复用前缀；命中 EOS 或 max_tokens 就 deallocate 回收显存。",
+      "wires": [
+        "d-token",
+        "c-step-post",
+        "c-post-hash",
+        "c-post-dealloc"
+      ],
+      "lines": [
+        [
+          "postprocess",
+          8
+        ],
+        [
+          "postprocess",
+          3
+        ],
+        [
+          "postprocess",
+          9
+        ]
+      ],
+      "expand": [
+        "postprocess"
+      ],
+      "focus": [
+        "postprocess",
+        "hash_blocks",
+        "deallocate",
+        "n-hash"
+      ]
+    },
+    {
+      "title": "⑨ decode 怎么续显存：追加块 or 抢占",
+      "storyline": "B",
+      "caption": "decode 每步可能跨进新块：有空闲就 may_append 追一块；池子空了就抢占队尾序列，deallocate 其 KV、打回 WAITING 稍后重算。",
+      "wires": [
+        "c-sched-append",
+        "c-sched-preempt",
+        "c-preempt-dealloc"
+      ],
+      "lines": [
+        [
+          "schedule",
+          36
+        ],
+        [
+          "may_append",
+          3
+        ],
+        [
+          "preempt",
+          4
+        ]
+      ],
+      "expand": [
+        "preempt",
+        "may_append"
+      ],
+      "unfold": [
+        [
+          "schedule",
+          "组 decode 批"
+        ]
+      ],
+      "focus": [
+        "schedule",
+        "may_append",
+        "preempt",
+        "n-preempt"
+      ]
+    }
+  ]
+}

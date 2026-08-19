@@ -224,10 +224,11 @@ caption 说"注意 X"则 X 在画面且点亮）→ Playwright 测试防交互�
 
 ### 4.3 基线（2026-08-16，openai/codex，本包 examples/ 有完整产物）
 
-| 考卷 | 结果 | 溯源 | 用时 |
-|---|---|---|---|
-| codex-nav 领航 | PASS | 9/9 逐字 | 22 min |
-| codex-exec 深潜 | PASS | 15/15 token 流 | 34 min |
+| 考卷 | 结果 | 溯源 | 用时 | 管线 |
+|---|---|---|---|---|
+| codex-nav 领航 | PASS | 9/9 逐字 | 22 min | 手工摘选（Rust） |
+| codex-exec 深潜 | PASS | 15/15 token 流 | 34 min | 手工摘选（Rust） |
+| nanovllm-deep 深潜（2026-08-18） | PASS (warn) | **18/18** token 流 | **16 min** | **P3 结构层先行**：考生零上下文自行走通 extract.py（58 卡策展到 18）；warn=卡数 18>16（考题双主题，报告有正当理由）。评分器两处容忍面补齐（`#` 注释续行、`\` 代码续行——sglang 审计与本场各暴露一处）；考生指出的"重排边界"模糊已写进 SKILL.md 硬约束。产物存 examples/nanovllm-deep/ |
 
 两位考生的自检循环都真实工作（各修 4-5 个布局问题）；他们的"SKILL 哪里
 没写清"反馈已全部吸收进 SKILL.md（行宽裁决、宽度预算 ≤5 列、note 摆位

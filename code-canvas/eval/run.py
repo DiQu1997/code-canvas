@@ -38,9 +38,10 @@ def load_exams():
 # ---------------- grading ----------------
 
 def norm(s: str) -> str:
-    # whitespace-insensitive; tolerate `//`（Rust/JS）与 `#`（Python）续行标记——
-    # 披露过的注释换行重排会补它们。两侧等量删除，比较意义不变。
-    return re.sub(r"\s+", "", s).replace("//", "").replace("#", "")
+    # whitespace-insensitive; tolerate rewrap continuation markers that
+    # disclosed 保序换行重排 inserts: `//`（Rust/JS 注释）、`#`（Python 注释）、
+    # `\`（Python 代码续行）。两侧等量删除，比较意义不变。
+    return re.sub(r"\s+", "", s).replace("//", "").replace("#", "").replace("\\", "")
 
 
 def grade(out_dir: Path, repo: Path, mode: str | None) -> dict:
