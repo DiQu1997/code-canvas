@@ -144,6 +144,19 @@ await fetch(`${base}/c/nano-vllm/`);
 check('stale html re-rendered against current template',
   statSync(join(hub, 'nano-vllm.html')).mtimeMs > old.getTime() + 1000);
 
+// 5c. delete: library canvas removable (html+json+qa), examples protected
+const delRes = await (await fetch(`${base}/c/cache-diff`, { method: 'DELETE' })).json();
+check('delete removes library canvas', delRes.ok === true &&
+  !existsSync(join(hub, 'cache-diff.html')) && !existsSync(join(hub, 'cache-diff.json')) &&
+  !existsSync(join(hub, 'cache-diff.html.qa.json')));
+check('deleted canvas 404s', (await fetch(`${base}/c/cache-diff/`)).status === 404);
+const delEx = await (await fetch(`${base}/c/cache-demo`, { method: 'DELETE' })).json();
+check('examples protected from delete', delEx.ok === false &&
+  existsSync(join(hub, 'examples', 'cache-demo.html')));
+const listAfter = await (await fetch(`${base}/`)).text();
+check('delete button only on library cards',
+  listAfter.includes('data-name="nano-vllm"') && !listAfter.includes('data-name="cache-demo"'));
+
 // 6. sanitization: traversal names rejected
 const evil = await fetch(`${base}/c/..%2F..%2Fetc/`);
 check('traversal name 404s', evil.status === 404);

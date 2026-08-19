@@ -205,8 +205,11 @@ h1{font-size:20px;margin:0 0 2px}
 .sub{color:#57606a;font-size:13px;margin-bottom:18px}
 a.card{display:block;background:#ffffff;border:1px solid #d0d7de;border-radius:10px;
   padding:14px 16px;margin-bottom:10px;text-decoration:none;color:inherit;
-  box-shadow:0 1px 3px rgba(31,35,40,.06)}
+  box-shadow:0 1px 3px rgba(31,35,40,.06);position:relative}
 a.card:active{background:#f3f4f6}
+.del{position:absolute;top:10px;right:10px;width:28px;height:28px;line-height:28px;
+  text-align:center;border-radius:8px;color:#8c959f;font-size:14px}
+.del:hover{color:#cf222e;background:rgba(207,34,46,.08)}
 .t{font-weight:600}
 .m{color:#57606a;font-size:12.5px;margin-top:2px}
 .badge{display:inline-block;font-size:11px;border:1px solid #d0d7de;border-radius:999px;
@@ -272,6 +275,16 @@ $('g-go').onclick=async()=>{
   }catch(e){$('genmsg').textContent='请求失败：'+e}
   $('g-go').disabled=false;
 };
+document.addEventListener('click',async e=>{
+  const d=e.target.closest('.del');
+  if(!d)return;
+  e.preventDefault();e.stopPropagation();
+  const n=d.dataset.name;
+  if(!confirm('删除画布「'+n+'」？连同问答记录一起删除，不可恢复。'))return;
+  const r=await fetch('/c/'+n,{method:'DELETE'});
+  const j=await r.json();
+  if(j.ok)location.reload();else alert('删除失败：'+(j.error||''));
+});
 async function poll(){
   try{
     const j=await(await fetch('/jobs')).json();
@@ -288,23 +301,24 @@ poll();
 """
 
 
-def canvas_rows(paths, url_prefix="/c/") -> str:
+def canvas_rows(paths, url_prefix="/c/", deletable=False) -> str:
     rows = []
     for p in paths:
         m = canvas_meta(p)
         badge = '<span class="badge {mode}">{mode}</span>'.format(mode=m["mode"]) if m["mode"] else ""
+        delbtn = '<span class="del" data-name="{}" title="删除画布">✕</span>'.format(p.stem) if deletable else ""
         rows.append(
-            '<a class="card" href="{pre}{name}/"><div class="t">{title}{badge}</div>'
+            '<a class="card" href="{pre}{name}/">{delbtn}<div class="t">{title}{badge}</div>'
             '<div class="m">{subtitle}{sep}{mtime}</div></a>'.format(
-                pre=url_prefix, name=p.stem, title=m["title"], badge=badge, subtitle=m["subtitle"],
-                sep=" · " if m["subtitle"] else "", mtime=m["mtime"]))
+                pre=url_prefix, name=p.stem, delbtn=delbtn, title=m["title"], badge=badge,
+                subtitle=m["subtitle"], sep=" · " if m["subtitle"] else "", mtime=m["mtime"]))
     return "".join(rows)
 
 
 def render_list_page() -> str:
     lib = list_canvases()
     ex = list_examples()
-    lib_html = ("<h2>画布库</h2>" + canvas_rows(lib)) if lib else \
+    lib_html = ("<h2>画布库</h2>" + canvas_rows(lib, deletable=True)) if lib else \
         "<h2>画布库</h2><div class='m'>还没有生成过画布——在上面喂一段代码试试</div>"
     ex_html = ("<h2>示例（质量基准，非产物）</h2>" + canvas_rows(ex)) if ex else ""
     return ("<!doctype html><meta charset=utf-8>"
@@ -431,6 +445,26 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/ask"):
             return self._ask(ARGS.html)
         self._json(404, {"ok": False, "error": "not found"})
+
+    def do_DELETE(self):
+        """DELETE /c/<name> —— 删除库里的画布（html+json+qa sidecar）。
+        examples/ 是质量基准，不可删。"""
+        if not ARGS.hub:
+            return self._json(404, {"ok": False, "error": "not found"})
+        m = re.match(r"^/c/([^/]+)/?$", self.path)
+        if not m or not NAME_RE.match(m.group(1)):
+            return self._json(404, {"ok": False, "error": "not found"})
+        p = ARGS.hub / (m.group(1) + ".html")
+        if not p.exists():
+            if (ARGS.hub / "examples" / (m.group(1) + ".html")).exists():
+                return self._json(403, {"ok": False, "error": "示例画布是质量基准，不可删除"})
+            return self._json(404, {"ok": False, "error": "画布不存在"})
+        removed = []
+        for f in (p, p.with_suffix(".json"), p.with_suffix(p.suffix + ".qa.json")):
+            if f.exists():
+                f.unlink()
+                removed.append(f.name)
+        self._json(200, {"ok": True, "removed": removed})
 
     def _ask(self, html_path: Path):
         try:
