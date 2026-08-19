@@ -84,7 +84,7 @@ def grade(out_dir: Path, repo: Path, mode: str | None) -> dict:
             traced += 1
         else:
             broken += 1
-    total = len(cards)
+    total = traced + missing + broken  # 只计承诺逐字契约的代码卡
     ratio = traced / total if total else 0
     add("代码可溯源 ≥90%", ratio >= 0.9,
         f"{traced}/{total} 可溯源，{missing} 张无行号标注，{broken} 张对不上")
