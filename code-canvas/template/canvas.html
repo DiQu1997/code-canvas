@@ -80,14 +80,19 @@
   .dchips { display: flex; flex-wrap: wrap; gap: 5px; }
   .dchip { font: 11px ui-monospace, Menlo, monospace; color: #424a53; background: #f0f2f5;
     border-radius: 6px; padding: 1px 8px; }
-  /* 故事线路（地铁线）：五色粗线，点亮才显 */
-  .wire.route { stroke-width: 5; stroke-linecap: round; opacity: 0; }
-  .wire.route.on { opacity: .85; }
-  .wire.route.off { opacity: .07; }
+  /* 故事线路（地铁线）：独立底层 SVG（#routes，卡片之下），浅弧几何 */
+  #routes { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; overflow: visible; }
+  .wire.route { stroke-width: 6; stroke-linecap: round; fill: none; opacity: 0;
+    transition: opacity .3s; }
+  .wire.route.on { opacity: .8; }
+  .wire.route.off { opacity: .1; }
   .wire.route-0 { stroke: #0969da; } .wire.route-1 { stroke: #1a7f37; }
   .wire.route-2 { stroke: #8250df; } .wire.route-3 { stroke: #bf8700; }
   .wire.route-4 { stroke: #d1242f; }
-  .port.route { display: none; }
+  .rchip { cursor: pointer; }
+  .rchip .rdot { display: inline-block; width: 9px; height: 9px; border-radius: 99px;
+    margin-right: 5px; vertical-align: -1px; }
+  .rchip:hover { color: #1f2328; }
 
   /* 步内阅读顺序徽标：当前步 focus/order 元素左上角的 ①②③ */
   .ordchip { position: absolute; z-index: 6; min-width: 26px; height: 26px; padding: 0 4px;
@@ -297,7 +302,7 @@
 </head>
 <body>
 
-<div id="vp"><div id="world"><svg id="wires"></svg></div></div>
+<div id="vp"><div id="world"><svg id="routes"></svg><svg id="wires"></svg></div></div>
 
 <div id="topbar">
   <a id="home-link" href="/" hidden>← 画布库</a>
@@ -517,6 +522,22 @@ if (DATA.cards.some(c => c.plan) || (DATA.wires || []).some(w => w.plan)) {
     `<span><span class="sw" style="border-top-style:dashed;border-color:#2da44e"></span>幽灵卡/计划加线</span>`
     + `<span><span class="sw" style="border-top-style:dashed;border-color:#d1242f"></span>计划删线</span>`
     + `<span><span class="pbadge modify">将改</span></span>`);
+}
+/* 预览地图：图例列出故事线路（色点 + 名，点击直达该线路的步） */
+{
+  const ROUTE_COLORS = ['#0969da', '#1a7f37', '#8250df', '#bf8700', '#d1242f'];
+  const wireRoute = {};
+  (DATA.wires || []).forEach(w => { if (w.kind === 'route') wireRoute[w.id] = w.route || 0; });
+  if (Object.keys(wireRoute).length) {
+    (DATA.steps || []).forEach((s, i) => {
+      const k = (s.wires || []).map(id => wireRoute[id]).find(x => x !== undefined);
+      if (k === undefined || i === 0) return;
+      document.querySelector('.legend').insertAdjacentHTML('beforeend',
+        `<span class="rchip" data-step="${i}"><span class="rdot" style="background:${ROUTE_COLORS[k % 5]}"></span>${esc((s.title || '').replace(/^[①-⑩]\s*/, ''))}</span>`);
+    });
+    document.querySelectorAll('.rchip').forEach(el =>
+      el.addEventListener('click', () => setStep(+el.dataset.step)));
+  }
 }
 if (DATA.cards.some(c => c.plan_delta)) {
   document.querySelector('.legend').insertAdjacentHTML('beforeend',
@@ -738,7 +759,28 @@ function drawWires() {
     `<marker id="ah-${k}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
        <path d="M 0 1 L 9 5 L 0 9 z" fill="${c}"/></marker>`).join('') + '</defs>';
   const active = STEPS[step].wires || null;
+  // 故事线路：底层 SVG、站心浅弧——不走端口贝塞尔（那是绕圈的元凶）
+  const routesSvg = document.getElementById('routes');
+  routesSvg.innerHTML = '';
   for (const w of DATA.wires || []) {
+    if (w.kind !== 'route') continue;
+    const ea = document.getElementById('card-' + w.from.card);
+    const eb = document.getElementById('card-' + w.to.card);
+    if (!ea || !eb) continue;
+    const pa = wpos(ea), pb = wpos(eb);
+    const a = { x: pa.x + pa.w / 2, y: pa.y + pa.h / 2 };
+    const b = { x: pb.x + pb.w / 2, y: pb.y + pb.h / 2 };
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const bow = Math.min(len * .12, 60);           // 一致的浅弧，行进方向左侧
+    const m = { x: (a.x + b.x) / 2 - dy / len * bow, y: (a.y + b.y) / 2 + dx / len * bow };
+    const state = active === null ? '' : (active.includes(w.id) ? ' on' : ' off');
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', `M ${a.x} ${a.y} Q ${m.x} ${m.y}, ${b.x} ${b.y}`);
+    p.setAttribute('class', `wire route route-${w.route || 0}${state}`);
+    routesSvg.appendChild(p);
+  }
+  for (const w of DATA.wires || []) {
+    if (w.kind === 'route') continue;
     const a = resolveAnchor(w.from, null);
     const b = resolveAnchor({ side: 'left', ...w.to }, w.kind === 'data' ? 'data' : 'call');
     const k = Math.min(Math.max(Math.abs(b.x - a.x) * .55, Math.abs(b.y - a.y) * .25, 30), 170);

@@ -62,6 +62,38 @@
   .kw { color: #cf222e; } .fn { color: #8250df; } .str { color: #0a3069; }
   .num { color: #0550ae; } .cmt { color: #6e7781; }
   .card.dim { opacity: .32; }
+  /* ---- 预览分区卡（district）：地图语言，零代码排版 ---- */
+  .card.district { border-radius: 14px; border-width: 0; box-shadow: 0 4px 16px rgba(31,35,40,.12); }
+  .card.district .hdr { border-bottom: none; background: transparent; padding: 14px 18px 2px; }
+  .card.district .fname { font: 700 17px -apple-system, 'PingFang SC', sans-serif; }
+  .card.district .dbody { padding: 4px 18px 14px; max-width: 340px; }
+  .card.district.size-l .dbody { max-width: 400px; }
+  .card.district.size-s .dbody { max-width: 260px; }
+  .card.district.size-s .fname { font-size: 14px; }
+  .drole { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 99px;
+    padding: 1px 10px; color: #fff; margin-bottom: 6px; }
+  .doneliner { font-size: 12.5px; color: #424a53; line-height: 1.55; margin-bottom: 8px; }
+  .dstat { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #6e7781;
+    margin-bottom: 8px; }
+  .dbar { height: 6px; border-radius: 99px; background: #eaeef2; flex: 1; overflow: hidden; }
+  .dbar > i { display: block; height: 100%; border-radius: 99px; }
+  .dchips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .dchip { font: 11px ui-monospace, Menlo, monospace; color: #424a53; background: #f0f2f5;
+    border-radius: 6px; padding: 1px 8px; }
+  /* 故事线路（地铁线）：独立底层 SVG（#routes，卡片之下），浅弧几何 */
+  #routes { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; overflow: visible; }
+  .wire.route { stroke-width: 6; stroke-linecap: round; fill: none; opacity: 0;
+    transition: opacity .3s; }
+  .wire.route.on { opacity: .8; }
+  .wire.route.off { opacity: .1; }
+  .wire.route-0 { stroke: #0969da; } .wire.route-1 { stroke: #1a7f37; }
+  .wire.route-2 { stroke: #8250df; } .wire.route-3 { stroke: #bf8700; }
+  .wire.route-4 { stroke: #d1242f; }
+  .rchip { cursor: pointer; }
+  .rchip .rdot { display: inline-block; width: 9px; height: 9px; border-radius: 99px;
+    margin-right: 5px; vertical-align: -1px; }
+  .rchip:hover { color: #1f2328; }
+
   /* 步内阅读顺序徽标：当前步 focus/order 元素左上角的 ①②③ */
   .ordchip { position: absolute; z-index: 6; min-width: 26px; height: 26px; padding: 0 4px;
     border-radius: 99px; background: #0969da; color: #fff; font: 700 14px/26px -apple-system, sans-serif;
@@ -237,6 +269,14 @@
     border: 1px solid; margin-right: 8px; vertical-align: 1px; }
   #stitle { font-weight: 600; font-size: 13px; color: #1f2328; margin-bottom: 2px; }
   #scap { font-size: 12px; color: #57606a; line-height: 1.5; max-width: 560px; }
+  #sdetail-btn { display: inline-block; font-size: 10.5px; color: #0969da; cursor: pointer;
+    margin-top: 3px; user-select: none; }
+  #sdetail-btn:hover { text-decoration: underline; }
+  #sdetail-btn[hidden] { display: none; }
+  #sdetail { font-size: 12px; color: #424a53; line-height: 1.65; max-width: 560px;
+    margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d8dee4;
+    max-height: 8.5em; overflow-y: auto; white-space: pre-wrap; }
+  #sdetail[hidden] { display: none; }
 
   /* ---- 移动端：画布不变，收纳 HUD ---- */
   @media (max-width: 640px) {
@@ -262,7 +302,7 @@
 </head>
 <body>
 
-<div id="vp"><div id="world"><svg id="wires"></svg></div></div>
+<div id="vp"><div id="world"><svg id="routes"></svg><svg id="wires"></svg></div></div>
 
 <div id="topbar">
   <a id="home-link" href="/" hidden>← 画布库</a>
@@ -292,7 +332,10 @@
   <button class="navbtn" id="prev">◀</button>
   <div id="dots"></div>
   <button class="navbtn" id="next">▶</button>
-  <div id="stext"><div id="stitle"></div><div id="scap"></div></div>
+  <div id="stext"><div id="stitle"></div><div id="scap"></div>
+    <div id="sdetail" hidden></div>
+    <span id="sdetail-btn" hidden>详解 ▾</span>
+  </div>
 </div>
 
 <aside id="qa">
@@ -410,6 +453,24 @@ function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 const cardById = {};
 for (const c of DATA.cards) {
   cardById[c.id] = c;
+  if (c.kind === 'district') {   // 预览分区卡：地图语言，零代码排版
+    const el = document.createElement('div');
+    el.className = 'card district size-' + (c.size || 'm');
+    el.id = 'card-' + c.id;
+    const rc = c.role_color || '#57606a';
+    el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>`
+      + `<span class="file">${esc(c.file || '')}</span></div>`
+      + `<div class="body dbody">`
+      + (c.role ? `<span class="drole" style="background:${rc}">${esc(c.role)}</span>` : '')
+      + (c.oneliner ? `<div class="doneliner">${esc(c.oneliner)}</div>` : '')
+      + (c.stat ? `<div class="dstat"><span>${esc(c.stat)}</span><span class="dbar">`
+        + `<i style="width:${Math.round((c.frac || 0) * 100)}%;background:${rc}"></i></span></div>` : '')
+      + ((c.highlights || []).length ? `<div class="dchips">`
+        + c.highlights.map(h => `<span class="dchip">${esc(h)}</span>`).join('') + `</div>` : '')
+      + `</div>`;
+    world.appendChild(el);
+    continue;
+  }
   const raw = c.code.split('\n');
   const diff = c.diff || {};
   const addSet = new Set(diff.added || []);
@@ -461,6 +522,22 @@ if (DATA.cards.some(c => c.plan) || (DATA.wires || []).some(w => w.plan)) {
     `<span><span class="sw" style="border-top-style:dashed;border-color:#2da44e"></span>幽灵卡/计划加线</span>`
     + `<span><span class="sw" style="border-top-style:dashed;border-color:#d1242f"></span>计划删线</span>`
     + `<span><span class="pbadge modify">将改</span></span>`);
+}
+/* 预览地图：图例列出故事线路（色点 + 名，点击直达该线路的步） */
+{
+  const ROUTE_COLORS = ['#0969da', '#1a7f37', '#8250df', '#bf8700', '#d1242f'];
+  const wireRoute = {};
+  (DATA.wires || []).forEach(w => { if (w.kind === 'route') wireRoute[w.id] = w.route || 0; });
+  if (Object.keys(wireRoute).length) {
+    (DATA.steps || []).forEach((s, i) => {
+      const k = (s.wires || []).map(id => wireRoute[id]).find(x => x !== undefined);
+      if (k === undefined || i === 0) return;
+      document.querySelector('.legend').insertAdjacentHTML('beforeend',
+        `<span class="rchip" data-step="${i}"><span class="rdot" style="background:${ROUTE_COLORS[k % 5]}"></span>${esc((s.title || '').replace(/^[①-⑩]\s*/, ''))}</span>`);
+    });
+    document.querySelectorAll('.rchip').forEach(el =>
+      el.addEventListener('click', () => setStep(+el.dataset.step)));
+  }
 }
 if (DATA.cards.some(c => c.plan_delta)) {
   document.querySelector('.legend').insertAdjacentHTML('beforeend',
@@ -682,18 +759,39 @@ function drawWires() {
     `<marker id="ah-${k}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
        <path d="M 0 1 L 9 5 L 0 9 z" fill="${c}"/></marker>`).join('') + '</defs>';
   const active = STEPS[step].wires || null;
+  // 故事线路：底层 SVG、站心浅弧——不走端口贝塞尔（那是绕圈的元凶）
+  const routesSvg = document.getElementById('routes');
+  routesSvg.innerHTML = '';
   for (const w of DATA.wires || []) {
+    if (w.kind !== 'route') continue;
+    const ea = document.getElementById('card-' + w.from.card);
+    const eb = document.getElementById('card-' + w.to.card);
+    if (!ea || !eb) continue;
+    const pa = wpos(ea), pb = wpos(eb);
+    const a = { x: pa.x + pa.w / 2, y: pa.y + pa.h / 2 };
+    const b = { x: pb.x + pb.w / 2, y: pb.y + pb.h / 2 };
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const bow = Math.min(len * .12, 60);           // 一致的浅弧，行进方向左侧
+    const m = { x: (a.x + b.x) / 2 - dy / len * bow, y: (a.y + b.y) / 2 + dx / len * bow };
+    const state = active === null ? '' : (active.includes(w.id) ? ' on' : ' off');
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', `M ${a.x} ${a.y} Q ${m.x} ${m.y}, ${b.x} ${b.y}`);
+    p.setAttribute('class', `wire route route-${w.route || 0}${state}`);
+    routesSvg.appendChild(p);
+  }
+  for (const w of DATA.wires || []) {
+    if (w.kind === 'route') continue;
     const a = resolveAnchor(w.from, null);
     const b = resolveAnchor({ side: 'left', ...w.to }, w.kind === 'data' ? 'data' : 'call');
     const k = Math.min(Math.max(Math.abs(b.x - a.x) * .55, Math.abs(b.y - a.y) * .25, 30), 170);
     const c1 = { x: a.x + (a.side === 'right' ? k : -k), y: a.y };
     const c2 = { x: b.x + (b.side === 'right' ? k : -k), y: b.y };
     const state = active === null ? '' : (active.includes(w.id) ? ' on' : ' off');
-    const planCls = w.plan ? ` plan-${w.plan}` : '';
+    const planCls = (w.plan ? ` plan-${w.plan}` : '') + (w.route !== undefined ? ` route-${w.route}` : '');
     const path = document.createElementNS(NS, 'path');
     path.setAttribute('d', `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`);
     path.setAttribute('class', `wire ${w.kind}${planCls}${state}`);
-    if (state === ' on')  // 点亮的线带方向箭头——流向不用猜
+    if (state === ' on' && w.kind !== 'route')  // 点亮的线带方向箭头（地铁线路除外）
       path.setAttribute('marker-end', `url(#ah-${w.plan ? 'plan-' + w.plan : w.kind})`);
     svg.appendChild(path);
     for (const pt of [a, b]) {
@@ -811,6 +909,13 @@ function setStep(i, animate = true) {
     (reg ? `<span class="schip" style="color:${hue.lb}; border-color:${hue.lb}">${esc(reg.title.replace(/^故事线\s*/, ''))}</span>` : '')
     + esc(s.title || '');
   document.getElementById('scap').textContent = s.caption || '';
+  // 步级详解：有 detail 才出「详解」按钮，换步自动收起
+  const dbtn = document.getElementById('sdetail-btn');
+  const dpanel = document.getElementById('sdetail');
+  dbtn.hidden = !s.detail;
+  dpanel.hidden = true;
+  dbtn.textContent = '详解 ▾';
+  dpanel.textContent = s.detail || '';
   document.getElementById('prev').disabled = step === 0;
   document.getElementById('next').disabled = step === STEPS.length - 1;
   document.querySelectorAll('.dot').forEach((d, j) => {
@@ -829,6 +934,11 @@ STEPS.forEach((_, i) => {
 });
 document.getElementById('prev').onclick = () => setStep(step - 1);
 document.getElementById('next').onclick = () => setStep(step + 1);
+document.getElementById('sdetail-btn').onclick = () => {
+  const p = document.getElementById('sdetail');
+  p.hidden = !p.hidden;
+  document.getElementById('sdetail-btn').textContent = p.hidden ? '详解 ▾' : '收起 ▴';
+};
 /* region label -> jump to that storyline's first step */
 const firstStepOf = {};
 STEPS.forEach((s, i) => { if (s.storyline && !(s.storyline in firstStepOf)) firstStepOf[s.storyline] = i; });
