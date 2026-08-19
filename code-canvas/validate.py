@@ -212,6 +212,11 @@ def main():
                 err(f"{sp}: focus {fid} 既不是卡也不是 note")
         if len(s.get("caption") or "") > 95:
             warn(f"{sp}: caption 超 80 字（{len(s['caption'])}）")
+        if len(s.get("detail") or "") > 320:
+            warn(f"{sp}: detail 超 300 字（{len(s['detail'])}）")
+        for ref in s.get("order") or []:
+            if ref not in cards and ref not in note_ids:
+                err(f"{sp}: order 引用 {ref} 既不是卡也不是 note")
 
     for m in E:
         print(f"ERROR  {m}")

@@ -32,6 +32,15 @@ await page.waitForTimeout(800);
 check('offplan badge on store card',
   (await page.$eval('#card-store .pbadge.offplan', el => el.textContent)).includes('计划外'));
 check('delta legend present', (await page.textContent('.legend')).includes('计划要动、实际没动'));
+
+// step.detail: button shown, panel toggles, collapses on step change
+check('detail button visible on step with detail', await page.isVisible('#sdetail-btn'));
+check('detail panel collapsed by default', !(await page.isVisible('#sdetail')));
+await page.click('#sdetail-btn');
+check('detail panel expands with content',
+  await page.isVisible('#sdetail') && (await page.textContent('#sdetail')).includes('雪崩'));
+await page.click('#next'); await page.waitForTimeout(500);
+check('detail collapses on step change', !(await page.isVisible('#sdetail')));
 await browser.close();
 
 // -- compare.py: north-star — off-plan change must be caught --

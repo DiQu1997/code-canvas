@@ -45,7 +45,11 @@ description: Turns code reading, change planning, or diff review into an interac
 6. **写 steps**：第 0 步总览（fit），后续每步 = 点亮的线 + 高亮的行 +
    focus 取景元素 + ≤80 字 caption。步子按"读者的问题"排，不按文件序。
    **focus 的书写顺序 = 该步的阅读顺序**（渲染器据此钉 ①②③ 序号标）——
-   先读的元素写前面；取景与阅读顺序冲突时用 `order` 显式覆盖
+   先读的元素写前面；取景与阅读顺序冲突时用 `order` 显式覆盖。
+   信息量大的步配 `detail`（≤300 字，「详解」点开才显示）：讲这步代码
+   在干什么、为什么这么设计、容易误解什么——**不复述 caption、不贴代码、
+   不抢行级 note 的活**（贴着具体行的断言仍写 note）。caption 永远要能
+   独立成立，detail 只是自愿加深
 7. **产出 JSON，先过验证器再渲染**（不可跳过）：
 
    ```bash
