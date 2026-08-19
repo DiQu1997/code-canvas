@@ -59,4 +59,9 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   摘除（作者裁决）→ 移动端 pass → P3 提取器+考试验收 → git 仓库化
   （github.com/DiQu1997/code-canvas，公开）→ 阅读顺序指引 → step.detail
 - **2026-08-19**：预览地图三轮迭代 → 线路观感 → HUD 磨砂 → 画布删除 →
-  本文件与 AGENTS.md 建立
+  本文件与 AGENTS.md 建立 → **数据结构表达 v1**：实例快照卡
+  （kind:"state"：record/array/map 节点、每步全量状态、渲染器自动 diff——
+  数组按值比对新值标绿、record/map 按 key 变更标琥珀、state.note 讲变化）
+  + struct 关系线（紫虚点，label 必带）+ SKILL"数据结构四件套"规程；
+  nano-vllm 黄金样本加 KV 块池快照（基线/分配+前缀命中/抢占回收三态），
+  "共享块不清空、账本不动"的不变量肉眼可见

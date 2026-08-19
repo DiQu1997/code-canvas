@@ -80,6 +80,27 @@
   .dchips { display: flex; flex-wrap: wrap; gap: 5px; }
   .dchip { font: 11px ui-monospace, Menlo, monospace; color: #424a53; background: #f0f2f5;
     border-radius: 6px; padding: 1px 8px; }
+  /* ---- 实例快照卡（数据结构的具象例子，随步进演化，diff 自动高亮） ---- */
+  .card.state .hdr { background: #eef6fb; }
+  .sbody { padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 9px;
+    max-width: 400px; }
+  .snlabel { font: 600 11px ui-monospace, Menlo, monospace; color: #57606a;
+    margin-bottom: 3px; }
+  .scells { display: flex; flex-wrap: wrap; gap: 3px; }
+  .scell { font: 12px/1.7 ui-monospace, Menlo, monospace; border: 1px solid #d0d7de;
+    border-radius: 6px; padding: 0 8px; background: #fff; transition: background .3s; }
+  .srow { display: flex; gap: 6px; align-items: baseline; font: 12px/1.8 ui-monospace, Menlo, monospace; }
+  .skey { color: #6e7781; min-width: 96px; text-align: right; font-size: 11px; }
+  .scell.chg { background: #fff3c2; border-color: #bf8700; font-weight: 600; }
+  .scell.add { background: #dafbe1; border-color: #2da44e; font-weight: 600; }
+  .snote { font-size: 11px; color: #9a6700; border-top: 1px dashed #e6d5a5;
+    padding-top: 6px; line-height: 1.6; }
+  /* 结构关系线：含/引用/索引（虚点线，区别于调用与数据流） */
+  .wire.struct { stroke: #7d6bb0; stroke-width: 1.5; stroke-dasharray: 2 5; }
+  .wire.on.struct { stroke: #8250df; stroke-width: 2.4; }
+  .port.struct { fill: #7d6bb0; }
+  .port.on.struct { fill: #8250df; }
+
   /* 故事线路（地铁线）：独立底层 SVG（#routes，卡片之下），浅弧几何 */
   #routes { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; overflow: visible; }
   .wire.route { stroke-width: 6; stroke-linecap: round; fill: none; opacity: 0;
@@ -459,6 +480,15 @@ function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 const cardById = {};
 for (const c of DATA.cards) {
   cardById[c.id] = c;
+  if (c.kind === 'state') {      // 实例快照卡：具象数据结构，body 随步进重绘
+    const el = document.createElement('div');
+    el.className = 'card state';
+    el.id = 'card-' + c.id;
+    el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>`
+      + `<span class="file">${esc(c.file || '')}</span></div><div class="body sbody"></div>`;
+    world.appendChild(el);
+    continue;
+  }
   if (c.kind === 'district') {   // 预览分区卡：地图语言，零代码排版
     const el = document.createElement('div');
     el.className = 'card district size-' + (c.size || 'm');
@@ -758,7 +788,51 @@ function bez(a, c1, c2, b, t) {
 }
 let step = 0;
 const STEPS = DATA.steps && DATA.steps.length ? DATA.steps : [{ title: '总览', caption: '', fit: true }];
-const ARROW_COLORS = { call: '#24292f', data: '#9a6700', 'plan-add': '#1a7f37', 'plan-remove': '#a40e26' };
+const ARROW_COLORS = { call: '#24292f', data: '#9a6700', struct: '#8250df',
+  'plan-add': '#1a7f37', 'plan-remove': '#a40e26' };
+
+/* ---- 实例快照：按当前步选状态，和上一状态做 cell 级 diff ---- */
+function renderStateCards() {
+  for (const c of DATA.cards) {
+    if (c.kind !== 'state') continue;
+    const body = document.querySelector('#card-' + c.id + ' .sbody');
+    if (!body) continue;
+    const sts = c.states || [];
+    let idx = -1;
+    sts.forEach((s, i) => { if (s.step <= step) idx = i; });
+    const cur = sts[Math.max(idx, 0)];
+    const prev = idx > 0 ? sts[idx - 1] : null;
+    if (!cur) continue;
+    const cls = (now, was, isNew) => isNew ? ' add' : (was !== undefined && was !== now ? ' chg' : '');
+    let html = '';
+    for (const n of c.nodes || []) {
+      const cv = (cur.nodes || {})[n.id] || {};
+      const pv = prev ? (prev.nodes || {})[n.id] || {} : {};
+      html += `<div class="snode"><div class="snlabel">${esc(n.label || n.id)}</div>`;
+      if (n.kind === 'array') {
+        // 按值比对：真正的新值标绿；位移（如队列出队后的整体前移）不标——伪变更
+        const pset = {};
+        (pv.cells || []).forEach(v => { pset[String(v)] = (pset[String(v)] || 0) + 1; });
+        html += '<div class="scells">' + (cv.cells || []).map(v => {
+          const k = String(v);
+          const isNew = prev && !(pset[k] > 0);
+          if (pset[k] > 0) pset[k] -= 1;
+          return `<span class="scell${isNew ? ' add' : ''}">${esc(k)}</span>`;
+        }).join('')
+          + ((cv.cells || []).length ? '' : '<span class="scell" style="opacity:.45">（空）</span>') + '</div>';
+      } else {  // map / record：rows = [[key, value], …]，按 key 对齐 diff
+        const pm = {};
+        (pv.rows || []).forEach(([k, v]) => { pm[k] = v; });
+        html += (cv.rows || []).map(([k, v]) =>
+          `<div class="srow"><span class="skey">${esc(String(k))}</span>`
+          + `<span class="scell${prev ? cls(v, pm[k], !(k in pm)) : ''}">${esc(String(v))}</span></div>`).join('');
+      }
+      html += '</div>';
+    }
+    if (cur.note && prev !== null) html += `<div class="snote">本步：${esc(cur.note)}</div>`;
+    body.innerHTML = html;
+  }
+}
 function drawWires() {
   relayoutColumns(); placeNotes(); fitRegions(); sizeWorld();
   svg.innerHTML = '<defs>' + Object.entries(ARROW_COLORS).map(([k, c]) =>
@@ -907,6 +981,7 @@ function setStep(i, animate = true) {
     n.classList.toggle('hot', mine);
     n.classList.toggle('dim', step > 0 && !mine);
   });
+  renderStateCards();
   if (s.fit || !s.focus) fitAll(animate); else focusOn(s.focus, animate);
   drawWires();
   const reg = (DATA.regions || []).find(r => r.id === s.storyline);

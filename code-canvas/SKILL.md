@@ -42,6 +42,15 @@ description: Turns code reading, change planning, or diff review into an interac
    不好懂的标识符加 `terms` 变元注释（≤60 字，回答"这个变量装的是什么"）
 5. **背景三层**：画布级 bg note（corner nw，step 0 点亮）、region blurb、
    概念级 bg note（锚到行，在相关 step 点亮）。字数硬上限见 schema.md
+5b. **数据结构四件套**（算法讲"怎么动"，结构讲"动的是什么"，缺一半图就瘸）：
+   - 形状：class/struct 定义做原文卡 + terms 逐字段注解
+   - 关系：`kind:"struct"` 线（含/引用/索引，label 必带，照旧策展不画全量 ER）
+   - 不变量：intent note 锚到字段行（note 是断言）
+   - **实例快照卡**（`kind:"state"`，见 schema.md）：核心机制的结构配一张
+     ——具象例子（真实感的值）随步进演化，渲染器自动高亮"这步改了哪个格子"。
+     状态要和 step 叙事逐步咬合：代码行高亮（谁干的）/ 格子变色（干了什么）/
+     caption（为什么）同屏成三角。值是你编的**好例子**：小到一眼看全
+     （数组 ≤6 格），又足以展示机制（前缀命中就要有能命中的 hash）
 6. **写 steps**：第 0 步总览（fit），后续每步 = 点亮的线 + 高亮的行 +
    focus 取景元素 + ≤80 字 caption。步子按"读者的问题"排，不按文件序。
    **focus 的书写顺序 = 该步的阅读顺序**（渲染器据此钉 ①②③ 序号标）——

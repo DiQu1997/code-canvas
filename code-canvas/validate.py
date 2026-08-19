@@ -77,8 +77,38 @@ def main():
         code = c.get("code") or ""
         lines = code.split("\n")
         n = len(lines)
-        if not code and c.get("kind") != "district":
+        if not code and c.get("kind") not in ("district", "state"):
             err(f"卡 {cid}: 没有代码")
+        if c.get("kind") == "state":
+            node_ids = [n.get("id") for n in c.get("nodes") or []]
+            if not node_ids:
+                err(f"卡 {cid}: 快照卡没有 nodes")
+            if len(set(node_ids)) != len(node_ids):
+                err(f"卡 {cid}: 快照节点 id 重复")
+            for n in c.get("nodes") or []:
+                if n.get("kind") not in ("array", "map", "record"):
+                    err(f"卡 {cid} 节点 {n.get('id')}: kind 必须是 array | map | record")
+            states = c.get("states") or []
+            if not states:
+                err(f"卡 {cid}: 快照卡没有 states")
+            nsteps = len(d.get("steps", []))
+            prev_step = -1
+            for j, st in enumerate(states):
+                sstep = st.get("step")
+                if not (isinstance(sstep, int) and 0 <= sstep < max(nsteps, 1)):
+                    err(f"卡 {cid} states[{j}]: step {sstep} 越界（共 {nsteps} 步）")
+                elif sstep <= prev_step:
+                    err(f"卡 {cid} states[{j}]: states 必须按 step 严格递增")
+                else:
+                    prev_step = sstep
+                for nid in (st.get("nodes") or {}):
+                    if nid not in node_ids:
+                        err(f"卡 {cid} states[{j}]: 未声明的节点 {nid}")
+                for nid in node_ids:
+                    if nid not in (st.get("nodes") or {}):
+                        warn(f"卡 {cid} states[{j}]: 节点 {nid} 缺状态（diff 会把它当空）")
+                if len(st.get("note") or "") > 70:
+                    warn(f"卡 {cid} states[{j}]: note 超 60 字（{len(st['note'])}）")
         if "layout" not in c or "col" not in c["layout"] or "band" not in c["layout"]:
             err(f"卡 {cid}: 缺 layout.col / layout.band")
         for i, t in enumerate(lines):
@@ -130,8 +160,10 @@ def main():
         if wid in wire_ids:
             err(f"线 {wid}: id 重复")
         wire_ids.add(wid)
-        if w.get("kind") not in ("call", "data", "route"):
-            err(f"线 {wid}: kind 必须是 call | data | route（route=预览图故事线路）")
+        if w.get("kind") not in ("call", "data", "route", "struct"):
+            err(f"线 {wid}: kind 必须是 call | data | struct | route")
+        if w.get("kind") == "struct" and not w.get("label"):
+            warn(f"线 {wid}: struct 关系线该带 label（含/引用/索引…）")
         for end in ("from", "to"):
             spec = w.get(end) or {}
             cid = spec.get("card")

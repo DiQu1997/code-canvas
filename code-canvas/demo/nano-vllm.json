@@ -258,6 +258,192 @@
       },
       "collapsed": true,
       "code": "def hash_blocks(self, seq: Sequence):\n    start = seq.num_cached_tokens // self.block_size\n    end = (seq.num_cached_tokens + seq.num_scheduled_tokens) // self.block_size\n    if start == end: return\n    h = self.blocks[seq.block_table[start - 1]].hash if start > 0 else -1\n    for i in range(start, end):\n        block = self.blocks[seq.block_table[i]]\n        token_ids = seq.block(i)\n        h = self.compute_hash(token_ids, h)\n        block.update(h, token_ids)\n        self.hash_to_block_id[h] = block.block_id"
+    },
+    {
+      "id": "kv-pool",
+      "kind": "state",
+      "name": "KV 块池 · 实例快照",
+      "file": "engine/block_manager.py",
+      "lang": "py",
+      "layout": {
+        "col": 3,
+        "band": 1
+      },
+      "collapsed": false,
+      "nodes": [
+        {
+          "id": "fq",
+          "kind": "array",
+          "label": "free_block_queue（空闲块）"
+        },
+        {
+          "id": "btA",
+          "kind": "array",
+          "label": "SeqA.block_table"
+        },
+        {
+          "id": "btB",
+          "kind": "array",
+          "label": "SeqB.block_table"
+        },
+        {
+          "id": "b7",
+          "kind": "record",
+          "label": "Block 7（系统提示词前缀）"
+        },
+        {
+          "id": "h2b",
+          "kind": "map",
+          "label": "hash_to_block_id（前缀账本）"
+        }
+      ],
+      "states": [
+        {
+          "step": 1,
+          "nodes": {
+            "fq": {
+              "cells": [
+                2,
+                5,
+                8,
+                9
+              ]
+            },
+            "btA": {
+              "cells": [
+                7,
+                1,
+                4
+              ]
+            },
+            "btB": {
+              "cells": []
+            },
+            "b7": {
+              "rows": [
+                [
+                  "ref_count",
+                  1
+                ],
+                [
+                  "hash",
+                  "h(sys)"
+                ]
+              ]
+            },
+            "h2b": {
+              "rows": [
+                [
+                  "h(sys)",
+                  7
+                ],
+                [
+                  "h(sys+a1)",
+                  1
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "step": 3,
+          "note": "SeqB 入场：前缀命中 7 号块直接复用（ref+1），只为增量借了 2 号块",
+          "nodes": {
+            "fq": {
+              "cells": [
+                5,
+                8,
+                9
+              ]
+            },
+            "btA": {
+              "cells": [
+                7,
+                1,
+                4
+              ]
+            },
+            "btB": {
+              "cells": [
+                7,
+                2
+              ]
+            },
+            "b7": {
+              "rows": [
+                [
+                  "ref_count",
+                  2
+                ],
+                [
+                  "hash",
+                  "h(sys)"
+                ]
+              ]
+            },
+            "h2b": {
+              "rows": [
+                [
+                  "h(sys)",
+                  7
+                ],
+                [
+                  "h(sys+a1)",
+                  1
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "step": 4,
+          "note": "抢占 SeqB：2 号块归还队尾，7 号块 ref−1——共享块不清空，账本不动",
+          "nodes": {
+            "fq": {
+              "cells": [
+                5,
+                8,
+                9,
+                2
+              ]
+            },
+            "btA": {
+              "cells": [
+                7,
+                1,
+                4
+              ]
+            },
+            "btB": {
+              "cells": []
+            },
+            "b7": {
+              "rows": [
+                [
+                  "ref_count",
+                  1
+                ],
+                [
+                  "hash",
+                  "h(sys)"
+                ]
+              ]
+            },
+            "h2b": {
+              "rows": [
+                [
+                  "h(sys)",
+                  7
+                ],
+                [
+                  "h(sys+a1)",
+                  1
+                ]
+              ]
+            }
+          }
+        }
+      ]
     }
   ],
   "wires": [
@@ -379,6 +565,17 @@
       "to": {
         "card": "allocate",
         "side": "left"
+      }
+    },
+    {
+      "id": "s-pool",
+      "kind": "struct",
+      "label": "按 hash 索引",
+      "from": {
+        "card": "allocate"
+      },
+      "to": {
+        "card": "kv-pool"
       }
     }
   ],
@@ -510,7 +707,8 @@
       "wires": [
         "w-canalloc",
         "w-alloc",
-        "d-cached"
+        "d-cached",
+        "s-pool"
       ],
       "unfold": [
         [
@@ -544,7 +742,7 @@
         "schedule",
         "can_allocate",
         "allocate",
-        "bg-paged"
+        "kv-pool"
       ],
       "storyline": "C"
     },
@@ -580,7 +778,8 @@
       "focus": [
         "schedule",
         "preempt",
-        "n-preempt"
+        "n-preempt",
+        "kv-pool"
       ],
       "storyline": "B"
     },

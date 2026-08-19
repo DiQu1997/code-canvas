@@ -67,6 +67,27 @@
       "plan_delta": "offplan",        // 仅 mode:"diff"，通常由 compare.py --annotate 注入：
                                       // "offplan" = 计划没说要动、实际动了（⚠ 计划外 红徽标）
                                       // "missed"  = 计划说要动、实际没动（○ 计划未动 灰徽标）
+    },
+    { "id": "kv-pool",                // ---- 实例快照卡：数据结构的具象例子 ----
+      "kind": "state",                // 教科书画法：画一个真实感的实例，随步进演化。
+      "name": "KV 块池 · 实例",       // 渲染器对相邻状态做 cell 级 diff：变更琥珀、新增绿
+      "file": "engine/block_manager.py",
+      "lang": "py", "layout": { "col": 3, "band": 2 },
+      "nodes": [                      // 三种节点：array（格子行）| map | record（k→v 行）
+        { "id": "fq",  "kind": "array",  "label": "free_block_queue" },
+        { "id": "b7",  "kind": "record", "label": "Block 7（共享前缀）" }
+      ],
+      "states": [                     // 每个状态 = 某一步之后的全量值（按 step 递增）。
+        { "step": 1,                  // 首个状态是基线（不 diff）；步进走到 state.step
+          "nodes": {                  // 时切换并高亮与上一状态的差异，note 一句话说变化
+            "fq": { "cells": [2, 5, 8, 9] },
+            "b7": { "rows": [["ref_count", 1], ["hash", "h(sys)"]] } } },
+        { "step": 3, "note": "前缀命中：7 号块复用，ref+1；新块 2 出队",
+          "nodes": {
+            "fq": { "cells": [5, 8, 9] },
+            "b7": { "rows": [["ref_count", 2], ["hash", "h(sys)"]] } } }
+      ]                               // 快照与代码行高亮 + caption 构成同屏三角：
+                                      // 谁干的（行）/ 干了什么（格子变色）/ 为什么（caption）
       "terms": [                      // 可选：变元注释——不好懂的标识符
         { "line": 3,                  // 卡片内行号
           "token": "num_batched_tokens", // 该行中的标识符（整词匹配首次出现）
@@ -85,7 +106,11 @@
       "to":   { "card": "get" } },
     { "id": "p-jit",  "kind": "call", "plan": "add",   // 仅 mode:"plan"：计划加线（虚绿）；
       "from": { "card": "handler" },                   // "remove" = 计划删线（虚红）
-      "to":   { "card": "jittered" } }
+      "to":   { "card": "jittered" } },
+    { "id": "s-own",  "kind": "struct",                // 结构关系线（紫虚点）：结构间的
+      "label": "含 N 个",                              // 含/引用/索引关系，label 必带。
+      "from": { "card": "scheduler", "line": 3 },      // 一样是策展的——不画全量 ER
+      "to":   { "card": "request" } }
   ],
 
   "notes": [

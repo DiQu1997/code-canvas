@@ -28,7 +28,21 @@ await page.click('#next'); await page.waitForTimeout(700);
 const s2chips = await page.$$('.ordchip');
 check('chips refresh on step change', s2chips.length >= 2);
 check('lit wire has direction arrow', await page.$('svg path.wire.on[marker-end]') !== null);
-await page.click('#prev'); await page.click('#prev'); await page.waitForTimeout(600);
+
+// state snapshot card: per-step diff highlighting
+await page.click('#next'); await page.waitForTimeout(700);   // step 3: 分配 + 前缀命中
+check('snapshot shows added cells on allocate step',
+  (await page.$$('#card-kv-pool .scell.add')).length >= 2);
+check('snapshot shows changed record field',
+  (await page.$$('#card-kv-pool .scell.chg')).length >= 1);
+check('struct relation wire drawn', await page.$('svg path.wire.struct') !== null);
+await page.click('#next'); await page.waitForTimeout(700);   // step 4: 抢占回收
+const s4add = await page.$$eval('#card-kv-pool .scell.add', els => els.map(e => e.textContent));
+check('value-based array diff marks only returned block', s4add.length === 1 && s4add[0] === '2');
+check('snapshot note narrates the transition',
+  (await page.textContent('#card-kv-pool .snote')).includes('归还'));
+for (let i = 0; i < 4; i++) await page.click('#prev');
+await page.waitForTimeout(600);
 
 const term = await page.$('.term');
 if (term) {
@@ -41,8 +55,10 @@ if (term) {
 
 const bar = await page.$('.bbar');
 if (bar) {
+  const wasFolded = await page.$eval('.blk', b => b.classList.contains('folded'));
   await bar.click();
-  check('bbar click unfolds block', await page.$eval('.blk', b => !b.classList.contains('folded')));
+  check('bbar click toggles block fold',
+    (await page.$eval('.blk', b => b.classList.contains('folded'))) !== wasFolded);
 } else check('block bar present in demo', false);
 
 const ex = await page.$('.bbtn[data-act="explain"]');
