@@ -62,6 +62,33 @@
   .kw { color: #cf222e; } .fn { color: #8250df; } .str { color: #0a3069; }
   .num { color: #0550ae; } .cmt { color: #6e7781; }
   .card.dim { opacity: .32; }
+  /* ---- 预览分区卡（district）：地图语言，零代码排版 ---- */
+  .card.district { border-radius: 14px; border-width: 0; box-shadow: 0 4px 16px rgba(31,35,40,.12); }
+  .card.district .hdr { border-bottom: none; background: transparent; padding: 14px 18px 2px; }
+  .card.district .fname { font: 700 17px -apple-system, 'PingFang SC', sans-serif; }
+  .card.district .dbody { padding: 4px 18px 14px; max-width: 340px; }
+  .card.district.size-l .dbody { max-width: 400px; }
+  .card.district.size-s .dbody { max-width: 260px; }
+  .card.district.size-s .fname { font-size: 14px; }
+  .drole { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 99px;
+    padding: 1px 10px; color: #fff; margin-bottom: 6px; }
+  .doneliner { font-size: 12.5px; color: #424a53; line-height: 1.55; margin-bottom: 8px; }
+  .dstat { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #6e7781;
+    margin-bottom: 8px; }
+  .dbar { height: 6px; border-radius: 99px; background: #eaeef2; flex: 1; overflow: hidden; }
+  .dbar > i { display: block; height: 100%; border-radius: 99px; }
+  .dchips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .dchip { font: 11px ui-monospace, Menlo, monospace; color: #424a53; background: #f0f2f5;
+    border-radius: 6px; padding: 1px 8px; }
+  /* 故事线路（地铁线）：五色粗线，点亮才显 */
+  .wire.route { stroke-width: 5; stroke-linecap: round; opacity: 0; }
+  .wire.route.on { opacity: .85; }
+  .wire.route.off { opacity: .07; }
+  .wire.route-0 { stroke: #0969da; } .wire.route-1 { stroke: #1a7f37; }
+  .wire.route-2 { stroke: #8250df; } .wire.route-3 { stroke: #bf8700; }
+  .wire.route-4 { stroke: #d1242f; }
+  .port.route { display: none; }
+
   /* 步内阅读顺序徽标：当前步 focus/order 元素左上角的 ①②③ */
   .ordchip { position: absolute; z-index: 6; min-width: 26px; height: 26px; padding: 0 4px;
     border-radius: 99px; background: #0969da; color: #fff; font: 700 14px/26px -apple-system, sans-serif;
@@ -421,6 +448,24 @@ function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 const cardById = {};
 for (const c of DATA.cards) {
   cardById[c.id] = c;
+  if (c.kind === 'district') {   // 预览分区卡：地图语言，零代码排版
+    const el = document.createElement('div');
+    el.className = 'card district size-' + (c.size || 'm');
+    el.id = 'card-' + c.id;
+    const rc = c.role_color || '#57606a';
+    el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>`
+      + `<span class="file">${esc(c.file || '')}</span></div>`
+      + `<div class="body dbody">`
+      + (c.role ? `<span class="drole" style="background:${rc}">${esc(c.role)}</span>` : '')
+      + (c.oneliner ? `<div class="doneliner">${esc(c.oneliner)}</div>` : '')
+      + (c.stat ? `<div class="dstat"><span>${esc(c.stat)}</span><span class="dbar">`
+        + `<i style="width:${Math.round((c.frac || 0) * 100)}%;background:${rc}"></i></span></div>` : '')
+      + ((c.highlights || []).length ? `<div class="dchips">`
+        + c.highlights.map(h => `<span class="dchip">${esc(h)}</span>`).join('') + `</div>` : '')
+      + `</div>`;
+    world.appendChild(el);
+    continue;
+  }
   const raw = c.code.split('\n');
   const diff = c.diff || {};
   const addSet = new Set(diff.added || []);
@@ -700,11 +745,11 @@ function drawWires() {
     const c1 = { x: a.x + (a.side === 'right' ? k : -k), y: a.y };
     const c2 = { x: b.x + (b.side === 'right' ? k : -k), y: b.y };
     const state = active === null ? '' : (active.includes(w.id) ? ' on' : ' off');
-    const planCls = w.plan ? ` plan-${w.plan}` : '';
+    const planCls = (w.plan ? ` plan-${w.plan}` : '') + (w.route !== undefined ? ` route-${w.route}` : '');
     const path = document.createElementNS(NS, 'path');
     path.setAttribute('d', `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`);
     path.setAttribute('class', `wire ${w.kind}${planCls}${state}`);
-    if (state === ' on')  // 点亮的线带方向箭头——流向不用猜
+    if (state === ' on' && w.kind !== 'route')  // 点亮的线带方向箭头（地铁线路除外）
       path.setAttribute('marker-end', `url(#ah-${w.plan ? 'plan-' + w.plan : w.kind})`);
     svg.appendChild(path);
     for (const pt of [a, b]) {

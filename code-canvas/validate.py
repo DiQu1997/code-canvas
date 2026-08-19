@@ -77,7 +77,7 @@ def main():
         code = c.get("code") or ""
         lines = code.split("\n")
         n = len(lines)
-        if not code:
+        if not code and c.get("kind") != "district":
             err(f"卡 {cid}: 没有代码")
         if "layout" not in c or "col" not in c["layout"] or "band" not in c["layout"]:
             err(f"卡 {cid}: 缺 layout.col / layout.band")
@@ -130,8 +130,8 @@ def main():
         if wid in wire_ids:
             err(f"线 {wid}: id 重复")
         wire_ids.add(wid)
-        if w.get("kind") not in ("call", "data"):
-            err(f"线 {wid}: kind 必须是 call | data")
+        if w.get("kind") not in ("call", "data", "route"):
+            err(f"线 {wid}: kind 必须是 call | data | route（route=预览图故事线路）")
         for end in ("from", "to"):
             spec = w.get(end) or {}
             cid = spec.get("card")
