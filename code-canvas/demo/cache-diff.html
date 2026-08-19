@@ -202,7 +202,12 @@
   .wlabel.off { opacity: .1; }
 
   /* ---- chrome ---- */
-  #topbar { position: fixed; top: 14px; left: 18px; z-index: 10; }
+  #topbar { position: fixed; top: 14px; left: 18px; z-index: 10;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(6px);
+    border: 1px solid #d0d7de; border-radius: 12px; padding: 10px 14px;
+    box-shadow: 0 4px 14px rgba(31,35,40,.08);
+    max-width: min(880px, calc(100vw - 260px)); }
+  .legend { flex-wrap: wrap; row-gap: 4px; }
   #home-link { display: inline-block; font-size: 11px; color: #57606a; text-decoration: none;
     background: #ffffff; border: 1px solid #d0d7de; border-radius: 99px; padding: 3px 11px;
     margin-bottom: 7px; }
@@ -214,7 +219,8 @@
   .sw { display: inline-block; width: 22px; height: 0; border-top: 2px solid; margin-right: 5px;
     vertical-align: middle; }
   #hint { position: fixed; top: 16px; right: 18px; z-index: 10; font-size: 11px; color: #8c959f;
-    text-align: right; line-height: 1.7; }
+    text-align: right; line-height: 1.7; background: rgba(255,255,255,.85);
+    backdrop-filter: blur(6px); border-radius: 10px; padding: 6px 10px; }
 
   /* ---- reader profile ---- */
   #canvas-ask-btn { position: fixed; top: 118px; right: 18px; z-index: 15; font-size: 11px;
