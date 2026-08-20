@@ -113,6 +113,8 @@ check('pasted code landed in workdir',
   readFileSync(join(hub, '.jobs', gen.job.id, 'src', 'pasted.txt'), 'utf8').includes('def f()'));
 check('prompt follows SKILL pipeline',
   readFileSync(join(hub, '.jobs', `${gen.job.id}.prompt`), 'utf8').includes('SKILL.md'));
+check('job timing recorded', existsSync(join(hub, '.jobs', `${gen.job.id}.timing.json`)) &&
+  JSON.parse(readFileSync(join(hub, '.jobs', `${gen.job.id}.timing.json`), 'utf8')).claude_s >= 0);
 
 // source validation
 const noSrc = await (await fetch(`${base}/generate`, {

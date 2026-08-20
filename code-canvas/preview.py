@@ -202,8 +202,22 @@ def main():
             "为第一次接触它的人推荐 3-5 条「值得深入的故事线」。只输出 JSON 数组，每项："
             '{"title":"≤14字","pitch":"≤70字，这条线讲什么、为什么值得","modules":["模块id",…],'
             '"ask":"≤50字，交给画布生成器的一句主题"}。modules 只能用摘要里的 id。\n\n' + digest)
-        r = subprocess.run(ns.recommend.split() + [prompt], capture_output=True, text=True, timeout=300)
-        m = re.search(r"\[.*\]", r.stdout, re.S)
+        argv = ns.recommend.split()
+        if "claude" in Path(argv[0]).name:
+            argv += ["--output-format", "json"]
+        r = subprocess.run(argv + [prompt], capture_output=True, text=True, timeout=300)
+        text = r.stdout
+        try:  # claude JSON 信封：取 result 并打印指标
+            obj = json.loads(text)
+            text = obj.get("result") or ""
+            u = obj.get("usage") or {}
+            print("推荐调用指标：{:.1f}s · ↑{} ↓{} ⟳{} · ${:.4f}(API 价折算)".format(
+                (obj.get("duration_ms") or 0) / 1000, u.get("input_tokens"),
+                u.get("output_tokens"), u.get("cache_read_input_tokens"),
+                obj.get("total_cost_usd") or 0), file=sys.stderr)
+        except ValueError:
+            pass
+        m = re.search(r"\[.*\]", text, re.S)
         recs = json.loads(m.group(0)) if m else []
         marks = "①②③④⑤"
         for i, rec in enumerate(recs[:5]):

@@ -133,9 +133,32 @@ def run_exam(exam: dict, cli: str, dry: bool):
         print(f"--- 考题 {exam['id']} 的 examinee prompt ---\n{prompt}")
         return
     print(f"[exam {exam['id']}] examinee 启动（可能要 20–40 分钟）…")
+    argv = shlex.split(cli)
+    is_claude = "claude" in Path(argv[0]).name
+    if is_claude:
+        argv += ["--output-format", "json"]   # 指标信封：token/成本/时长
     t0 = time.time()
-    proc = subprocess.run([*shlex.split(cli), prompt], capture_output=True, text=True, timeout=3600)
-    (out_dir / "examinee-report.md").write_text(proc.stdout or "", encoding="utf-8")
+    proc = subprocess.run([*argv, prompt], capture_output=True, text=True, timeout=3600)
+    report = proc.stdout or ""
+    if is_claude:
+        try:
+            obj = json.loads(report)
+            report = obj.get("result") or ""
+            u = obj.get("usage") or {}
+            metrics = {"cost_usd": round(obj.get("total_cost_usd") or 0, 4),
+                       "dur_s": round((obj.get("duration_ms") or 0) / 1000, 1),
+                       "turns": obj.get("num_turns"),
+                       "in_tok": u.get("input_tokens"), "out_tok": u.get("output_tokens"),
+                       "cache_read": u.get("cache_read_input_tokens"),
+                       "cache_write": u.get("cache_creation_input_tokens")}
+            (out_dir / "examinee-metrics.json").write_text(
+                json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"[exam {exam['id']}] 指标：{metrics['dur_s']}s · {metrics['turns']} turns · "
+                  f"↑{metrics['in_tok']} ↓{metrics['out_tok']} ⟳{metrics['cache_read']} · "
+                  f"${metrics['cost_usd']}(API 价折算)")
+        except ValueError:
+            pass
+    (out_dir / "examinee-report.md").write_text(report, encoding="utf-8")
     print(f"[exam {exam['id']}] 完成，用时 {int(time.time() - t0)}s；考生报告存 examinee-report.md")
     r = grade(out_dir, repo_dir, exam.get("mode"))
     write_report(r, out_dir)

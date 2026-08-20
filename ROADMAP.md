@@ -47,7 +47,8 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
 
 1. 预览地图转正三件套（等形态验收）
 2. P4 IDE 扩展 v1（模板跳转桥→扩展本体→作者本机装载验收）
-3. 生成完成推送通知；问答沉淀（好答案写回 canvas JSON）；画布库搜索
+3. 生成完成推送通知；问答沉淀（好答案写回 canvas JSON）；画布库搜索；
+   用量汇总视图（/stats：按日/按画布聚合 token 与折算成本）
 4. requests-nav 基线；模型动物园类模块的 highlights 信号（__init__ 导出/git 频率）
 5. 已知渲染债：note 车道线穿行、同卡多 above note 重叠、#sN 直达状态与顺序走不一致
 
@@ -71,3 +72,9 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   **上下文窥视**：canvas JSON 顶层 files 映射（文件全文），卡内「▲上文/
   ▼下文」展开条 ±20 行/收起，上下文淡化无行号、锚点钉在摘选行不动；
   extract.py --embed-context 机械生成；nano-vllm demo 富化（5 文件 24KB）
+  → 上下文改开关式（一点全量进滚动区，卡高恒定 ≈2.3×核心，滚轮/触屏
+  让位原生滚动）→ **用量观测**：claude -p 全链路 --output-format json，
+  生成任务分段计时（clone/claude）+ token/折算成本落 .jobs/<id>.{timing,
+  result}.json 并显示在任务行；问答指标进 sidecar + 抽屉小字；考试指标
+  归档 examinee-metrics.json；preview --recommend 打印指标。成本注明
+  为 API 价折算（订阅不按量计费）

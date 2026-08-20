@@ -44,9 +44,25 @@ ARGS = None
 SKILL_DIR = Path(__file__).resolve().parent
 
 
+def parse_claude_metrics(obj: dict) -> dict:
+    """claude -p --output-format json 的结果对象 → 统一指标。
+    注意：订阅用户 cost 是按 API 价折算的参考值。"""
+    u = obj.get("usage") or {}
+    return {
+        "cost_usd": round(obj.get("total_cost_usd") or 0, 4),
+        "dur_s": round((obj.get("duration_ms") or 0) / 1000, 1),
+        "api_s": round((obj.get("duration_api_ms") or 0) / 1000, 1),
+        "turns": obj.get("num_turns"),
+        "in_tok": u.get("input_tokens"),
+        "out_tok": u.get("output_tokens"),
+        "cache_read": u.get("cache_read_input_tokens"),
+        "cache_write": u.get("cache_creation_input_tokens"),
+    }
+
+
 def run_cli(prompt: str) -> dict:
     if ARGS.cli == "claude":
-        cmd = [ARGS.cli_bin or "claude", "-p"]
+        cmd = [ARGS.cli_bin or "claude", "-p", "--output-format", "json"]
         if ARGS.model:
             cmd += ["--model", ARGS.model]
     else:
@@ -64,11 +80,24 @@ def run_cli(prompt: str) -> dict:
         return {"ok": False, "error": "无法启动 {}: {}".format(cmd[0], e)}
     out = (proc.stdout or "").strip()
     err = (proc.stderr or "").strip()
+    metrics = None
+    if ARGS.cli == "claude":
+        try:  # 解析指标信封；stub（echo 等）不产 JSON 时走文本回退
+            obj = json.loads(out)
+            metrics = parse_claude_metrics(obj)
+            out = (obj.get("result") or "").strip()
+            if obj.get("is_error"):
+                return {"ok": False, "error": out[:2000], "metrics": metrics}
+        except ValueError:
+            pass
     if proc.returncode != 0 or (out and len(out) < 400 and any(n.lower() in out.lower() for n in ERROR_NEEDLES)):
         return {"ok": False, "error": (err or out)[:2000]}
     if not out:
         return {"ok": False, "error": "CLI 返回为空" + ("（stderr: {}）".format(err[:200]) if err else "")}
-    return {"ok": True, "answer": out, "elapsed_s": round(time.time() - t0, 1)}
+    res = {"ok": True, "answer": out, "elapsed_s": round(time.time() - t0, 1)}
+    if metrics:
+        res["metrics"] = metrics
+    return res
 
 
 def persist(html_path: Path, record: dict) -> None:
@@ -144,6 +173,16 @@ def list_jobs() -> list:
             meta["status"] = "done" if code == "0" else "failed({})".format(code)
         else:
             meta["status"] = "running"
+        # 指标：分段计时 + claude JSON 信封（token/成本/时长）
+        try:
+            tm = mp.with_name(mp.name.replace(".meta.json", ".timing.json"))
+            if tm.exists():
+                meta["timing"] = json.loads(tm.read_text(encoding="utf-8"))
+            rf = mp.with_name(mp.name.replace(".meta.json", ".result.json"))
+            if rf.exists():
+                meta["metrics"] = parse_claude_metrics(json.loads(rf.read_text(encoding="utf-8")))
+        except Exception:
+            pass
         out.append(meta)
     return out
 
@@ -158,9 +197,15 @@ def spawn_generate(src: dict, ask: str, name: str) -> dict:
     workdir.mkdir(exist_ok=True)
 
     cli = ARGS.cli_bin or "claude"
-    gen = ('{cli} -p "$(cat {pf})" --dangerously-skip-permissions >> {log} 2>&1; '
-           'echo $? > {st}').format(cli=shlex.quote(cli), pf=shlex.quote(str(prompt_f)),
-                                    log=shlex.quote(str(log_f)), st=shlex.quote(str(status_f)))
+    result_f = jd / (job_id + ".result.json")
+    timing_f = jd / (job_id + ".timing.json")
+    # claude 输出 JSON 信封（含 token/成本/时长）单独落 result.json；人读日志仍在 log
+    gen = ('T1=$(date +%s); {cli} -p "$(cat {pf})" --output-format json '
+           '--dangerously-skip-permissions > {res} 2>> {log}; rc=$?; T2=$(date +%s); '
+           'printf \'{{"clone_s": %s, "claude_s": %s}}\' "$((T1-T0))" "$((T2-T1))" > {tm}; '
+           'echo $rc > {st}').format(
+               cli=shlex.quote(cli), pf=shlex.quote(str(prompt_f)), res=shlex.quote(str(result_f)),
+               log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)))
     tail = ("步骤：1) 产出 {work}/canvas.json；2) python3 {skill}/validate.py 清零 ERROR；\n"
             "3) python3 {skill}/render.py 渲染；4) 把最终 html 复制为 {hub}/{name}.html，"
             "json 复制为 {hub}/{name}.json。完成后打印 DONE。").format(
@@ -171,16 +216,20 @@ def spawn_generate(src: dict, ask: str, name: str) -> dict:
         clone_dir = workdir / "repo"
         prompt = head + "任务：为仓库 {d}（clone 自 {u}）生成一张 Code Canvas，主题/关注点：{a}\n".format(
             d=clone_dir, u=src["git_url"], a=ask) + tail
-        # clone 失败时 gen 里的 `echo $? > status` 记下非零码，任务显示 failed
-        script = "git clone --depth 1 {u} {d} >> {log} 2>&1 && cd {d} && {gen}".format(
-            u=shlex.quote(src["git_url"]), d=shlex.quote(str(clone_dir)),
-            log=shlex.quote(str(log_f)), gen=gen)
+        # clone 失败：跳过 claude，status 记非零码，timing 只有 clone 段
+        script = ('T0=$(date +%s); git clone --depth 1 {u} {d} >> {log} 2>&1 && cd {d} && {gen}'
+                  ' || {{ rc=$?; T1=$(date +%s); '
+                  'printf \'{{"clone_s": %s, "claude_s": 0}}\' "$((T1-T0))" > {tm}; '
+                  'echo $rc > {st}; }}').format(
+                      u=shlex.quote(src["git_url"]), d=shlex.quote(str(clone_dir)),
+                      log=shlex.quote(str(log_f)), gen=gen,
+                      tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)))
         cwd = str(ARGS.hub)
         source_desc = src["git_url"]
     elif src["kind"] == "path":
         prompt = head + "任务：为仓库 {r} 生成一张 Code Canvas，主题/关注点：{a}\n".format(
             r=src["repo"], a=ask) + tail
-        script, cwd, source_desc = gen, src["repo"], src["repo"]
+        script, cwd, source_desc = "T0=$(date +%s); " + gen, src["repo"], src["repo"]
     else:  # code：粘贴的代码片段
         src_dir = workdir / "src"
         src_dir.mkdir(exist_ok=True)
@@ -188,7 +237,7 @@ def spawn_generate(src: dict, ask: str, name: str) -> dict:
         prompt = head + ("任务：为 {p} 里的代码生成一张 Code Canvas（内容可能含多个文件片段，"
                          "file 字段按片段内自述或写 pasted.txt），主题/关注点：{a}\n").format(
                              p=src_dir / "pasted.txt", a=ask) + tail
-        script, cwd, source_desc = gen, str(src_dir), "粘贴代码 {} 字符".format(len(src["code"]))
+        script, cwd, source_desc = "T0=$(date +%s); " + gen, str(src_dir), "粘贴代码 {} 字符".format(len(src["code"]))
 
     prompt_f.write_text(prompt, encoding="utf-8")
     subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
@@ -219,6 +268,8 @@ a.card:active{background:#f3f4f6}
 h2{font-size:15px;color:#57606a;margin:26px 0 8px}
 .job{font-size:13px;color:#57606a;padding:6px 0;border-bottom:1px solid #e4e8ec}
 .job .st-running{color:#9a6700}.job .st-done{color:#1a7f37}.job .st-failed{color:#cf222e}
+.jobm{font-size:11.5px;color:#8c959f;margin-top:2px;font-family:ui-monospace,Menlo,monospace}
+.costnote{font-size:10.5px;color:#8c959f;font-weight:400;margin-left:8px}
 #gen{background:#ffffff;border:1px solid #d0d7de;border-radius:12px;padding:16px;margin-bottom:22px;
   box-shadow:0 1px 3px rgba(31,35,40,.06)}
 #gen .row{display:flex;gap:14px;margin-bottom:10px;font-size:13.5px;flex-wrap:wrap}
@@ -285,13 +336,24 @@ document.addEventListener('click',async e=>{
   const j=await r.json();
   if(j.ok)location.reload();else alert('删除失败：'+(j.error||''));
 });
+const fmtTok=n=>n==null?'?':(n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'k':''+n);
+function jobMetrics(x){
+  if(!x.metrics&&!x.timing)return'';
+  const m=x.metrics||{},t=x.timing||{};
+  const dur=m.dur_s?(m.dur_s>=60?Math.floor(m.dur_s/60)+'m'+Math.round(m.dur_s%60)+'s':m.dur_s+'s'):'';
+  const parts=[];
+  if(dur)parts.push('⏱ '+dur+(t.clone_s?`（clone ${t.clone_s}s + claude ${Math.floor((t.claude_s||0)/60)}m${(t.claude_s||0)%60}s）`:''));
+  if(m.in_tok!=null)parts.push(`↑${fmtTok(m.in_tok)} ↓${fmtTok(m.out_tok)}${m.cache_read?` ⟳${fmtTok(m.cache_read)}`:''}`);
+  if(m.cost_usd)parts.push('$'+m.cost_usd+'*');
+  return parts.length?`<div class=jobm>${parts.join(' · ')}</div>`:'';
+}
 async function poll(){
   try{
     const j=await(await fetch('/jobs')).json();
     const el=$('jobs');
     if(el&&j.jobs.length){
-      el.innerHTML='<h2>生成任务</h2>'+j.jobs.map(x=>
-        `<div class=job>${x.id} · ${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}</div>`).join('');
+      el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）</span></h2>'+j.jobs.map(x=>
+        `<div class=job>${x.id} · ${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}</div>`).join('');
       if(j.jobs.some(x=>x.status==='running'))setTimeout(poll,5000);
     }
   }catch(e){}
@@ -474,9 +536,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"ok": False, "error": "bad request: {}".format(e)})
         result = run_cli(prompt)
         if result.get("ok"):
-            persist(html_path, {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "card": req.get("card"),
-                                "block": req.get("block"), "question": req.get("question"),
-                                "answer": result["answer"]})
+            rec = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "card": req.get("card"),
+                   "block": req.get("block"), "question": req.get("question"),
+                   "answer": result["answer"]}
+            if result.get("metrics"):
+                rec["metrics"] = result["metrics"]
+            persist(html_path, rec)
         self._json(200, result)
 
 
