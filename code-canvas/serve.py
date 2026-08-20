@@ -30,6 +30,7 @@ tailscale 接口地址，不要绑 0.0.0.0——/ask 和 /generate 都会花钱�
 """
 import argparse
 import json
+import os
 import re
 import shlex
 import shutil
@@ -163,6 +164,16 @@ def jobs_dir() -> Path:
     return d
 
 
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except PermissionError:
+        return True
+    except (ProcessLookupError, OverflowError, ValueError):
+        return False
+
+
 def list_jobs() -> list:
     out = []
     for mp in sorted(jobs_dir().glob("*.meta.json"), reverse=True):
@@ -174,6 +185,8 @@ def list_jobs() -> list:
         if sp.exists():
             code = sp.read_text().strip()
             meta["status"] = "done" if code == "0" else "failed({})".format(code)
+        elif meta.get("pid") and not _pid_alive(meta["pid"]):
+            meta["status"] = "failed(中断)"  # 进程没了又没留 status：被杀/宕机
         else:
             meta["status"] = "running"
         # 指标：分段计时 + claude JSON 信封（token/成本/时长）
@@ -255,9 +268,9 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
         rec = {"git_url": src["git_url"]} if src["kind"] == "git" else {"repo": src["repo"]}
         (ARGS.hub / (name + ".src.json")).write_text(
             json.dumps(rec, ensure_ascii=False), encoding="utf-8")
-    subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
+    proc = subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
     meta = {"id": job_id, "name": name, "ask": ask, "source": source_desc,
-            "mode": "preview" if preview else "deep",
+            "mode": "preview" if preview else "deep", "pid": proc.pid,
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     meta_f.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     return meta

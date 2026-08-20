@@ -83,3 +83,10 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   「→ 深潜这条」：step.ask + 来源 → 确认后一键 /generate 同源深潜；
   存量画布补 src sidecar；真机验收 vllm-map 点单（走新预览链路）。
   注：首张 vllm 研究地图 demo 未归档已丢失（教训：验收样张进 examples/）
+  → **事故修复：restart 杀任务**——部署重启 canvas-hub 连带杀死了作者
+  在跑的生成任务（systemd 默认 KillMode=control-group 杀整个 cgroup；
+  start_new_session 逃不出 cgroup）。三层修复：①服务单元加
+  KillMode=process（restart 只杀 server，真实 restart 下任务实证幸存）
+  ②job meta 记 pid，list_jobs 对 无status+pid已死 如实标 failed(中断)
+  （hub 测试 43 项）③被杀任务重新下单补回。教训：部署前先看 /jobs
+  有没有 running 的任务

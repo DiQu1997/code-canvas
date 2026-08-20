@@ -31,6 +31,12 @@ writeFileSync(join(hub, 'pv-fix.json'), JSON.stringify({
 execFileSync('python3', [resolve(root, 'render.py'), join(hub, 'pv-fix.json'), join(hub, 'pv-fix.html')]);
 writeFileSync(join(hub, 'pv-fix.src.json'), JSON.stringify({ repo: root }));
 writeFileSync(join(hub, 'cache-diff.src.json'), JSON.stringify({ repo: root }));
+// interrupted job fixture: pid long dead, no status file → must NOT show "running"
+mkdirSync(join(hub, '.jobs'));
+writeFileSync(join(hub, '.jobs', 'j00000000-000000.meta.json'), JSON.stringify({
+  id: 'j00000000-000000', name: 'zombie', ask: 'x', source: 'x', pid: 999999999,
+  started: '2026-01-01T00:00:00',
+}));
 
 const server = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
   '--port', String(PORT), '--cli-bin', '/bin/echo'], { stdio: 'ignore' });
@@ -139,6 +145,8 @@ for (let i = 0; i < 25; i++) {
   await new Promise(r => setTimeout(r, 200));
 }
 check('job completes with status done', done);
+const zombie = (await (await fetch(`${base}/jobs`)).json()).jobs.find(j => j.name === 'zombie');
+check('dead-pid job reported interrupted, not running', !!zombie && zombie.status === 'failed(中断)');
 check('pasted code landed in workdir',
   readFileSync(join(hub, '.jobs', gen.job.id, 'src', 'pasted.txt'), 'utf8').includes('def f()'));
 check('prompt follows SKILL pipeline',
