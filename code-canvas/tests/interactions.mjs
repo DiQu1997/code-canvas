@@ -19,21 +19,37 @@ const check = (name, ok) => results.push(`${ok ? 'PASS' : 'FAIL'} ${name}`);
 
 check('home link hidden on static file', !(await page.isVisible('#home-link')));
 
-// context peek: one click = FULL context in a scroll area, card size fixed
-check('ctx bar present with embedded file', await page.$('#card-step .ctx-bar[data-side="top"]') !== null);
+// context peek: ONE unified scroll window (ctx-above + core + ctx-below),
+// wheel scrolls away from the focus region; vim-style relative numbers anchored to core
+check('ctx bar present with embedded file', await page.$('#card-step .ctx-bar') !== null);
 const hBefore = await page.$eval('#card-step', el => el.offsetHeight);
-await page.click('#card-step .ctx-bar[data-side="top"]');
+await page.click('#card-step .ctx-bar');
 await page.waitForTimeout(400);
-check('one click loads ALL upper context', (await page.$$('#card-step .ln.ctxln')).length === 48);
+check('one click loads FULL upper context into unified window',
+  await page.$eval('#card-step .ctxlines[data-side="top"]', el => el.childElementCount) === 48);
+check('lower context loaded too',
+  await page.$eval('#card-step .ctxlines[data-side="bot"]', el => el.childElementCount) > 0);
 check('excerpt line ids untouched', await page.$('#step-L2') !== null);
-const ctxBox = await page.$('#card-step .ctxlines[data-side="top"]');
-check('ctx container capped, scrollable, pinned to excerpt', await ctxBox.evaluate(el =>
-  el.style.maxHeight !== '' && el.scrollHeight > el.clientHeight && el.scrollTop > 0));
+check('relative numbers count outward from core (above: …2,1)',
+  await page.$eval('#card-step .ctxlines[data-side="top"]', el =>
+    el.firstElementChild.querySelector('.no.rel').textContent === '48'
+    && el.lastElementChild.querySelector('.no.rel').textContent === '1'));
+check('relative numbers below start at 1',
+  await page.$eval('#card-step .ctxlines[data-side="bot"]',
+    el => el.firstElementChild.querySelector('.no.rel').textContent === '1'));
+check('window capped, scrollable, core initially in view', await page.$eval('#card-step .codewin', el =>
+  el.classList.contains('scrolly') && el.style.maxHeight !== ''
+  && el.scrollHeight > el.clientHeight && el.scrollTop > 0));
+check('wheel can leave the focus region (scroll to file top)',
+  await page.$eval('#card-step .codewin', el => { el.scrollTop = 0; return el.scrollTop === 0; }));
+await page.waitForTimeout(200);
+check('wires still drawn while scrolled away', (await page.$$('svg path.wire')).length > 0);
 const hAfter = await page.$eval('#card-step', el => el.offsetHeight);
 check('card height stays ≤2.5× core', hAfter < hBefore * 2.5 + 60);
-await page.click('#card-step .ctx-bar[data-side="top"]');
+await page.click('#card-step .ctx-bar');
 await page.waitForTimeout(300);
-check('second click folds back', (await page.$$('#card-step .ln.ctxln')).length === 0);
+check('second click folds back to core-only', (await page.$$('#card-step .ln.ctxln')).length === 0
+  && !(await page.$eval('#card-step .codewin', el => el.classList.contains('scrolly'))));
 
 // reading-order chips: none on overview, appear on a multi-focus step, renumber on step change
 check('no order chips on overview', (await page.$$('.ordchip')).length === 0);

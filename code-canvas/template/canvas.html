@@ -67,11 +67,11 @@
     border-top: 1px dashed #e4e8ec; border-bottom: 1px dashed #e4e8ec; padding: 2px 0;
     cursor: pointer; user-select: none; }
   .ctx-bar:hover { color: #0969da; background: #eef4fb; }
-  .ctx-bar .fold { margin-left: 16px; color: #8c959f; }
-  .ctx-bar .fold:hover { color: #cf222e; }
   .ln.ctxln { opacity: .55; background: #fbfcfd; }
-  .ln.ctxln .no { visibility: hidden; }
-  .ctxlines { overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
+  .ln.ctxln .no.rel { color: #a8b1ba; }
+  /* 一体滚动窗：上文+核心摘选+下文连续排布，滚轮可滑离核心区 */
+  .codewin.scrolly { overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
+  .codewin.scrolly .corewrap { box-shadow: inset 3px 0 0 #54aeff; }
   /* ---- 预览分区卡（district）：地图语言，零代码排版 ---- */
   .card.district { border-radius: 14px; border-width: 0; box-shadow: 0 4px 16px rgba(31,35,40,.12); }
   .card.district .hdr { border-bottom: none; background: transparent; padding: 14px 18px 2px; }
@@ -559,24 +559,25 @@ for (const c of DATA.cards) {
     ? `<span class="dbadge"><b>+${(diff.added || []).length}</b> <i>−${(diff.removed || []).length}</i></span>` : '')
     + (c.plan ? `<span class="pbadge ${c.plan}">${PLAN_LABEL[c.plan]}</span>` : '')
     + (c.plan_delta ? `<span class="pbadge ${c.plan_delta}">${DELTA_LABEL[c.plan_delta]}</span>` : '');
-  // 上下文窥视：canvas JSON 的 files 里有这张卡的文件全文时，出上下展开条
+  // 上下文窥视：files 里有这张卡的文件全文时，整块变一体滚动窗——
+  // 上文+核心摘选+下文连续排布，滚轮滑离核心区；相对行号锚定核心区（不随滚动变）
   const fpath = (c.file || '').split(':')[0];
   const fstart = parseInt((c.file || '').split(':')[1] || '0', 10);
   const ffull = (DATA.files || {})[fpath];
-  let ctxTop = '', ctxBot = '';
+  let coreHtml = buildBlocks(c.blocks, lineHtml, 1, raw.length, c.id, 0);
   if (ffull && fstart > 0) {
-    c._ctx = { flines: ffull.split('\n'), start: fstart, end: fstart + raw.length - 1, top: 0, bot: 0 };
-    const nUp = fstart - 1, nDown = c._ctx.flines.length - c._ctx.end;
-    if (nUp > 0) ctxTop = `<div class="ctx-bar" data-card="${c.id}" data-side="top">`
-      + `<span class="more">▲ 上文 ${nUp} 行</span></div>`
-      + `<div class="ctxlines" data-side="top"></div>`;
-    if (nDown > 0) ctxBot = `<div class="ctxlines" data-side="bot"></div>`
-      + `<div class="ctx-bar" data-card="${c.id}" data-side="bot">`
-      + `<span class="more">▼ 下文 ${nDown} 行</span></div>`;
+    c._ctx = { flines: ffull.split('\n'), start: fstart, end: fstart + raw.length - 1 };
+    const nCtx = c._ctx.flines.length - raw.length;
+    if (nCtx > 0) {
+      coreHtml = `<div class="ctx-bar" data-card="${c.id}"><span class="more">⇕ 展开上下文（全文 ${c._ctx.flines.length} 行）</span></div>`
+        + `<div class="codewin"><div class="ctxlines" data-side="top"></div>`
+        + `<div class="corewrap">${coreHtml}</div>`
+        + `<div class="ctxlines" data-side="bot"></div></div>`;
+    }
   }
   el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>${badge}`
     + `<span class="file">${esc(c.file || '')}</span></div>`
-    + `<div class="body">${ctxTop}${buildBlocks(c.blocks, lineHtml, 1, raw.length, c.id, 0)}${ctxBot}</div>`;
+    + `<div class="body">${coreHtml}</div>`;
   world.appendChild(el);
 }
 if (DATA.cards.some(c => c.diff)) {
@@ -781,6 +782,13 @@ function sizeWorld() {
 function wpos(el) {
   let x = 0, y = 0, e = el;
   while (e && e.id !== 'world') { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+  // 滚动容器（一体滚动窗/横向代码区）的位移要减掉，线锚才钉得住
+  let s = el.parentElement;
+  while (s && s.id !== 'world') {
+    if (s.scrollTop) y -= s.scrollTop;
+    if (s.scrollLeft) x -= s.scrollLeft;
+    s = s.parentElement;
+  }
   return { x, y, w: el.offsetWidth, h: el.offsetHeight };
 }
 function visibleProxy(lineEl, cardEl) {
@@ -804,7 +812,15 @@ function resolveAnchor(spec, slot) {
   const side = spec.side || (slot ? 'left' : 'right');
   const x = side === 'right' ? p.x + p.w : p.x;
   let y;
-  if (isInner) y = p.y + p.h / 2;
+  if (isInner) {
+    y = p.y + p.h / 2;
+    // 行在一体滚动窗里被滚出视野时，锚点夹在窗口边缘（线不飘出卡外）
+    const win = el.closest('.codewin.scrolly');
+    if (win) {
+      const wp = wpos(win);
+      y = Math.max(wp.y + 6, Math.min(wp.y + win.clientHeight - 6, y));
+    }
+  }
   else if (slot) {
     const collapsed = el.classList.contains('collapsed');
     if (slot === 'data') y = collapsed ? p.y + p.h / 2 + 7 : p.y + Math.min(p.h * 0.62, p.h - 16);
@@ -1351,45 +1367,52 @@ document.getElementById('qa-input').addEventListener('keydown', e => {
 
 /* 上下文开关：点一次全量载入滚动区（卡片尺寸不再变），再点收起。
    高度纪律：容器限高 ~0.65×核心（卡总高 ≈ 2.3× 核心），滚动看全文 */
-function ctxExpand(cardEl, side) {
+function ctxToggle(cardEl) {
   const c = cardById[cardEl.id.replace(/^card-/, '')];
   const ctx = c._ctx;
-  const box = cardEl.querySelector(`.ctxlines[data-side="${side}"]`);
-  const bar = cardEl.querySelector(`.ctx-bar[data-side="${side}"]`);
-  const total = side === 'top' ? ctx.start - 1 : ctx.flines.length - ctx.end;
-  const open = box.childElementCount > 0;
-  if (open) {                                     // 收起
-    box.innerHTML = '';
-    bar.querySelector('.more').textContent =
-      (side === 'top' ? '▲ 上文 ' : '▼ 下文 ') + total + ' 行';
-  } else {                                        // 全量展开进滚动区
-    if (!ctx.coreH) {
-      const body = cardEl.querySelector('.body');
-      let h = 0;
-      for (const ch of body.children)
-        if (!ch.classList.contains('ctxlines') && !ch.classList.contains('ctx-bar'))
-          h += ch.offsetHeight;
-      ctx.coreH = Math.max(h, 120);
-    }
-    box.style.maxHeight = Math.round(ctx.coreH * 0.65) + 'px';
-    const lines = side === 'top'
-      ? ctx.flines.slice(0, ctx.start - 1)
-      : ctx.flines.slice(ctx.end);
-    box.innerHTML = lines.map(t =>
-      `<div class="ln ctxln"><span class="no">·</span>${highlight(t, c.lang)}</div>`).join('');
-    // 贴住摘选：上文停底部（最近的先见）、下文停顶部
-    box.scrollTop = side === 'top' ? box.scrollHeight : 0;
-    bar.querySelector('.more').textContent =
-      (side === 'top' ? '▲ 收起（上文 ' : '▼ 收起（下文 ') + total + ' 行·滚动查看）';
+  const win = cardEl.querySelector('.codewin');
+  const top = win.querySelector('.ctxlines[data-side="top"]');
+  const bot = win.querySelector('.ctxlines[data-side="bot"]');
+  const bar = cardEl.querySelector('.ctx-bar .more');
+  if (win.classList.contains('scrolly')) {        // 收起：回到只剩核心摘选
+    top.innerHTML = bot.innerHTML = '';
+    win.classList.remove('scrolly');
+    win.style.maxHeight = '';
+    bar.textContent = `⇕ 展开上下文（全文 ${ctx.flines.length} 行）`;
+  } else {                                        // 展开：全文进一体滚动窗
+    const core = win.querySelector('.corewrap');
+    if (!ctx.coreH) ctx.coreH = Math.max(core.offsetHeight, 120);
+    // 相对行号：0 锚定核心摘选区，上文/下文各自从贴着核心的那行起 1,2,3… 向外数
+    const above = ctx.flines.slice(0, ctx.start - 1);
+    const below = ctx.flines.slice(ctx.end);
+    top.innerHTML = above.map((t, i) =>
+      `<div class="ln ctxln"><span class="no rel">${above.length - i}</span>${highlight(t, c.lang)}</div>`).join('');
+    bot.innerHTML = below.map((t, i) =>
+      `<div class="ln ctxln"><span class="no rel">${i + 1}</span>${highlight(t, c.lang)}</div>`).join('');
+    win.classList.add('scrolly');
+    // 窗口高度纪律不变：整块 ≤ ~2.2× 核心（小核心给个可读下限）
+    win.style.maxHeight = Math.round(Math.max(ctx.coreH * 2.2, 320)) + 'px';
+    // 初始视野：核心区在窗内居中（滚轮从这里自由上下）
+    const coreTop = core.offsetTop - win.offsetTop;
+    win.scrollTop = Math.max(0, coreTop - Math.max((win.clientHeight - core.offsetHeight) / 2, 24));
+    bar.textContent = '⇕ 收起上下文（相对行号以核心区为 0）';
   }
   drawWires();
 }
+/* 一体滚动窗滚动时，行锚线跟着重钉（rAF 节流；scroll 不冒泡，用捕获） */
+let ctxRaf = false;
+document.addEventListener('scroll', e => {
+  if (!(e.target instanceof Element) || !e.target.classList.contains('codewin')) return;
+  if (ctxRaf) return;
+  ctxRaf = true;
+  requestAnimationFrame(() => { ctxRaf = false; drawWires(); });
+}, true);
 
 /* ================= interactions ================= */
 world.addEventListener('click', e => {
   const cbar = e.target.closest('.ctx-bar');
   if (cbar) {
-    ctxExpand(cbar.closest('.card'), cbar.dataset.side);
+    ctxToggle(cbar.closest('.card'));
     return;
   }
   const term = e.target.closest('.term');
@@ -1439,8 +1462,8 @@ function pinchState() {
   return { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
 }
 vp.addEventListener('pointerdown', e => {
-  // 可滚动的上下文区里让位给原生滚动（触屏拖动不当作画布平移）
-  const sc = e.target.closest('.ctxlines');
+  // 展开态的一体滚动窗里让位给原生滚动（触屏拖动不当作画布平移）
+  const sc = e.target.closest('.codewin.scrolly');
   if (sc && sc.scrollHeight > sc.clientHeight) return;
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pts.size === 2) {
@@ -1483,8 +1506,8 @@ function endPointer(e) {
 vp.addEventListener('pointerup', endPointer);
 vp.addEventListener('pointercancel', endPointer);
 vp.addEventListener('wheel', e => {
-  // 悬停在可滚动的上下文区：滚轮归它，不缩放画布
-  const sc = e.target.closest('.ctxlines');
+  // 悬停在展开态的一体滚动窗：滚轮归它（滑离核心区），不缩放画布
+  const sc = e.target.closest('.codewin.scrolly');
   if (sc && sc.scrollHeight > sc.clientHeight) return;
   e.preventDefault();
   const f = Math.exp(-e.deltaY * .0012);
