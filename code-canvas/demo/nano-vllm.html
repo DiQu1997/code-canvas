@@ -188,6 +188,8 @@
   .qa-a.err { border-left-color: #cf222e; color: #a2464e; }
   .qa-a.busy { border-left-color: #8c959f; color: #8c959f; font-style: italic; }
   .qa-hint { font-size: 11px; color: #6e7781; line-height: 1.7; padding: 6px 0; }
+  .qa-meta { font: 10px ui-monospace, Menlo, monospace; color: #8c959f;
+    margin: -7px 0 10px 2px; }
   #qa-form { padding: 12px 16px 16px; border-top: 1px solid #e4e8ec; display: flex; gap: 8px; }
   #qa-input { flex: 1; background: #ffffff; border: 1px solid #d0d7de; color: #24292f;
     border-radius: 8px; padding: 8px 10px; font-size: 12px; resize: none; height: 62px;
@@ -310,6 +312,10 @@
     margin-top: 3px; user-select: none; }
   #sdetail-btn:hover { text-decoration: underline; }
   #sdetail-btn[hidden] { display: none; }
+  #dive-btn { display: inline-block; font-size: 10.5px; color: #1a7f37; cursor: pointer;
+    margin-top: 3px; margin-left: 12px; user-select: none; font-weight: 600; }
+  #dive-btn:hover { text-decoration: underline; }
+  #dive-btn[hidden] { display: none; }
   #sdetail { font-size: 12px; color: #424a53; line-height: 1.65; max-width: 560px;
     margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d8dee4;
     max-height: 8.5em; overflow-y: auto; white-space: pre-wrap; }
@@ -371,7 +377,7 @@
   <button class="navbtn" id="next">▶</button>
   <div id="stext"><div id="stitle"></div><div id="scap"></div>
     <div id="sdetail" hidden></div>
-    <span id="sdetail-btn" hidden>详解 ▾</span>
+    <span id="sdetail-btn" hidden>详解 ▾</span><span id="dive-btn" hidden>→ 深潜这条</span>
   </div>
 </div>
 
@@ -1022,6 +1028,7 @@ function setStep(i, animate = true) {
   dpanel.hidden = true;
   dbtn.textContent = '详解 ▾';
   dpanel.textContent = s.detail || '';
+  updateDive(s);
   document.getElementById('prev').disabled = step === 0;
   document.getElementById('next').disabled = step === STEPS.length - 1;
   document.querySelectorAll('.dot').forEach((d, j) => {
@@ -1206,10 +1213,16 @@ function renderQALog() {
   if (!QA.live) {
     el.innerHTML = `<div class="qa-hint">未检测到本地问答服务：发送会把「问题 + 块代码 + 上下文」复制到剪贴板，粘贴给任意 agent 即可。<br>在线问答：<code>python3 serve.py 本画布.html</code> 后从 localhost 打开。</div>`;
   }
+  const fmtTok = n => n == null ? '?' : (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M'
+    : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : '' + n);
   for (const x of QA.log[qaKey()] || []) {
     el.insertAdjacentHTML('beforeend', `<div class="qa-q">${esc(x.q)}</div>`);
     el.insertAdjacentHTML('beforeend',
       `<div class="qa-a${x.err ? ' err' : x.busy ? ' busy' : ''}">${esc(x.a || '…')}</div>`);
+    if (x.meta) el.insertAdjacentHTML('beforeend',
+      `<div class="qa-meta">${x.meta.dur_s}s · ↑${fmtTok(x.meta.in_tok)} ↓${fmtTok(x.meta.out_tok)}`
+      + `${x.meta.cache_read ? ' ⟳' + fmtTok(x.meta.cache_read) : ''}`
+      + `${x.meta.cost_usd ? ' · $' + x.meta.cost_usd + '*' : ''}</div>`);
   }
   el.scrollTop = el.scrollHeight;
 }
@@ -1284,7 +1297,7 @@ async function sendQA() {
       body: JSON.stringify({ prompt, card: QA.cur.card || '__canvas__', block: QA.cur.block || '-', question: q }),
     });
     const j = await r.json();
-    if (j.ok) entry.a = j.answer;
+    if (j.ok) { entry.a = j.answer; if (j.metrics) entry.meta = j.metrics; }
     else { entry.a = '出错了：' + (j.error || '未知错误'); entry.err = true; }
   } catch (e) {
     entry.a = '请求失败：' + e.message; entry.err = true;
@@ -1302,6 +1315,35 @@ if (location.pathname.startsWith('/c/')) {
   document.getElementById('home-link').hidden = false;
   document.getElementById('dl-btn').hidden = false;
 }
+
+/* 深潜点单：step 带 ask 且 hub 记录了本画布的代码来源时，
+   底栏出「→ 深潜这条」——一键把 ask + 同一来源交给 /generate */
+let HUB_SRC = null;
+function updateDive(s) {
+  document.getElementById('dive-btn').hidden = !(s.ask && HUB_SRC);
+}
+if (location.pathname.startsWith('/c/')) {
+  fetch('src').then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && (j.git_url || j.repo)) { HUB_SRC = j; updateDive(STEPS[step]); } })
+    .catch(() => {});
+}
+document.getElementById('dive-btn').onclick = async () => {
+  const s = STEPS[step];
+  if (!s.ask || !HUB_SRC) return;
+  if (!confirm('深潜「' + s.ask + '」？\n将启动一个生成任务（约 20-40 分钟）。')) return;
+  const name = location.pathname.split('/')[2].replace(/-map$/, '') + '-dive' + step;
+  const body = { ask: s.ask, name };
+  if (HUB_SRC.git_url) body.git_url = HUB_SRC.git_url; else body.repo = HUB_SRC.repo;
+  const btn = document.getElementById('dive-btn');
+  btn.textContent = '点单中…';
+  try {
+    const r = await fetch('/generate', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    btn.textContent = j.ok ? '✓ 已点单「' + name + '」· 回画布库看进度' : '点单失败：' + (j.error || '');
+  } catch (e) { btn.textContent = '点单失败：' + e; }
+  setTimeout(() => { btn.textContent = '→ 深潜这条'; }, 6000);
+};
 document.getElementById('qa-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQA(); }
   e.stopPropagation();

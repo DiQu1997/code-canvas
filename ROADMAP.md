@@ -19,7 +19,7 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
 | P1.5 生成优先改版 | ✅ 2026-08-17 | 作者裁决"首页必须是生成入口"；hub 测试 32 项 |
 | P2 计划画布 | ✅ 2026-08-18 | schema v0.2（plan/幽灵卡/plan_delta）；compare 三层对照（卡级/计划线/--repo 文件覆盖防瞒报）；北极星测试通过：闸门逼出全闭环、埋雷 agent 拒绝配合并主动披露（暴露覆盖洞→已补）；hooks 挂点修正（ExitPlanMode 死锁→首次改码）。**hooks 已验证未挂载（作者：耗 token 暂缓）** |
 | P3 结构提取器 | ✅ 2026-08-18 | extract.py（ast 后端、--merge 增量协议、21 项契约测试、v1/core 0.08s、黄金 9/9 交叉覆盖）；零上下文考试 nanovllm-deep **PASS：18/18 溯源、16 分钟**（对比旧基线 22/34 分钟），考生自行走通结构层管线 |
-| 预览地图（插队项） | 🔶 demo 完成待转正 | 三轮形态迭代：代码墙（否）→目录地图（否：要逻辑组）→**研究型逻辑地图**（agent 真研究：v1 拆调度/运行时、注意力跨目录合并、9 分区无一对应目录；highlights 抽查 8/8 真实）。preview-spec.md 已立。**待作者验收形态 → 转正三件套**：①并入 SKILL.md ②hub 表单加预览选项 ③线路步「→ 深潜这条」一键点单 |
+| 预览地图 | ✅ 2026-08-19 转正 | 三轮形态迭代后作者验收：**研究型逻辑地图**（agent 真研究、逻辑分组、highlights 核实）。转正三件套落地：①preview-spec 并入 SKILL.md 规模闸门（取代旧领航图规程）②hub 表单加画布类型（深潜/预览），/generate 支持 preview + src 来源 sidecar ③线路步「→ 深潜这条」一键点单（同来源复用）。hub 测试 42 项全绿；真机验收跑 vllm-map |
 | P4 IDE 扩展 | 📋 方案已过目 | VS Code 薄壳复用全部资产；杀手交互=点卡跳 file:line；结构层<2s；v1 不做叙事生成/marketplace |
 | P5 GitHub App | ⏸ 等团队拉力 | PR 自动 diff 卷 |
 
@@ -45,12 +45,11 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
 
 ## 待办池（优先级由作者定）
 
-1. 预览地图转正三件套（等形态验收）
-2. P4 IDE 扩展 v1（模板跳转桥→扩展本体→作者本机装载验收）
-3. 生成完成推送通知；问答沉淀（好答案写回 canvas JSON）；画布库搜索；
+1. P4 IDE 扩展 v1（模板跳转桥→扩展本体→作者本机装载验收）
+2. 生成完成推送通知；问答沉淀（好答案写回 canvas JSON）；画布库搜索；
    用量汇总视图（/stats：按日/按画布聚合 token 与折算成本）
-4. requests-nav 基线；模型动物园类模块的 highlights 信号（__init__ 导出/git 频率）
-5. 已知渲染债：note 车道线穿行、同卡多 above note 重叠、#sN 直达状态与顺序走不一致
+3. requests-nav 基线；模型动物园类模块的 highlights 信号（__init__ 导出/git 频率）
+4. 已知渲染债：note 车道线穿行、同卡多 above note 重叠、#sN 直达状态与顺序走不一致
 
 ## 会话日志
 
@@ -77,4 +76,10 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   生成任务分段计时（clone/claude）+ token/折算成本落 .jobs/<id>.{timing,
   result}.json 并显示在任务行；问答指标进 sidecar + 抽屉小字；考试指标
   归档 examinee-metrics.json；preview --recommend 打印指标。成本注明
-  为 API 价折算（订阅不按量计费）
+  为 API 价折算（订阅不按量计费）→ **预览地图转正**（作者验收形态）：
+  SKILL 规模闸门改为"先预览后深潜"（研究先行/逻辑分区/线路带 ask，
+  旧领航图规程删除）；hub 表单加画布类型（预览默认名 -map、粘贴代码
+  不可预览）；/generate 记 src 来源 sidecar（删画布连删）；渲染器底栏
+  「→ 深潜这条」：step.ask + 来源 → 确认后一键 /generate 同源深潜；
+  存量画布补 src sidecar；真机验收 vllm-map 点单（走新预览链路）。
+  注：首张 vllm 研究地图 demo 未归档已丢失（教训：验收样张进 examples/）

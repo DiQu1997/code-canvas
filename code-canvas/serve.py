@@ -19,6 +19,9 @@ hub 路由：
                                {"repo": "/盒子上的路径"}
                                {"code": "粘贴的代码…"}     落到临时目录
                                + "ask": 主题/关注点（必填）, "name": 画布名（可选）
+                               + "preview": true  → 研究型预览地图（preview-spec.md；
+                                 仅 git/repo 源——粘贴片段没有"陌生仓库"可预览）
+    GET  /c/<name>/src         画布的代码来源（git_url/repo，深潜点单用）
     GET  /jobs                 生成任务列表（JSON）
 
 安全：默认只绑 127.0.0.1。部署在有公网 IP 的机器上时用 --host 绑
@@ -187,7 +190,7 @@ def list_jobs() -> list:
     return out
 
 
-def spawn_generate(src: dict, ask: str, name: str) -> dict:
+def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dict:
     """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。"""
     job_id = time.strftime("j%Y%m%d-%H%M%S")
     jd = jobs_dir()
@@ -212,10 +215,18 @@ def spawn_generate(src: dict, ask: str, name: str) -> dict:
                 skill=SKILL_DIR, work=workdir, hub=ARGS.hub, name=name)
     head = "阅读 {skill}/SKILL.md 并严格按其管线执行（规模闸门、验证器、截图自检都算数）。\n".format(skill=SKILL_DIR)
 
+    def task_line(where: str) -> str:
+        if preview:
+            return ("任务：为仓库 {w} 生成一张**研究型预览地图**（meta.mode:\"preview\"），"
+                    "严格按 {skill}/preview-spec.md 执行：研究先行（读文档 + 每组抽查 2-3 个"
+                    "核心文件），分区是逻辑组不是目录，highlights 必须核实真实存在，"
+                    "3-6 条故事线路且每条 step 带 ask（深潜点单句）。读者关注点：{a}\n").format(
+                        w=where, skill=SKILL_DIR, a=ask)
+        return "任务：为仓库 {w} 生成一张 Code Canvas，主题/关注点：{a}\n".format(w=where, a=ask)
+
     if src["kind"] == "git":
         clone_dir = workdir / "repo"
-        prompt = head + "任务：为仓库 {d}（clone 自 {u}）生成一张 Code Canvas，主题/关注点：{a}\n".format(
-            d=clone_dir, u=src["git_url"], a=ask) + tail
+        prompt = head + task_line("{d}（clone 自 {u}）".format(d=clone_dir, u=src["git_url"])) + tail
         # clone 失败：跳过 claude，status 记非零码，timing 只有 clone 段
         script = ('T0=$(date +%s); git clone --depth 1 {u} {d} >> {log} 2>&1 && cd {d} && {gen}'
                   ' || {{ rc=$?; T1=$(date +%s); '
@@ -227,8 +238,7 @@ def spawn_generate(src: dict, ask: str, name: str) -> dict:
         cwd = str(ARGS.hub)
         source_desc = src["git_url"]
     elif src["kind"] == "path":
-        prompt = head + "任务：为仓库 {r} 生成一张 Code Canvas，主题/关注点：{a}\n".format(
-            r=src["repo"], a=ask) + tail
+        prompt = head + task_line(src["repo"]) + tail
         script, cwd, source_desc = "T0=$(date +%s); " + gen, src["repo"], src["repo"]
     else:  # code：粘贴的代码片段
         src_dir = workdir / "src"
@@ -240,8 +250,14 @@ def spawn_generate(src: dict, ask: str, name: str) -> dict:
         script, cwd, source_desc = "T0=$(date +%s); " + gen, str(src_dir), "粘贴代码 {} 字符".format(len(src["code"]))
 
     prompt_f.write_text(prompt, encoding="utf-8")
+    # 来源 sidecar：画布页的「→ 深潜这条」点单要能复用同一份代码来源
+    if src["kind"] in ("git", "path"):
+        rec = {"git_url": src["git_url"]} if src["kind"] == "git" else {"repo": src["repo"]}
+        (ARGS.hub / (name + ".src.json")).write_text(
+            json.dumps(rec, ensure_ascii=False), encoding="utf-8")
     subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
     meta = {"id": job_id, "name": name, "ask": ask, "source": source_desc,
+            "mode": "preview" if preview else "deep",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     meta_f.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     return meta
@@ -265,6 +281,7 @@ a.card:active{background:#f3f4f6}
   padding:0 8px;margin-left:8px;color:#57606a;vertical-align:1px}
 .badge.diff{color:#9a6700;border-color:#bf8700}
 .badge.plan{color:#1a7f37;border-color:#2da44e}
+.badge.preview{color:#0969da;border-color:#0969da}
 h2{font-size:15px;color:#57606a;margin:26px 0 8px}
 .job{font-size:13px;color:#57606a;padding:6px 0;border-bottom:1px solid #e4e8ec}
 .job .st-running{color:#9a6700}.job .st-done{color:#1a7f37}.job .st-failed{color:#cf222e}
@@ -294,6 +311,10 @@ GEN_FORM = """
   </div>
   <input type=text id=g-src placeholder="https://github.com/owner/repo">
   <textarea id=g-code placeholder="粘贴一段或几个文件的代码…（可用 # file: name.py 注释行分隔）"></textarea>
+  <div class=row id=ctype-row>
+    <label><input type=radio name=ctype value=deep checked> 深潜画布（代码细讲）</label>
+    <label><input type=radio name=ctype value=preview> 预览地图（陌生仓库的第一张图）</label>
+  </div>
   <input type=text id=g-ask placeholder="主题 / 关注点（例：讲讲调度器怎么工作）">
   <input type=text id=g-name placeholder="画布名（可选，字母数字-_.）">
   <div class=hintline>生成一张画布约 20-40 分钟，完成后出现在下面的库里；页面会自动刷新任务状态</div>
@@ -308,6 +329,15 @@ document.querySelectorAll('input[name=kind]').forEach(r=>r.onchange=()=>{
   $('g-src').style.display=k==='code'?'none':'block';
   $('g-code').style.display=k==='code'?'block':'none';
   if(k!=='code')$('g-src').placeholder=srcPH[k];
+  // 粘贴片段没有"陌生仓库"可预览
+  const pv=document.querySelector('input[name=ctype][value=preview]');
+  pv.disabled=k==='code';
+  if(k==='code')document.querySelector('input[name=ctype][value=deep]').checked=true;
+});
+document.querySelectorAll('input[name=ctype]').forEach(r=>r.onchange=()=>{
+  const p=document.querySelector('input[name=ctype]:checked').value==='preview';
+  $('g-ask').placeholder=p?'关注点（例：第一次接触，想知道推理请求怎么流过整个系统）'
+    :'主题 / 关注点（例：讲讲调度器怎么工作）';
 });
 $('g-go').onclick=async()=>{
   const k=document.querySelector('input[name=kind]:checked').value;
@@ -315,6 +345,7 @@ $('g-go').onclick=async()=>{
   if(k==='git')body.git_url=$('g-src').value.trim();
   if(k==='path')body.repo=$('g-src').value.trim();
   if(k==='code')body.code=$('g-code').value;
+  if(document.querySelector('input[name=ctype]:checked').value==='preview')body.preview=true;
   if(!body.ask){$('genmsg').textContent='主题/关注点是必填的——这张图为谁、讲什么';return;}
   $('g-go').disabled=true;$('genmsg').textContent='提交中…';
   try{
@@ -353,7 +384,7 @@ async function poll(){
     const el=$('jobs');
     if(el&&j.jobs.length){
       el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）</span></h2>'+j.jobs.map(x=>
-        `<div class=job>${x.id} · ${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}</div>`).join('');
+        `<div class=job>${x.id} · ${x.mode==='preview'?'预览 · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}</div>`).join('');
       if(j.jobs.some(x=>x.status==='running'))setTimeout(poll,5000);
     }
   }catch(e){}
@@ -454,6 +485,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self.wfile.write(body)
                 if rest.startswith("/__alive"):
                     return self._json(200, {"ok": True, "html": html_path.name, "cli": ARGS.cli})
+                if rest.startswith("/src"):
+                    sf = html_path.with_name(html_path.stem + ".src.json")
+                    if sf.exists():
+                        try:
+                            return self._json(200, json.loads(sf.read_text(encoding="utf-8")))
+                        except Exception:
+                            pass
+                    return self._json(404, {"ok": False, "error": "无来源记录"})
             return self._json(404, {"ok": False, "error": "not found"})
         # 单画布模式
         if self.path.rstrip("/") in ("", "/index.html") or self.path == "/":
@@ -499,10 +538,16 @@ class Handler(BaseHTTPRequestHandler):
                     default = time.strftime("pasted-%m%d-%H%M")
                 else:
                     return self._json(400, {"ok": False, "error": "git_url / repo / code 三选一"})
+                preview = bool(req.get("preview"))
+                if preview and src["kind"] == "code":
+                    return self._json(400, {"ok": False,
+                                            "error": "粘贴片段没有\"陌生仓库\"可预览——预览地图需要 git 地址或盒子路径"})
+                if preview and not req.get("name"):
+                    default += "-map"
                 name = req.get("name") or default
                 if not NAME_RE.match(name):
                     return self._json(400, {"ok": False, "error": "name 只允许 [A-Za-z0-9._-]"})
-                return self._json(200, {"ok": True, "job": spawn_generate(src, ask, name)})
+                return self._json(200, {"ok": True, "job": spawn_generate(src, ask, name, preview)})
             return self._json(404, {"ok": False, "error": "not found"})
         if self.path.startswith("/ask"):
             return self._ask(ARGS.html)
@@ -522,7 +567,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(403, {"ok": False, "error": "示例画布是质量基准，不可删除"})
             return self._json(404, {"ok": False, "error": "画布不存在"})
         removed = []
-        for f in (p, p.with_suffix(".json"), p.with_suffix(p.suffix + ".qa.json")):
+        for f in (p, p.with_suffix(".json"), p.with_suffix(".src.json"),
+                  p.with_suffix(p.suffix + ".qa.json")):
             if f.exists():
                 f.unlink()
                 removed.append(f.name)
