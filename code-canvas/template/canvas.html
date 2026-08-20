@@ -62,6 +62,15 @@
   .kw { color: #cf222e; } .fn { color: #8250df; } .str { color: #0a3069; }
   .num { color: #0550ae; } .cmt { color: #6e7781; }
   .card.dim { opacity: .32; }
+  /* ---- 上下文窥视：摘选周边的文件原文，点展开条逐段展开 ---- */
+  .ctx-bar { text-align: center; font-size: 10.5px; color: #57606a; background: #f6f8fa;
+    border-top: 1px dashed #e4e8ec; border-bottom: 1px dashed #e4e8ec; padding: 2px 0;
+    cursor: pointer; user-select: none; }
+  .ctx-bar:hover { color: #0969da; background: #eef4fb; }
+  .ctx-bar .fold { margin-left: 16px; color: #8c959f; }
+  .ctx-bar .fold:hover { color: #cf222e; }
+  .ln.ctxln { opacity: .55; background: #fbfcfd; }
+  .ln.ctxln .no { visibility: hidden; }
   /* ---- 预览分区卡（district）：地图语言，零代码排版 ---- */
   .card.district { border-radius: 14px; border-width: 0; box-shadow: 0 4px 16px rgba(31,35,40,.12); }
   .card.district .hdr { border-bottom: none; background: transparent; padding: 14px 18px 2px; }
@@ -543,9 +552,24 @@ for (const c of DATA.cards) {
     ? `<span class="dbadge"><b>+${(diff.added || []).length}</b> <i>−${(diff.removed || []).length}</i></span>` : '')
     + (c.plan ? `<span class="pbadge ${c.plan}">${PLAN_LABEL[c.plan]}</span>` : '')
     + (c.plan_delta ? `<span class="pbadge ${c.plan_delta}">${DELTA_LABEL[c.plan_delta]}</span>` : '');
+  // 上下文窥视：canvas JSON 的 files 里有这张卡的文件全文时，出上下展开条
+  const fpath = (c.file || '').split(':')[0];
+  const fstart = parseInt((c.file || '').split(':')[1] || '0', 10);
+  const ffull = (DATA.files || {})[fpath];
+  let ctxTop = '', ctxBot = '';
+  if (ffull && fstart > 0) {
+    c._ctx = { flines: ffull.split('\n'), start: fstart, end: fstart + raw.length - 1, top: 0, bot: 0 };
+    const nUp = fstart - 1, nDown = c._ctx.flines.length - c._ctx.end;
+    if (nUp > 0) ctxTop = `<div class="ctx-bar" data-card="${c.id}" data-side="top">`
+      + `<span class="more">▲ 上文 ${nUp} 行</span><span class="fold" hidden>收起</span></div>`
+      + `<div class="ctxlines" data-side="top"></div>`;
+    if (nDown > 0) ctxBot = `<div class="ctxlines" data-side="bot"></div>`
+      + `<div class="ctx-bar" data-card="${c.id}" data-side="bot">`
+      + `<span class="more">▼ 下文 ${nDown} 行</span><span class="fold" hidden>收起</span></div>`;
+  }
   el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>${badge}`
     + `<span class="file">${esc(c.file || '')}</span></div>`
-    + `<div class="body">${buildBlocks(c.blocks, lineHtml, 1, raw.length, c.id, 0)}</div>`;
+    + `<div class="body">${ctxTop}${buildBlocks(c.blocks, lineHtml, 1, raw.length, c.id, 0)}${ctxBot}</div>`;
   world.appendChild(el);
 }
 if (DATA.cards.some(c => c.diff)) {
@@ -1282,8 +1306,52 @@ document.getElementById('qa-input').addEventListener('keydown', e => {
   e.stopPropagation();
 });
 
+/* 上下文展开：每点一次 ±20 行；「收起」清空并复位 */
+function ctxExpand(cardEl, side, fold) {
+  const c = cardById[cardEl.id.replace(/^card-/, '')];
+  const ctx = c._ctx;
+  const box = cardEl.querySelector(`.ctxlines[data-side="${side}"]`);
+  const bar = cardEl.querySelector(`.ctx-bar[data-side="${side}"]`);
+  if (fold) {
+    box.innerHTML = '';
+    ctx[side === 'top' ? 'top' : 'bot'] = 0;
+  } else if (side === 'top') {
+    const shown = ctx.top;
+    const n = Math.min(20, ctx.start - 1 - shown);
+    if (n > 0) {
+      const from = ctx.start - 1 - shown - n;   // 0-based 起点
+      const chunk = ctx.flines.slice(from, from + n).map(t =>
+        `<div class="ln ctxln"><span class="no">·</span>${highlight(t, c.lang)}</div>`).join('');
+      box.insertAdjacentHTML('afterbegin', chunk);
+      ctx.top += n;
+    }
+  } else {
+    const shown = ctx.bot;
+    const n = Math.min(20, ctx.flines.length - ctx.end - shown);
+    if (n > 0) {
+      const from = ctx.end + shown;             // 0-based：end 行本身是摘选末行
+      const chunk = ctx.flines.slice(from, from + n).map(t =>
+        `<div class="ln ctxln"><span class="no">·</span>${highlight(t, c.lang)}</div>`).join('');
+      box.insertAdjacentHTML('beforeend', chunk);
+      ctx.bot += n;
+    }
+  }
+  const shown = ctx[side === 'top' ? 'top' : 'bot'];
+  const total = side === 'top' ? ctx.start - 1 : ctx.flines.length - ctx.end;
+  const left = total - shown;
+  bar.querySelector('.more').textContent =
+    (side === 'top' ? '▲ 上文' : '▼ 下文') + (left > 0 ? ` 余 ${left} 行` : '（到头了）');
+  bar.querySelector('.fold').hidden = shown === 0;
+  drawWires();
+}
+
 /* ================= interactions ================= */
 world.addEventListener('click', e => {
+  const cbar = e.target.closest('.ctx-bar');
+  if (cbar) {
+    ctxExpand(cbar.closest('.card'), cbar.dataset.side, !!e.target.closest('.fold'));
+    return;
+  }
   const term = e.target.closest('.term');
   if (term) {
     const note = document.getElementById(term.dataset.tn);

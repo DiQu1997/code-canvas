@@ -65,4 +65,9 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   数组按值比对新值标绿、record/map 按 key 变更标琥珀、state.note 讲变化）
   + struct 关系线（紫虚点，label 必带）+ SKILL"数据结构四件套"规程；
   nano-vllm 黄金样本加 KV 块池快照（基线/分配+前缀命中/抢占回收三态），
-  "共享块不清空、账本不动"的不变量肉眼可见
+  "共享块不清空、账本不动"的不变量肉眼可见 → **快照规程验收**：
+  nanovllm-deep v2 考试 PASS 全绿（考生自发产出快照卡/struct 线/detail，
+  含惰性失效细节，守恒检查通过；归档 examples/nanovllm-deep-v2/）→
+  **上下文窥视**：canvas JSON 顶层 files 映射（文件全文），卡内「▲上文/
+  ▼下文」展开条 ±20 行/收起，上下文淡化无行号、锚点钉在摘选行不动；
+  extract.py --embed-context 机械生成；nano-vllm demo 富化（5 文件 24KB）

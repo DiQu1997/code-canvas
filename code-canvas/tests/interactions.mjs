@@ -19,6 +19,16 @@ const check = (name, ok) => results.push(`${ok ? 'PASS' : 'FAIL'} ${name}`);
 
 check('home link hidden on static file', !(await page.isVisible('#home-link')));
 
+// context peek: expand top context, anchors intact, fold back
+check('ctx bar present with embedded file', await page.$('#card-step .ctx-bar[data-side="top"]') !== null);
+await page.click('#card-step .ctx-bar[data-side="top"] .more');
+await page.waitForTimeout(400);
+check('ctx expands 20 dimmed lines', (await page.$$('#card-step .ln.ctxln')).length === 20);
+check('excerpt line ids untouched', await page.$('#step-L2') !== null);
+await page.click('#card-step .ctx-bar[data-side="top"] .fold');
+await page.waitForTimeout(300);
+check('ctx folds back', (await page.$$('#card-step .ln.ctxln')).length === 0);
+
 // reading-order chips: none on overview, appear on a multi-focus step, renumber on step change
 check('no order chips on overview', (await page.$$('.ordchip')).length === 0);
 await page.click('#next'); await page.waitForTimeout(700);

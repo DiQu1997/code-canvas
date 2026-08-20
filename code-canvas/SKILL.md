@@ -26,7 +26,8 @@ description: Turns code reading, change planning, or diff review into an interac
    ```
 
    毫秒级机械产出：函数/方法卡（原文逐字）、call 线（调用点行锚）、
-   diff 行映射、粗布局。**结构层的事实字段（code/file/行号/diff）一律
+   diff 行映射、粗布局。加 `--embed-context` 把引用文件全文嵌入 files
+   映射——渲染后每张卡可就地展开上下文（读者不离开画布看前后文）。**结构层的事实字段（code/file/行号/diff）一律
    不许手改**——你的全部工作是叙事层：
    - **策展**：删掉与故事无关的卡和线（提取是全量的，画布不是）
    - 写 regions / notes / blocks / terms / steps，改 meta 与卡片 name

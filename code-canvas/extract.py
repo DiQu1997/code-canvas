@@ -299,6 +299,8 @@ def main():
     ap.add_argument("--diff", nargs="?", const="HEAD", default=None, metavar="BASE")
     ap.add_argument("--merge", default=None, metavar="OLD_JSON")
     ap.add_argument("--title", default=None)
+    ap.add_argument("--embed-context", action="store_true",
+                    help="把卡片引用的文件全文嵌入 files 映射（渲染后卡内可展开上下文）")
     ns = ap.parse_args()
 
     files = discover(ns.paths)
@@ -344,6 +346,13 @@ def main():
         report = merge_old(cards, doc, old)
         if old.get("meta", {}).get("mode") and not ns.diff:
             doc["meta"].pop("mode", None)
+
+    if ns.embed_context:
+        doc["files"] = {}
+        for rel in sorted({c["file"].rsplit(":", 1)[0] for c in cards}):
+            fp = root / rel
+            if fp.exists():
+                doc["files"][rel] = fp.read_text(encoding="utf-8", errors="replace")
 
     if not doc["steps"]:
         doc["steps"] = [{"title": "总览（结构层）",
