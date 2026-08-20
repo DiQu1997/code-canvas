@@ -71,6 +71,7 @@
   .ctx-bar .fold:hover { color: #cf222e; }
   .ln.ctxln { opacity: .55; background: #fbfcfd; }
   .ln.ctxln .no { visibility: hidden; }
+  .ctxlines { overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain; }
   /* ---- 预览分区卡（district）：地图语言，零代码排版 ---- */
   .card.district { border-radius: 14px; border-width: 0; box-shadow: 0 4px 16px rgba(31,35,40,.12); }
   .card.district .hdr { border-bottom: none; background: transparent; padding: 14px 18px 2px; }
@@ -1315,25 +1316,41 @@ function ctxExpand(cardEl, side, fold) {
   if (fold) {
     box.innerHTML = '';
     ctx[side === 'top' ? 'top' : 'bot'] = 0;
-  } else if (side === 'top') {
-    const shown = ctx.top;
-    const n = Math.min(20, ctx.start - 1 - shown);
-    if (n > 0) {
-      const from = ctx.start - 1 - shown - n;   // 0-based 起点
-      const chunk = ctx.flines.slice(from, from + n).map(t =>
-        `<div class="ln ctxln"><span class="no">·</span>${highlight(t, c.lang)}</div>`).join('');
-      box.insertAdjacentHTML('afterbegin', chunk);
-      ctx.top += n;
-    }
   } else {
-    const shown = ctx.bot;
-    const n = Math.min(20, ctx.flines.length - ctx.end - shown);
-    if (n > 0) {
-      const from = ctx.end + shown;             // 0-based：end 行本身是摘选末行
-      const chunk = ctx.flines.slice(from, from + n).map(t =>
-        `<div class="ln ctxln"><span class="no">·</span>${highlight(t, c.lang)}</div>`).join('');
-      box.insertAdjacentHTML('beforeend', chunk);
-      ctx.bot += n;
+    // 高度纪律：核心摘选量好基准，上下文容器各限高 ~0.65×核心
+    // （卡总高 ≈ 2.3× 核心），超出在容器内滚动
+    if (!ctx.coreH) {
+      const body = cardEl.querySelector('.body');
+      let h = 0;
+      for (const ch of body.children)
+        if (!ch.classList.contains('ctxlines') && !ch.classList.contains('ctx-bar'))
+          h += ch.offsetHeight;
+      ctx.coreH = Math.max(h, 120);
+    }
+    const cap = Math.round(ctx.coreH * 0.65);
+    box.style.maxHeight = cap + 'px';
+    if (side === 'top') {
+      const shown = ctx.top;
+      const n = Math.min(20, ctx.start - 1 - shown);
+      if (n > 0) {
+        const from = ctx.start - 1 - shown - n;   // 0-based 起点
+        const chunk = ctx.flines.slice(from, from + n).map(t =>
+          `<div class="ln ctxln"><span class="no">·</span>${highlight(t, c.lang)}</div>`).join('');
+        box.insertAdjacentHTML('afterbegin', chunk);
+        ctx.top += n;
+      }
+      box.scrollTop = box.scrollHeight;           // 贴住摘选：最近的上文可见
+    } else {
+      const shown = ctx.bot;
+      const n = Math.min(20, ctx.flines.length - ctx.end - shown);
+      if (n > 0) {
+        const from = ctx.end + shown;             // 0-based：end 行本身是摘选末行
+        const chunk = ctx.flines.slice(from, from + n).map(t =>
+          `<div class="ln ctxln"><span class="no">·</span>${highlight(t, c.lang)}</div>`).join('');
+        box.insertAdjacentHTML('beforeend', chunk);
+        ctx.bot += n;
+      }
+      box.scrollTop = 0;                          // 贴住摘选：最近的下文可见
     }
   }
   const shown = ctx[side === 'top' ? 'top' : 'bot'];
@@ -1399,6 +1416,9 @@ function pinchState() {
   return { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
 }
 vp.addEventListener('pointerdown', e => {
+  // 可滚动的上下文区里让位给原生滚动（触屏拖动不当作画布平移）
+  const sc = e.target.closest('.ctxlines');
+  if (sc && sc.scrollHeight > sc.clientHeight) return;
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pts.size === 2) {
     drag = null;
@@ -1440,6 +1460,9 @@ function endPointer(e) {
 vp.addEventListener('pointerup', endPointer);
 vp.addEventListener('pointercancel', endPointer);
 vp.addEventListener('wheel', e => {
+  // 悬停在可滚动的上下文区：滚轮归它，不缩放画布
+  const sc = e.target.closest('.ctxlines');
+  if (sc && sc.scrollHeight > sc.clientHeight) return;
   e.preventDefault();
   const f = Math.exp(-e.deltaY * .0012);
   const ns = Math.min(1.8, Math.max(.1, cam.s * f));

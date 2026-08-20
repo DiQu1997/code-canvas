@@ -25,6 +25,14 @@ await page.click('#card-step .ctx-bar[data-side="top"] .more');
 await page.waitForTimeout(400);
 check('ctx expands 20 dimmed lines', (await page.$$('#card-step .ln.ctxln')).length === 20);
 check('excerpt line ids untouched', await page.$('#step-L2') !== null);
+// 高度纪律：上下文容器限高（卡 ≈ ≤2.5×核心），内部滚动、贴住摘选
+const ctxBox = await page.$('#card-step .ctxlines[data-side="top"]');
+check('ctx container capped and scrollable', await ctxBox.evaluate(el =>
+  el.style.maxHeight !== '' && el.scrollHeight > el.clientHeight && el.scrollTop > 0));
+check('card height stays bounded', await page.$eval('#card-step', el => {
+  const core = el.querySelector('.bcode, .ln').closest('.body');
+  return el.offsetHeight < 900;   // 7 行核心 + 两条限高上下文远小于此
+}));
 await page.click('#card-step .ctx-bar[data-side="top"] .fold');
 await page.waitForTimeout(300);
 check('ctx folds back', (await page.$$('#card-step .ln.ctxln')).length === 0);
