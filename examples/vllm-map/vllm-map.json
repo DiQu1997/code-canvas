@@ -1,0 +1,461 @@
+{
+  "meta": {
+    "title": "vLLM 预览地图",
+    "subtitle": "研究型预览 · 一条推理请求如何流过整个系统 · V1 架构",
+    "audience": "第一次接触 vLLM 的工程师；中文；先看请求主干，再挑子系统深潜",
+    "mode": "preview"
+  },
+  "regions": [],
+  "cards": [
+    {
+      "id": "entrypoints",
+      "kind": "district",
+      "name": "服务入口",
+      "role": "服务入口",
+      "role_color": "#0969da",
+      "oneliner": "OpenAI 兼容 HTTP 服务与离线 LLM 接口，请求进系统的门",
+      "stat": "vllm/entrypoints/ · 约 4.0 万行",
+      "frac": 0.047,
+      "highlights": [
+        "OpenAIServingChat",
+        "create_chat_completion",
+        "run_server",
+        "LLM.generate",
+        "build_async_engine_client"
+      ],
+      "file": "vllm/entrypoints/openai/chat_completion/serving.py",
+      "layout": {
+        "col": 0,
+        "band": 1
+      }
+    },
+    {
+      "id": "input",
+      "kind": "district",
+      "name": "输入处理与多模态",
+      "role": "配套",
+      "role_color": "#57606a",
+      "oneliner": "分词与图像预处理，把提示词变成引擎能吃的 token 与占位符",
+      "stat": "inputs/ + multimodal/ + transformers_utils/ · 约 4.1 万行",
+      "frac": 0.049,
+      "highlights": [
+        "InputPreprocessor",
+        "process_inputs",
+        "MultiModalRegistry",
+        "EngineCoreRequest"
+      ],
+      "file": "vllm/inputs/preprocess.py",
+      "layout": {
+        "col": 1,
+        "band": 1
+      }
+    },
+    {
+      "id": "engine",
+      "kind": "district",
+      "name": "引擎核心与进程编排",
+      "role": "核心机制",
+      "role_color": "#bf8700",
+      "oneliner": "独立进程跑忙循环，ZMQ 连 API 与 GPU，调度与执行的总指挥",
+      "stat": "vllm/v1/engine/ · 约 1.1 万行",
+      "frac": 0.013,
+      "highlights": [
+        "EngineCore.step",
+        "EngineCoreProc.run_busy_loop",
+        "AsyncLLM.generate",
+        "OutputProcessor",
+        "add_request"
+      ],
+      "file": "vllm/v1/engine/core.py",
+      "layout": {
+        "col": 0,
+        "band": 2
+      }
+    },
+    {
+      "id": "sched",
+      "kind": "district",
+      "name": "调度与批组装",
+      "role": "核心机制",
+      "role_color": "#bf8700",
+      "oneliner": "每步挑哪些请求进批，连续批处理的决策中心",
+      "stat": "vllm/v1/core/sched/ · 约 4.0 千行",
+      "frac": 0.0047,
+      "highlights": [
+        "Scheduler.schedule",
+        "update_from_output",
+        "SchedulerOutput",
+        "add_request"
+      ],
+      "file": "vllm/v1/core/sched/scheduler.py",
+      "layout": {
+        "col": 1,
+        "band": 2
+      }
+    },
+    {
+      "id": "kv",
+      "kind": "district",
+      "name": "KV 缓存与前缀复用",
+      "role": "核心机制",
+      "role_color": "#bf8700",
+      "oneliner": "分页 KV 块池 + 前缀命中复用，吞吐的心脏",
+      "stat": "vllm/v1/core/ (kv_cache_*, block_pool) · 约 7.5 千行",
+      "frac": 0.009,
+      "highlights": [
+        "KVCacheManager",
+        "get_computed_blocks",
+        "allocate_slots",
+        "BlockPool.cache_full_blocks",
+        "get_num_common_prefix_blocks"
+      ],
+      "file": "vllm/v1/core/kv_cache_manager.py",
+      "layout": {
+        "col": 2,
+        "band": 2
+      }
+    },
+    {
+      "id": "worker",
+      "kind": "district",
+      "name": "执行器与模型运行",
+      "role": "模型与执行",
+      "role_color": "#8250df",
+      "oneliner": "执行器分发到 GPU 工作进程，运行器备张量、跑前向、抓 CUDA 图",
+      "stat": "vllm/v1/worker/ + v1/executor/ · 约 4.1 万行",
+      "frac": 0.049,
+      "highlights": [
+        "MultiprocExecutor",
+        "GPUModelRunner.execute_model",
+        "Worker.execute_model",
+        "_prepare_inputs",
+        "determine_available_memory"
+      ],
+      "file": "vllm/v1/worker/gpu_model_runner.py",
+      "layout": {
+        "col": 0,
+        "band": 3
+      }
+    },
+    {
+      "id": "models",
+      "kind": "district",
+      "name": "模型、算子与采样",
+      "role": "模型与执行",
+      "role_color": "#8250df",
+      "oneliner": "50+ 模型定义、并行线性/量化算子层与采样器，前向的主体",
+      "stat": "vllm/model_executor/ + models/ + v1/sample/ · 约 42 万行",
+      "frac": 0.494,
+      "highlights": [
+        "Sampler.forward",
+        "_TEXT_GENERATION_MODELS",
+        "_MULTIMODAL_MODELS",
+        "RejectionSampler"
+      ],
+      "file": "vllm/model_executor/models/registry.py",
+      "layout": {
+        "col": 1,
+        "band": 3
+      }
+    },
+    {
+      "id": "attention",
+      "kind": "district",
+      "name": "注意力后端与编译加速",
+      "role": "硬件加速",
+      "role_color": "#d1242f",
+      "oneliner": "FlashAttention 等注意力后端与 torch.compile / CUDA 图压榨硬件",
+      "stat": "vllm/v1/attention/ + compilation/ · 约 6.5 万行",
+      "frac": 0.076,
+      "highlights": [
+        "AttentionBackend",
+        "FlashAttentionBackend",
+        "AttentionMetadataBuilder",
+        "VllmBackend",
+        "PiecewiseCompileInterpreter"
+      ],
+      "file": "vllm/v1/attention/backend.py",
+      "layout": {
+        "col": 2,
+        "band": 3
+      }
+    },
+    {
+      "id": "distributed",
+      "kind": "district",
+      "name": "分布式与并行",
+      "role": "基础设施",
+      "role_color": "#1a7f37",
+      "oneliner": "张量/流水/专家并行的进程组与集合通信，把大模型切到多卡",
+      "stat": "vllm/distributed/ · 约 5.5 万行",
+      "frac": 0.064,
+      "highlights": [
+        "GroupCoordinator",
+        "initialize_model_parallel",
+        "init_distributed_environment",
+        "get_tp_group",
+        "get_pp_group"
+      ],
+      "file": "vllm/distributed/parallel_state.py",
+      "layout": {
+        "col": 2,
+        "band": 4
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "r0a",
+      "kind": "route",
+      "route": 0,
+      "from": {
+        "card": "entrypoints"
+      },
+      "to": {
+        "card": "input"
+      }
+    },
+    {
+      "id": "r0b",
+      "kind": "route",
+      "route": 0,
+      "from": {
+        "card": "input"
+      },
+      "to": {
+        "card": "engine"
+      }
+    },
+    {
+      "id": "r0c",
+      "kind": "route",
+      "route": 0,
+      "from": {
+        "card": "engine"
+      },
+      "to": {
+        "card": "sched"
+      }
+    },
+    {
+      "id": "r0d",
+      "kind": "route",
+      "route": 0,
+      "from": {
+        "card": "sched"
+      },
+      "to": {
+        "card": "worker"
+      }
+    },
+    {
+      "id": "r0e",
+      "kind": "route",
+      "route": 0,
+      "from": {
+        "card": "worker"
+      },
+      "to": {
+        "card": "models"
+      }
+    },
+    {
+      "id": "r1a",
+      "kind": "route",
+      "route": 1,
+      "from": {
+        "card": "sched"
+      },
+      "to": {
+        "card": "kv"
+      }
+    },
+    {
+      "id": "r1b",
+      "kind": "route",
+      "route": 1,
+      "from": {
+        "card": "kv"
+      },
+      "to": {
+        "card": "worker"
+      }
+    },
+    {
+      "id": "r2a",
+      "kind": "route",
+      "route": 2,
+      "from": {
+        "card": "worker"
+      },
+      "to": {
+        "card": "models"
+      }
+    },
+    {
+      "id": "r2b",
+      "kind": "route",
+      "route": 2,
+      "from": {
+        "card": "models"
+      },
+      "to": {
+        "card": "attention"
+      }
+    },
+    {
+      "id": "r3a",
+      "kind": "route",
+      "route": 3,
+      "from": {
+        "card": "engine"
+      },
+      "to": {
+        "card": "worker"
+      }
+    },
+    {
+      "id": "r3b",
+      "kind": "route",
+      "route": 3,
+      "from": {
+        "card": "worker"
+      },
+      "to": {
+        "card": "distributed"
+      }
+    },
+    {
+      "id": "r4a",
+      "kind": "route",
+      "route": 4,
+      "from": {
+        "card": "entrypoints"
+      },
+      "to": {
+        "card": "input"
+      }
+    },
+    {
+      "id": "r4b",
+      "kind": "route",
+      "route": 4,
+      "from": {
+        "card": "input"
+      },
+      "to": {
+        "card": "models"
+      }
+    }
+  ],
+  "notes": [
+    {
+      "id": "bg0",
+      "flavor": "bg",
+      "tag": "预览地图 · 怎么读",
+      "text": "卡片=研究后划的逻辑分区（非目录），按架构层从上到下：入口→核心→执行→底座。彩色是五条推荐深潜线，chip 是核实过真实存在的关键类/函数。点 ▶ 逐条走。",
+      "place": {
+        "corner": "nw"
+      },
+      "step": 0
+    }
+  ],
+  "steps": [
+    {
+      "title": "总览 · 这个系统分几块",
+      "caption": "九个逻辑分区按架构层排：入口→核心→执行→底座。五条彩色地铁线是推荐深潜路线，按 ▶ 逐条看。",
+      "fit": true,
+      "wires": [
+        "r0a",
+        "r0b",
+        "r0c",
+        "r0d",
+        "r0e",
+        "r1a",
+        "r1b",
+        "r2a",
+        "r2b",
+        "r3a",
+        "r3b",
+        "r4a",
+        "r4b"
+      ]
+    },
+    {
+      "title": "① 一条请求的完整旅程",
+      "caption": "推理请求的端到端主干：HTTP 进来、分词、进引擎忙循环、被调度进批、GPU 跑前向、采样出 token 流回。",
+      "focus": [
+        "entrypoints",
+        "input",
+        "engine",
+        "sched",
+        "worker",
+        "models"
+      ],
+      "wires": [
+        "r0a",
+        "r0b",
+        "r0c",
+        "r0d",
+        "r0e"
+      ],
+      "ask": "画一条推理请求从 HTTP 入口到 token 流出的端到端主干链路"
+    },
+    {
+      "title": "② KV 缓存与前缀复用",
+      "caption": "吞吐的心脏：调度器向块池要空间，命中前缀就直接复用已算好的 KV，块用完再回收。",
+      "focus": [
+        "sched",
+        "kv",
+        "worker"
+      ],
+      "wires": [
+        "r1a",
+        "r1b"
+      ],
+      "ask": "深潜分页 KV 块池、前缀缓存命中与块分配/回收机制"
+    },
+    {
+      "title": "③ 一次前向怎么算出来",
+      "caption": "运行器备好输入张量、模型层前向、注意力后端读写分页 KV、采样器挑出下一个 token。",
+      "focus": [
+        "worker",
+        "models",
+        "attention"
+      ],
+      "wires": [
+        "r2a",
+        "r2b"
+      ],
+      "ask": "深潜 GPU 模型运行器 execute_model 的前向与采样链路"
+    },
+    {
+      "title": "④ 为什么是多进程",
+      "caption": "API 服务、引擎核心、GPU 工作进程各自独立，靠 ZMQ 与集合通信协作、把大模型切到多卡。",
+      "focus": [
+        "engine",
+        "worker",
+        "distributed"
+      ],
+      "wires": [
+        "r3a",
+        "r3b"
+      ],
+      "ask": "深潜 API/引擎/Worker 多进程架构与张量并行的进程编排"
+    },
+    {
+      "title": "⑤ 多模态如何入模",
+      "caption": "图像等模态从入口进来，处理器转成占位符与统一 kwargs，喂给带视觉塔的模型前向。",
+      "focus": [
+        "entrypoints",
+        "input",
+        "models"
+      ],
+      "wires": [
+        "r4a",
+        "r4b"
+      ],
+      "ask": "深潜多模态输入从处理器到视觉模型前向的转换管线"
+    }
+  ]
+}

@@ -19,7 +19,7 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
 | P1.5 生成优先改版 | ✅ 2026-08-17 | 作者裁决"首页必须是生成入口"；hub 测试 32 项 |
 | P2 计划画布 | ✅ 2026-08-18 | schema v0.2（plan/幽灵卡/plan_delta）；compare 三层对照（卡级/计划线/--repo 文件覆盖防瞒报）；北极星测试通过：闸门逼出全闭环、埋雷 agent 拒绝配合并主动披露（暴露覆盖洞→已补）；hooks 挂点修正（ExitPlanMode 死锁→首次改码）。**hooks 已验证未挂载（作者：耗 token 暂缓）** |
 | P3 结构提取器 | ✅ 2026-08-18 | extract.py（ast 后端、--merge 增量协议、21 项契约测试、v1/core 0.08s、黄金 9/9 交叉覆盖）；零上下文考试 nanovllm-deep **PASS：18/18 溯源、16 分钟**（对比旧基线 22/34 分钟），考生自行走通结构层管线 |
-| 预览地图 | ✅ 2026-08-19 转正 | 三轮形态迭代后作者验收：**研究型逻辑地图**（agent 真研究、逻辑分组、highlights 核实）。转正三件套落地：①preview-spec 并入 SKILL.md 规模闸门（取代旧领航图规程）②hub 表单加画布类型（深潜/预览），/generate 支持 preview + src 来源 sidecar ③线路步「→ 深潜这条」一键点单（同来源复用）。hub 测试 42 项全绿；真机验收跑 vllm-map |
+| 预览地图 | ✅ 2026-08-19 转正 | 三轮形态迭代后作者验收：**研究型逻辑地图**（agent 真研究、逻辑分组、highlights 核实）。转正三件套落地：①preview-spec 并入 SKILL.md 规模闸门（取代旧领航图规程）②hub 表单加画布类型（深潜/预览），/generate 支持 preview + src 来源 sidecar ③线路步「→ 深潜这条」一键点单（同来源复用）。hub 测试 42 项全绿；真机验收：hub 预览点单 → vllm-map 8.4 分钟（$3.07 折算）、9 逻辑分区（v1/core 拆二、三目录合一）、5 线路全带 ask、highlights 42/42 核实、0 ERROR、点单按钮真图在位；归档 examples/vllm-map/ |
 | P4 IDE 扩展 | 📋 方案已过目 | VS Code 薄壳复用全部资产；杀手交互=点卡跳 file:line；结构层<2s；v1 不做叙事生成/marketplace |
 | P5 GitHub App | ⏸ 等团队拉力 | PR 自动 diff 卷 |
 
