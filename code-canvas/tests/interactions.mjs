@@ -19,23 +19,21 @@ const check = (name, ok) => results.push(`${ok ? 'PASS' : 'FAIL'} ${name}`);
 
 check('home link hidden on static file', !(await page.isVisible('#home-link')));
 
-// context peek: expand top context, anchors intact, fold back
+// context peek: one click = FULL context in a scroll area, card size fixed
 check('ctx bar present with embedded file', await page.$('#card-step .ctx-bar[data-side="top"]') !== null);
-await page.click('#card-step .ctx-bar[data-side="top"] .more');
+const hBefore = await page.$eval('#card-step', el => el.offsetHeight);
+await page.click('#card-step .ctx-bar[data-side="top"]');
 await page.waitForTimeout(400);
-check('ctx expands 20 dimmed lines', (await page.$$('#card-step .ln.ctxln')).length === 20);
+check('one click loads ALL upper context', (await page.$$('#card-step .ln.ctxln')).length === 48);
 check('excerpt line ids untouched', await page.$('#step-L2') !== null);
-// 高度纪律：上下文容器限高（卡 ≈ ≤2.5×核心），内部滚动、贴住摘选
 const ctxBox = await page.$('#card-step .ctxlines[data-side="top"]');
-check('ctx container capped and scrollable', await ctxBox.evaluate(el =>
+check('ctx container capped, scrollable, pinned to excerpt', await ctxBox.evaluate(el =>
   el.style.maxHeight !== '' && el.scrollHeight > el.clientHeight && el.scrollTop > 0));
-check('card height stays bounded', await page.$eval('#card-step', el => {
-  const core = el.querySelector('.bcode, .ln').closest('.body');
-  return el.offsetHeight < 900;   // 7 行核心 + 两条限高上下文远小于此
-}));
-await page.click('#card-step .ctx-bar[data-side="top"] .fold');
+const hAfter = await page.$eval('#card-step', el => el.offsetHeight);
+check('card height stays ≤2.5× core', hAfter < hBefore * 2.5 + 60);
+await page.click('#card-step .ctx-bar[data-side="top"]');
 await page.waitForTimeout(300);
-check('ctx folds back', (await page.$$('#card-step .ln.ctxln')).length === 0);
+check('second click folds back', (await page.$$('#card-step .ln.ctxln')).length === 0);
 
 // reading-order chips: none on overview, appear on a multi-focus step, renumber on step change
 check('no order chips on overview', (await page.$$('.ordchip')).length === 0);
