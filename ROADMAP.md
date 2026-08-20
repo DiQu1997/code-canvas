@@ -46,7 +46,9 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
 ## 待办池（优先级由作者定）
 
 1. P4 IDE 扩展 v1（模板跳转桥→扩展本体→作者本机装载验收）
-2. 生成完成推送通知；问答沉淀（好答案写回 canvas JSON）；画布库搜索；
+2. 长任务控制面（监视器已上线）：超时看门狗（timeout 90m）、任务取消 ✕、
+   failed 任务一键重跑（meta 已存 ask/来源）、生成完成推送通知；
+   问答沉淀（好答案写回 canvas JSON）；画布库搜索；
    用量汇总视图（/stats：按日/按画布聚合 token 与折算成本）
 3. requests-nav 基线；模型动物园类模块的 highlights 信号（__init__ 导出/git 频率）
 4. 已知渲染债：note 车道线穿行、同卡多 above note 重叠、#sN 直达状态与顺序走不一致
@@ -89,4 +91,10 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   KillMode=process（restart 只杀 server，真实 restart 下任务实证幸存）
   ②job meta 记 pid，list_jobs 对 无status+pid已死 如实标 failed(中断)
   （hub 测试 43 项）③被杀任务重新下单补回。教训：部署前先看 /jobs
-  有没有 running 的任务
+  有没有 running 的任务 → **任务监视器**（作者裁决：长任务先要可观测）：
+  生成任务 claude 改 stream-json 落盘（NDJSON，尾行 result 事件=指标信封，
+  盒子实测）；GET /jobs/<id>/monitor：机械阶段进度（克隆→结构层→画布
+  JSON→渲染→截图→入库，工作目录文件推断零成本）+ agent 活动流（轮数+
+  最近 3 个工具调用）；任务行点击展开详情、5s 自刷；对正在跑的真实任务
+  实测（阶段随 agent 推进变绿）。hub 测试 49 项。长任务后续（作者已过目
+  待点单）：超时看门狗、任务取消 ✕、失败任务一键重跑、完成推送

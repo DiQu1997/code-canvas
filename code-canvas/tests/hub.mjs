@@ -31,12 +31,22 @@ writeFileSync(join(hub, 'pv-fix.json'), JSON.stringify({
 execFileSync('python3', [resolve(root, 'render.py'), join(hub, 'pv-fix.json'), join(hub, 'pv-fix.html')]);
 writeFileSync(join(hub, 'pv-fix.src.json'), JSON.stringify({ repo: root }));
 writeFileSync(join(hub, 'cache-diff.src.json'), JSON.stringify({ repo: root }));
-// interrupted job fixture: pid long dead, no status file → must NOT show "running"
+// interrupted job fixture: pid long dead, no status file → must NOT show "running";
+// its result.json is a stream-json NDJSON: monitor reads turns/actions, metrics read tail result event
 mkdirSync(join(hub, '.jobs'));
+mkdirSync(join(hub, '.jobs', 'j00000000-000000'));
 writeFileSync(join(hub, '.jobs', 'j00000000-000000.meta.json'), JSON.stringify({
-  id: 'j00000000-000000', name: 'zombie', ask: 'x', source: 'x', pid: 999999999,
-  started: '2026-01-01T00:00:00',
+  id: 'j00000000-000000', name: 'zombie', ask: 'x', source: 'https://example.com/x.git',
+  pid: 999999999, started: '2026-01-01T00:00:00',
 }));
+writeFileSync(join(hub, '.jobs', 'j00000000-000000.result.json'), [
+  JSON.stringify({ type: 'system', subtype: 'init' }),
+  JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: '开始' }] } }),
+  JSON.stringify({ type: 'assistant', message: { content: [
+    { type: 'tool_use', name: 'Bash', input: { command: 'python3 validate.py canvas.json' } }] } }),
+  JSON.stringify({ type: 'result', total_cost_usd: 0.5, duration_ms: 60000, num_turns: 2,
+    usage: { input_tokens: 100, output_tokens: 200, cache_read_input_tokens: 300 } }),
+].join('\n'));
 
 const server = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
   '--port', String(PORT), '--cli-bin', '/bin/echo'], { stdio: 'ignore' });
@@ -147,6 +157,27 @@ for (let i = 0; i < 25; i++) {
 check('job completes with status done', done);
 const zombie = (await (await fetch(`${base}/jobs`)).json()).jobs.find(j => j.name === 'zombie');
 check('dead-pid job reported interrupted, not running', !!zombie && zombie.status === 'failed(中断)');
+check('metrics parsed from NDJSON tail result event',
+  !!zombie && zombie.metrics && zombie.metrics.cost_usd === 0.5 && zombie.metrics.in_tok === 100);
+
+// 5a. job monitor: stages from workdir files, agent feed from stream-json
+const mon = await (await fetch(`${base}/jobs/j00000000-000000/monitor`)).json();
+check('monitor reports stages', mon.ok === true &&
+  mon.stages.some(s => s.t === '克隆仓库') && mon.stages.every(s => s.done === false));
+check('monitor reads agent feed from stream',
+  mon.turns === 2 && mon.actions.some(a => a.includes('validate.py')));
+const monGen = await (await fetch(`${base}/jobs/${gen.job.id}/monitor`)).json();
+check('monitor works for stub job (no clone stage)', monGen.ok === true &&
+  !monGen.stages.some(s => s.t === '克隆仓库'));
+check('monitor 404s unknown job', (await fetch(`${base}/jobs/j99999999-999999/monitor`)).status === 404);
+// UI: clicking a job row expands the live detail panel
+await page.goto(`${base}/`);
+await page.waitForTimeout(600);
+await page.click('.job[data-jid="j00000000-000000"]');
+await page.waitForTimeout(600);
+check('job row click opens monitor panel', await page.isVisible('#jd-j00000000-000000') &&
+  (await page.textContent('#jd-j00000000-000000')).includes('克隆仓库') &&
+  (await page.textContent('#jd-j00000000-000000')).includes('第 2 轮'));
 check('pasted code landed in workdir',
   readFileSync(join(hub, '.jobs', gen.job.id, 'src', 'pasted.txt'), 'utf8').includes('def f()'));
 check('prompt follows SKILL pipeline',

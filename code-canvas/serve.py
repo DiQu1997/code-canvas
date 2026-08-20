@@ -23,6 +23,9 @@ hub 路由：
                                  仅 git/repo 源——粘贴片段没有"陌生仓库"可预览）
     GET  /c/<name>/src         画布的代码来源（git_url/repo，深潜点单用）
     GET  /jobs                 生成任务列表（JSON）
+    GET  /jobs/<id>/monitor    任务监视：机械阶段进度（工作目录文件推断）+
+                               agent 活动流（生成任务用 stream-json 落盘，
+                               result.json 是 NDJSON，尾行 type:"result" 是指标信封）
 
 安全：默认只绑 127.0.0.1。部署在有公网 IP 的机器上时用 --host 绑
 tailscale 接口地址，不要绑 0.0.0.0——/ask 和 /generate 都会花钱。
@@ -189,18 +192,101 @@ def list_jobs() -> list:
             meta["status"] = "failed(中断)"  # 进程没了又没留 status：被杀/宕机
         else:
             meta["status"] = "running"
-        # 指标：分段计时 + claude JSON 信封（token/成本/时长）
+        # 指标：分段计时 + claude 指标信封（token/成本/时长）
         try:
             tm = mp.with_name(mp.name.replace(".meta.json", ".timing.json"))
             if tm.exists():
                 meta["timing"] = json.loads(tm.read_text(encoding="utf-8"))
-            rf = mp.with_name(mp.name.replace(".meta.json", ".result.json"))
-            if rf.exists():
-                meta["metrics"] = parse_claude_metrics(json.loads(rf.read_text(encoding="utf-8")))
+            env = read_result_envelope(mp.with_name(mp.name.replace(".meta.json", ".result.json")))
+            if env:
+                meta["metrics"] = parse_claude_metrics(env)
         except Exception:
             pass
         out.append(meta)
     return out
+
+
+def read_result_envelope(rf: Path):
+    """result.json 两种形态：整文件单 JSON（旧/问答路径）或 stream-json NDJSON
+    （生成任务：尾部的 type:"result" 事件才是指标信封）。"""
+    if not rf.exists():
+        return None
+    txt = rf.read_text(encoding="utf-8", errors="replace").strip()
+    if not txt:
+        return None
+    try:
+        return json.loads(txt)
+    except ValueError:
+        pass
+    for ln in reversed(txt.splitlines()):
+        ln = ln.strip()
+        if not ln.startswith("{"):
+            continue
+        try:
+            o = json.loads(ln)
+        except ValueError:
+            continue
+        if o.get("type") == "result":
+            return o
+    return None
+
+
+def job_monitor(job_id: str):
+    """监视一个生成任务：机械阶段进度（工作目录文件推断，零成本）+
+    agent 活动流（stream-json 里的 assistant 事件：轮数、最近工具调用）。"""
+    jd = jobs_dir()
+    mp = jd / (job_id + ".meta.json")
+    if not mp.exists():
+        return None
+    try:
+        meta = json.loads(mp.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    work = jd / job_id
+    t0 = 0
+    try:
+        t0 = time.mktime(time.strptime(meta.get("started", ""), "%Y-%m-%dT%H:%M:%S"))
+    except ValueError:
+        pass
+    stages = []
+    if str(meta.get("source", "")).startswith("http"):
+        stages.append(("克隆仓库", (work / "repo").exists()))
+    stages += [
+        ("结构层", bool(list(work.glob("structure*.json")))),
+        ("画布 JSON", (work / "canvas.json").exists()),
+        ("渲染 HTML", (work / "canvas.html").exists()),
+        ("截图自检", bool(list(work.glob("*.png"))
+                      or [p for p in work.glob("*/*.png") if p.parts[-2] != "repo"])),
+    ]
+    lib = ARGS.hub / (str(meta.get("name", "")) + ".html")
+    stages.append(("入库", lib.exists() and lib.stat().st_mtime >= t0 - 1))
+
+    turns, actions = 0, []
+    rf = jd / (job_id + ".result.json")
+    if rf.exists():
+        try:
+            with rf.open(encoding="utf-8", errors="replace") as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if not ln.startswith("{"):
+                        continue
+                    try:
+                        ev = json.loads(ln)
+                    except ValueError:
+                        continue
+                    if ev.get("type") != "assistant":
+                        continue
+                    turns += 1
+                    for blk in (ev.get("message") or {}).get("content") or []:
+                        if isinstance(blk, dict) and blk.get("type") == "tool_use":
+                            inp = blk.get("input") or {}
+                            brief = inp.get("command") or inp.get("file_path") or inp.get("description") or ""
+                            actions.append("{} {}".format(blk.get("name"), str(brief)[:90]).strip())
+        except OSError:
+            pass
+    return {"ok": True, "id": job_id, "started": meta.get("started"),
+            "stages": [{"t": t, "done": bool(d)} for t, d in stages],
+            "turns": turns, "actions": actions[-3:]}
 
 
 def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dict:
@@ -215,8 +301,8 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
     cli = ARGS.cli_bin or "claude"
     result_f = jd / (job_id + ".result.json")
     timing_f = jd / (job_id + ".timing.json")
-    # claude 输出 JSON 信封（含 token/成本/时长）单独落 result.json；人读日志仍在 log
-    gen = ('T1=$(date +%s); {cli} -p "$(cat {pf})" --output-format json '
+    # claude 输出 stream-json（NDJSON 事件流：监视器读活动，尾行 result 事件是指标信封）
+    gen = ('T1=$(date +%s); {cli} -p "$(cat {pf})" --output-format stream-json --verbose '
            '--dangerously-skip-permissions > {res} 2>> {log}; rc=$?; T2=$(date +%s); '
            'printf \'{{"clone_s": %s, "claude_s": %s}}\' "$((T1-T0))" "$((T2-T1))" > {tm}; '
            'echo $rc > {st}').format(
@@ -299,6 +385,13 @@ h2{font-size:15px;color:#57606a;margin:26px 0 8px}
 .job{font-size:13px;color:#57606a;padding:6px 0;border-bottom:1px solid #e4e8ec}
 .job .st-running{color:#9a6700}.job .st-done{color:#1a7f37}.job .st-failed{color:#cf222e}
 .jobm{font-size:11.5px;color:#8c959f;margin-top:2px;font-family:ui-monospace,Menlo,monospace}
+.job{cursor:pointer}
+.jobd{margin:6px 0 2px;padding:8px 10px;background:#fbfcfd;border:1px solid #e4e8ec;border-radius:8px}
+.jobd[hidden]{display:none}
+.stgs{display:flex;flex-wrap:wrap;gap:6px}
+.stg{font-size:11px;border:1px solid #d0d7de;border-radius:999px;padding:1px 8px;color:#8c959f}
+.stg.on{color:#1a7f37;border-color:#2da44e;background:rgba(45,164,78,.06)}
+.acts{font:11px/1.6 ui-monospace,Menlo,monospace;color:#57606a;margin-top:6px;word-break:break-all}
 .costnote{font-size:10.5px;color:#8c959f;font-weight:400;margin-left:8px}
 #gen{background:#ffffff;border:1px solid #d0d7de;border-radius:12px;padding:16px;margin-bottom:22px;
   box-shadow:0 1px 3px rgba(31,35,40,.06)}
@@ -391,13 +484,40 @@ function jobMetrics(x){
   if(m.cost_usd)parts.push('$'+m.cost_usd+'*');
   return parts.length?`<div class=jobm>${parts.join(' · ')}</div>`:'';
 }
+const openJobs=new Set();
+const escd=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+async function jobDetail(id){
+  const el=document.getElementById('jd-'+id);
+  if(!el)return;
+  try{
+    const m=await(await fetch('/jobs/'+id+'/monitor')).json();
+    if(!m.ok)return;
+    el.innerHTML='<div class=stgs>'+m.stages.map(s=>
+        `<span class="stg${s.done?' on':''}">${s.done?'✓':'·'} ${s.t}</span>`).join('')+'</div>'
+      +(m.turns?`<div class=acts>agent 第 ${m.turns} 轮${m.actions.length?'，最近动作：<br>'+m.actions.map(escd).join('<br>'):''}</div>`
+                :'<div class=acts>agent 活动流尚无记录</div>');
+  }catch(e){}
+}
+document.addEventListener('click',e=>{
+  if(e.target.closest('.jobd'))return;
+  const r=e.target.closest('.job');
+  if(!r)return;
+  const id=r.dataset.jid, d=document.getElementById('jd-'+id);
+  if(!d)return;
+  if(openJobs.has(id)){openJobs.delete(id);d.hidden=true;}
+  else{openJobs.add(id);d.hidden=false;jobDetail(id);}
+});
 async function poll(){
   try{
     const j=await(await fetch('/jobs')).json();
     const el=$('jobs');
     if(el&&j.jobs.length){
-      el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）</span></h2>'+j.jobs.map(x=>
-        `<div class=job>${x.id} · ${x.mode==='preview'?'预览 · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}</div>`).join('');
+      el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）· 点任务行看进度</span></h2>'+j.jobs.map(x=>
+        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('');
+      for(const id of openJobs){
+        const d=document.getElementById('jd-'+id);
+        if(d){d.hidden=false;jobDetail(id);}
+      }
       if(j.jobs.some(x=>x.status==='running'))setTimeout(poll,5000);
     }
   }catch(e){}
@@ -471,6 +591,10 @@ class Handler(BaseHTTPRequestHandler):
         if ARGS.hub:
             if self.path.rstrip("/") in ("", "/index.html"):
                 return self._html(render_list_page().encode("utf-8"))
+            mm = re.match(r"^/jobs/(j[0-9-]+)/monitor$", self.path)
+            if mm:
+                mon = job_monitor(mm.group(1))
+                return self._json(200, mon) if mon else self._json(404, {"ok": False, "error": "no such job"})
             if self.path.startswith("/jobs"):
                 return self._json(200, {"ok": True, "jobs": list_jobs()})
             if self.path.startswith("/__alive"):
