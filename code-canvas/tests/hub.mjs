@@ -92,6 +92,31 @@ check('download serves attachment',
 check('relative __alive resolves per-canvas', await page.evaluate(
   () => fetch('__alive').then(r => r.json()).then(j => j.ok === true && j.html === 'nano-vllm.html').catch(() => false)));
 
+// 2b. block sandbox live run: endpoint + in-page ▶ round-trip
+const runRes = await (await fetch(`${base}/c/nano-vllm/run`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ code: 'print(6*7)' }),
+})).json();
+check('run endpoint executes snippet', runRes.ok === true && runRes.out.trim() === '42');
+const runBad = await (await fetch(`${base}/c/nano-vllm/run`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ code: 'x', lang: 'rust' }),
+})).json();
+check('run endpoint rejects non-python', runBad.ok === false);
+await page.$eval('#card-allocate', el => el.classList.remove('collapsed'));
+await page.click('#card-allocate .bbtn[data-act="run"]');
+await page.waitForTimeout(300);
+check('live run button visible under hub', await page.isVisible('#card-allocate .rn-go'));
+await page.$eval('#card-allocate .rn-input', el => {
+  el.value = 'tokens = [1, 2, 3, 4]';
+  el.dispatchEvent(new Event('input'));
+});
+await page.click('#card-allocate .rn-go');
+await page.waitForTimeout(1500);
+check('edited input runs live and reports timing',
+  (await page.textContent('#card-allocate .rn-badge')).includes('实跑')
+  && (await page.textContent('#card-allocate .rn-out')).includes('命中前缀块数: 1'));
+
 // 3. /c/<name> without slash redirects so relative paths resolve
 const r301 = await fetch(`${base}/c/nano-vllm`, { redirect: 'manual' });
 check('bare canvas path redirects to slash', r301.status === 301);

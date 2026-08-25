@@ -22,6 +22,8 @@ hub 路由：
                                + "preview": true  → 研究型预览地图（preview-spec.md；
                                  仅 git/repo 源——粘贴片段没有"陌生仓库"可预览）
     GET  /c/<name>/src         画布的代码来源（git_url/repo，深潜点单用）
+    POST /c/<name>/run         块沙盘真跑（单画布模式为 POST /run）：
+                               {"code": "…", "lang": "py"} → 隔离解释器 8s 超时
     GET  /jobs                 生成任务列表（JSON）
     GET  /jobs/<id>/monitor    任务监视：机械阶段进度（工作目录文件推断）+
                                agent 活动流（生成任务用 stream-json 落盘，
@@ -647,6 +649,8 @@ class Handler(BaseHTTPRequestHandler):
             hit = self._canvas_path()
             if hit and hit[1].startswith("/ask"):
                 return self._ask(hit[0])
+            if hit and hit[1].startswith("/run"):
+                return self._run_snippet()
             if self.path.startswith("/generate"):
                 try:
                     req = self._read_body()
@@ -688,6 +692,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(404, {"ok": False, "error": "not found"})
         if self.path.startswith("/ask"):
             return self._ask(ARGS.html)
+        if self.path.startswith("/run"):
+            return self._run_snippet()
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_DELETE(self):
@@ -710,6 +716,28 @@ class Handler(BaseHTTPRequestHandler):
                 f.unlink()
                 removed.append(f.name)
         self._json(200, {"ok": True, "removed": removed})
+
+    def _run_snippet(self):
+        """块沙盘：跑自包含 python 片段（harness + 用户输入替换后的完整脚本）。
+        隔离解释器 -I、8s 超时、输出截断。只在 tailscale/localhost 网内可达。"""
+        try:
+            req = self._read_body()
+            code = req["code"]
+        except Exception as e:
+            return self._json(400, {"ok": False, "error": "bad request: {}".format(e)})
+        if req.get("lang", "py") != "py":
+            return self._json(400, {"ok": False, "error": "沙盘 v1 只支持 python"})
+        if not isinstance(code, str) or len(code) > 65536:
+            return self._json(400, {"ok": False, "error": "code 缺失或超长"})
+        t0 = time.time()
+        try:
+            r = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True,
+                               text=True, timeout=8, cwd="/tmp")
+        except subprocess.TimeoutExpired:
+            return self._json(200, {"ok": False, "error": "运行超时（8s）——沙盘应当小而确定"})
+        return self._json(200, {"ok": r.returncode == 0, "out": r.stdout[-10000:],
+                                "err": (r.stderr or "")[-2000:], "exit": r.returncode,
+                                "ms": int((time.time() - t0) * 1000)})
 
     def _ask(self, html_path: Path):
         try:

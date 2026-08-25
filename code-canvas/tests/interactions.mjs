@@ -51,6 +51,28 @@ await page.waitForTimeout(300);
 check('second click folds back to core-only', (await page.$$('#card-step .ln.ctxln')).length === 0
   && !(await page.$eval('#card-step .codewin', el => el.classList.contains('scrolly'))));
 
+// block sandbox (static file://): preset input chips show PRE-RECORDED outputs; no live run
+await page.$eval('#card-allocate', el => el.classList.remove('collapsed'));
+check('run button on sandboxed block', await page.$('#card-allocate .bbtn[data-act="run"]') !== null);
+await page.click('#card-allocate .bbtn[data-act="run"]');
+await page.waitForTimeout(300);
+check('run panel opens with input chips',
+  await page.isVisible('#card-allocate .brun') && (await page.$$('#card-allocate .rn-chip')).length === 3);
+check('first preset auto-selected with recorded output',
+  (await page.textContent('#card-allocate .rn-out')).includes('命中前缀块数: 2')
+  && (await page.textContent('#card-allocate .rn-badge')).includes('预录'));
+await page.click('#card-allocate .rn-chip[data-i="1"]');
+await page.waitForTimeout(200);
+check('picking another input swaps value and output',
+  (await page.$eval('#card-allocate .rn-input', el => el.value)).includes('9, 9')
+  && (await page.textContent('#card-allocate .rn-out')).includes('命中前缀块数: 0'));
+check('static mode: no live run button, input readonly',
+  !(await page.isVisible('#card-allocate .rn-go'))
+  && await page.$eval('#card-allocate .rn-input', el => el.readOnly));
+await page.click('#card-allocate .bbtn[data-act="run"]');
+await page.waitForTimeout(200);
+check('run panel toggles closed', !(await page.isVisible('#card-allocate .brun')));
+
 // reading-order chips: none on overview, appear on a multi-focus step, renumber on step change
 check('no order chips on overview', (await page.$$('.ordchip')).length === 0);
 await page.click('#next'); await page.waitForTimeout(700);

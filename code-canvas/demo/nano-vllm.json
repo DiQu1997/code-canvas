@@ -113,7 +113,37 @@
               "explain": "can_allocate 返回的不是布尔而是「命中了几块」，-1 表示装不下。它只探测不落账——真正把块挂到 seq 上的是 allocate。探测与分配分离，预算判断失败时才能无副作用地退出循环。"
             }
           ],
-          "explain": "为什么 prefill 绝对优先？新请求的首 token 延迟对体验影响最大，而且 prefill 一次能吃进大量 token、GPU 利用率最高。只要 waiting 里还有装得下的请求就先不做 decode——这是吞吐与首字延迟之间的取舍，nano-vllm 选了最简单的一边。"
+          "explain": "为什么 prefill 绝对优先？新请求的首 token 延迟对体验影响最大，而且 prefill 一次能吃进大量 token、GPU 利用率最高。只要 waiting 里还有装得下的请求就先不做 decode——这是吞吐与首字延迟之间的取舍，nano-vllm 选了最简单的一边。",
+          "run": {
+            "harness": "# 沙盘：Scheduler.schedule 的 prefill 批组装（蒸馏自 nano-vllm engine/scheduler.py）\n# 简化：不接块管理器（can_allocate 恒通过、无前缀缓存），只看 token 预算与席位怎么分\nfrom collections import deque\n\nMAX_NUM_BATCHED_TOKENS = 16   # 一批最多算多少 token\nMAX_NUM_SEQS = 3              # 一批最多几条序列\n\n__INPUT__\n\nwaiting = deque(reqs)\nscheduled, num_batched = [], 0\nwhile waiting and len(scheduled) < MAX_NUM_SEQS:\n    name, num_tokens = waiting[0]\n    remaining = MAX_NUM_BATCHED_TOKENS - num_batched\n    if remaining == 0:\n        break\n    if remaining < num_tokens and scheduled:   # 切片特权只给批里第一条\n        break\n    sched_tokens = min(num_tokens, remaining)  # 第一条可以被切片（chunked prefill）\n    num_batched += sched_tokens\n    tag = \"整条\" if sched_tokens == num_tokens else \"切片 {}/{}\".format(sched_tokens, num_tokens)\n    scheduled.append((name, sched_tokens, tag))\n    if sched_tokens == num_tokens:\n        waiting.popleft()\n    else:\n        break                                   # 切片后本批封口\n\nprint(\"本批 prefill（预算 {} token / {} 席）:\".format(MAX_NUM_BATCHED_TOKENS, MAX_NUM_SEQS))\nfor name, n, tag in scheduled:\n    print(\"  {} → {} token（{}）\".format(name, n, tag))\nprint(\"合计 {} token；还在排队: {}\".format(num_batched, [r[0] for r in waiting] or \"无\"))\n",
+            "note": "沙盘蒸馏：不接块管理器（无前缀缓存），预算/席位/切片规则照原文",
+            "inputs": [
+              {
+                "label": "预算宽裕",
+                "value": "reqs = [(\"A\", 6), (\"B\", 8)]",
+                "note": "两条都装得下：都整条进批",
+                "expected": "本批 prefill（预算 16 token / 3 席）:\n  A → 6 token（整条）\n  B → 8 token（整条）\n合计 14 token；还在排队: 无\n"
+              },
+              {
+                "label": "第二条被挡",
+                "value": "reqs = [(\"A\", 10), (\"B\", 9)]",
+                "note": "剩余预算不够 B：切片特权只给第一条，B 整条等下一批",
+                "expected": "本批 prefill（预算 16 token / 3 席）:\n  A → 10 token（整条）\n合计 10 token；还在排队: ['B']\n"
+              },
+              {
+                "label": "单条超预算被切片",
+                "value": "reqs = [(\"A\", 30), (\"B\", 2)]",
+                "note": "chunked prefill：A 只算前 16 个 token，剩余留在队头",
+                "expected": "本批 prefill（预算 16 token / 3 席）:\n  A → 16 token（切片 16/30）\n合计 16 token；还在排队: ['A', 'B']\n"
+              },
+              {
+                "label": "席位挡人",
+                "value": "reqs = [(\"A\", 2), (\"B\", 2), (\"C\", 2), (\"D\", 2)]",
+                "note": "预算够但 max_num_seqs=3：D 被席位挡住",
+                "expected": "本批 prefill（预算 16 token / 3 席）:\n  A → 2 token（整条）\n  B → 2 token（整条）\n  C → 2 token（整条）\n合计 6 token；还在排队: ['D']\n"
+              }
+            ]
+          }
         },
         {
           "name": "Decode 批次",
@@ -227,7 +257,31 @@
             4,
             15
           ],
-          "explain": "沿同一条哈希链重放认领：块可能正被别的 seq 用着（ref_count +1 共享），也可能已回到 free 队列但内容未被覆盖（从 free 里捞回来复活）。前缀缓存不需要独立存储——它就住在 KV cache 块里。"
+          "explain": "沿同一条哈希链重放认领：块可能正被别的 seq 用着（ref_count +1 共享），也可能已回到 free 队列但内容未被覆盖（从 free 里捞回来复活）。前缀缓存不需要独立存储——它就住在 KV cache 块里。",
+          "run": {
+            "harness": "# 沙盘：BlockManager.allocate 的前缀命中机制（蒸馏自 nano-vllm engine/block_manager.py）\n# 简化：block_size=4；哈希用确定性滚动乘加（原版为 xxhash，机制等价：链式、前缀敏感）\nBLOCK_SIZE = 4\n\ndef compute_hash(token_ids, prefix_h):\n    h = prefix_h\n    for t in token_ids:\n        h = (h * 1000003 + t) & 0xFFFFFFFF\n    return h\n\n# 缓存池现状：上一条序列 [1,2,3,4, 5,6,7,8] 已驻留为块 0、块 1（ref_count=1）\nblocks = {0: {\"ref\": 1, \"tokens\": [1, 2, 3, 4]}, 1: {\"ref\": 1, \"tokens\": [5, 6, 7, 8]}}\nh0 = compute_hash([1, 2, 3, 4], -1)\nhash_to_block_id = {h0: 0, compute_hash([5, 6, 7, 8], h0): 1}\nfree_block_ids = [2, 3, 4]\nused_block_ids = {0, 1}\n\n__INPUT__\n\ndef can_allocate(tokens):            # 探测：连续命中的前缀块数\n    n, h = 0, -1\n    for i in range(len(tokens) // BLOCK_SIZE):\n        blk = tokens[i*BLOCK_SIZE:(i+1)*BLOCK_SIZE]\n        h = compute_hash(blk, h)\n        bid = hash_to_block_id.get(h)\n        if bid is None or blocks[bid][\"tokens\"] != blk:\n            break\n        n += 1\n    return n\n\ndef allocate(tokens, num_cached_blocks):\n    block_table, h = [], -1\n    for i in range(num_cached_blocks):   # 认领命中块：只加引用，不动数据\n        blk = tokens[i*BLOCK_SIZE:(i+1)*BLOCK_SIZE]\n        h = compute_hash(blk, h)\n        bid = hash_to_block_id[h]\n        if bid in used_block_ids:\n            blocks[bid][\"ref\"] += 1\n        else:\n            blocks[bid][\"ref\"] = 1\n            free_block_ids.remove(bid)\n            used_block_ids.add(bid)\n        block_table.append(bid)\n    num_blocks = (len(tokens) + BLOCK_SIZE - 1) // BLOCK_SIZE\n    for i in range(num_cached_blocks, num_blocks):   # 增量新块：从 free 池取\n        bid = free_block_ids.pop(0)\n        used_block_ids.add(bid)\n        blocks[bid] = {\"ref\": 1, \"tokens\": tokens[i*BLOCK_SIZE:(i+1)*BLOCK_SIZE]}\n        block_table.append(bid)\n    return block_table, num_cached_blocks * BLOCK_SIZE\n\nn = can_allocate(tokens)\ntable, cached_tokens = allocate(tokens, n)\nprint(\"命中前缀块数:\", n, \"→ 免算 token 数:\", cached_tokens)\nprint(\"block_table:\", table)\nfor bid in table:\n    print(\"  块{}: ref_count={} tokens={}\".format(bid, blocks[bid][\"ref\"], blocks[bid][\"tokens\"]))\nprint(\"free 池剩余:\", free_block_ids)\n",
+            "note": "沙盘蒸馏：block_size=4、哈希换确定性乘加（原版 xxhash），认领/取块逻辑照原文",
+            "inputs": [
+              {
+                "label": "完全命中",
+                "value": "tokens = [1, 2, 3, 4, 5, 6, 7, 8]",
+                "note": "同前缀请求进来：两块全命中，只加引用不搬数据",
+                "expected": "命中前缀块数: 2 → 免算 token 数: 8\nblock_table: [0, 1]\n  块0: ref_count=2 tokens=[1, 2, 3, 4]\n  块1: ref_count=2 tokens=[5, 6, 7, 8]\nfree 池剩余: [2, 3, 4]\n"
+              },
+              {
+                "label": "无命中",
+                "value": "tokens = [9, 9, 9, 9, 8, 8, 8, 8]",
+                "note": "全新内容：免算为 0，从 free 池顺序取新块",
+                "expected": "命中前缀块数: 0 → 免算 token 数: 0\nblock_table: [2, 3]\n  块2: ref_count=1 tokens=[9, 9, 9, 9]\n  块3: ref_count=1 tokens=[8, 8, 8, 8]\nfree 池剩余: [4]\n"
+              },
+              {
+                "label": "部分命中+尾块",
+                "value": "tokens = [1, 2, 3, 4, 7, 7, 7, 7, 42]",
+                "note": "前缀同后缀不同：命中即断；不满块也占一整块",
+                "expected": "命中前缀块数: 1 → 免算 token 数: 4\nblock_table: [0, 2, 3]\n  块0: ref_count=2 tokens=[1, 2, 3, 4]\n  块2: ref_count=1 tokens=[7, 7, 7, 7]\n  块3: ref_count=1 tokens=[42]\nfree 池剩余: [4]\n"
+              }
+            ]
+          }
         },
         {
           "name": "增量新块",

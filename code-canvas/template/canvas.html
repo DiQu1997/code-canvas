@@ -151,6 +151,26 @@
     color: #424a53; border-top: 1px dashed rgba(31,35,40,.15); white-space: normal;
     max-width: 560px; }
   .blk.explained > .bxplain { display: block; }
+  /* 块沙盘：预置输入 chips + 可改输入 + 预录/实跑输出 */
+  .brun { display: none; padding: 8px 10px 10px; }
+  .blk.running > .brun { display: block; }
+  .rn-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .rn-chip { font-size: 11px; border: 1px solid #d0d7de; border-radius: 999px;
+    padding: 1px 9px; cursor: pointer; color: #57606a; background: #fff; }
+  .rn-chip.on { color: #0969da; border-color: #0969da; background: #eef4fb; }
+  .rn-note { font-size: 10.5px; color: #8c959f; margin-bottom: 6px; }
+  .rn-why { font-size: 11px; color: #57606a; margin: 4px 0; }
+  .rn-input { width: 100%; box-sizing: border-box; font: 11.5px ui-monospace, Menlo, monospace;
+    color: #1f2328; background: #fff; border: 1px solid #d0d7de; border-radius: 6px;
+    padding: 6px 8px; resize: vertical; min-height: 2.2em; }
+  .rn-input[readonly] { background: #f6f8fa; color: #57606a; }
+  .rn-row { display: flex; align-items: center; gap: 10px; margin: 6px 0 4px; }
+  .rn-go { color: #1a7f37; font-weight: 600; }
+  .rn-go[hidden] { display: none; }
+  .rn-out { margin: 0; font: 11.5px/1.6 ui-monospace, Menlo, monospace; background: #f6f8fa;
+    border: 1px solid #e4e8ec; border-radius: 6px; padding: 8px 10px; white-space: pre-wrap;
+    word-break: break-all; color: #1f2328; max-height: 220px; overflow-y: auto; }
+  .rn-out[hidden] { display: none; }
   .blk.qa-target { box-shadow: 0 0 0 2px var(--bc), 0 4px 16px rgba(31,35,40,.22); }
   .blk.qa-target > .bbar { background: var(--bt); }
   .blk.qa-target > .bbar .bname::after { content: ' · 问答中'; font-weight: 400; opacity: .75; }
@@ -475,7 +495,8 @@ function buildBlocks(blocks, lines, lo, hi, cardId, depth) {
     for (; i < b.lines[0]; i++) html += lines[i - 1];
     const c = BLOCK_PALETTE[Math.min(depth, 1)][b._idx % BLOCK_PALETTE[Math.min(depth, 1)].length];
     const btns = (b.explain ? `<span class="bbtn" style="margin-left:auto" data-act="explain">说明</span>` : '')
-      + `<span class="bbtn"${b.explain ? '' : ' style="margin-left:auto"'} data-act="ask">问</span>`;
+      + (b.run ? `<span class="bbtn"${b.explain ? '' : ' style="margin-left:auto"'} data-act="run">试</span>` : '')
+      + `<span class="bbtn"${(b.explain || b.run) ? '' : ' style="margin-left:auto"'} data-act="ask">问</span>`;
     html += `<div class="blk${b.folded !== false ? ' folded' : ''}" style="--bc:${c}; --bt:${rgba(c, .05)}">`
       + `<div class="bbar" data-card="${cardId}" data-bname="${esc(b.name)}">`
       + `<span class="bchev">${b.folded !== false ? '▸' : '▾'}</span>`
@@ -484,6 +505,7 @@ function buildBlocks(blocks, lines, lo, hi, cardId, depth) {
       + (b.explain ? `<div class="bxplain" data-card="${cardId}" data-bname="${esc(b.name)}">`
         + `<span class="bx-text">${esc(b.explain)}</span>`
         + `<div class="bx-tools"><span class="bbtn" data-act="rewrite">按我的画像重讲</span></div></div>` : '')
+      + (b.run ? `<div class="brun" data-card="${cardId}" data-bname="${esc(b.name)}"></div>` : '')
       + `<div class="bcode">`
       + buildBlocks(b.children, lines, b.lines[0], b.lines[1], cardId, depth + 1)
       + `</div></div>`;
@@ -1399,6 +1421,50 @@ function ctxToggle(cardEl) {
   }
   drawWires();
 }
+/* ================= 块沙盘：预置输入 → 预录输出；连 hub 时可改输入真跑 ================= */
+function buildRunPanel(panel) {
+  const b = findBlock(cardById[panel.dataset.card].blocks, panel.dataset.bname);
+  const run = b.run;
+  panel.innerHTML = `<div class="rn-chips">` + run.inputs.map((x, i) =>
+      `<span class="rn-chip" data-i="${i}">${esc(x.label)}</span>`).join('') + `</div>`
+    + (run.note ? `<div class="rn-note">${esc(run.note)}</div>` : '')
+    + `<div class="rn-why"></div>`
+    + `<textarea class="rn-input" spellcheck="false" rows="2"></textarea>`
+    + `<div class="rn-row"><span class="bbtn rn-go" hidden>▶ 运行</span><span class="rn-badge"></span></div>`
+    + `<pre class="rn-out" hidden></pre>`;
+  const ta = panel.querySelector('.rn-input');
+  const badge = panel.querySelector('.rn-badge');
+  const out = panel.querySelector('.rn-out');
+  const pick = i => {
+    const x = run.inputs[i];
+    panel.querySelectorAll('.rn-chip').forEach((ch, j) => ch.classList.toggle('on', j === i));
+    panel.querySelector('.rn-why').textContent = x.note || '';
+    ta.value = x.value;
+    out.hidden = false;
+    out.textContent = (x.expected || '').trimEnd() || '（无输出）';
+    badge.textContent = '预录输出（生成时真跑核验）';
+    drawWires();
+  };
+  panel.querySelectorAll('.rn-chip').forEach(ch => ch.addEventListener('click', () => pick(+ch.dataset.i)));
+  ta.addEventListener('input', () => {
+    badge.textContent = QA.live ? '输入已改——点 ▶ 真跑' : '静态版只看预录；连 hub 可改输入真跑';
+  });
+  panel.querySelector('.rn-go').addEventListener('click', async () => {
+    badge.textContent = '运行中…';
+    try {
+      const r = await fetch('run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: run.harness.replace('__INPUT__', ta.value), lang: run.lang || 'py' }) });
+      const j = await r.json();
+      out.hidden = false;
+      out.textContent = ((j.out || '') + (j.err ? '\n[stderr] ' + j.err.trim() : '')).trim()
+        || (j.error ? '✗ ' + j.error : '（无输出）');
+      badge.textContent = j.ok ? `实跑 · ${j.ms}ms` : '运行失败';
+    } catch (e2) { badge.textContent = '请求失败：' + e2; }
+    drawWires();
+  });
+  pick(0);
+}
+
 /* 一体滚动窗滚动时，行锚线跟着重钉（rAF 节流；scroll 不冒泡，用捕获） */
 let ctxRaf = false;
 document.addEventListener('scroll', e => {
@@ -1431,6 +1497,18 @@ world.addEventListener('click', e => {
     if (act === 'explain') {
       bar.parentElement.classList.toggle('explained');
       drawWires();
+    } else if (act === 'run') {
+      const blk = bar.parentElement;
+      blk.classList.toggle('running');
+      if (blk.classList.contains('running')) {
+        const panel = blk.querySelector(':scope > .brun');
+        if (!panel.childElementCount) buildRunPanel(panel);
+        // live 状态是异步探测的：每次打开时按当下状态刷新可编辑/可运行
+        const b = findBlock(cardById[panel.dataset.card].blocks, panel.dataset.bname);
+        panel.querySelector('.rn-go').hidden = !QA.live || (b.run.lang || 'py') !== 'py';
+        panel.querySelector('.rn-input').readOnly = !QA.live;
+      }
+      drawWires();
     } else {
       openQA(bar.dataset.card, bar.dataset.bname);
     }
@@ -1462,6 +1540,8 @@ function pinchState() {
   return { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
 }
 vp.addEventListener('pointerdown', e => {
+  // 沙盘面板里的选择/输入不当作画布平移
+  if (e.target.closest('.brun')) return;
   // 展开态的一体滚动窗里让位给原生滚动（触屏拖动不当作画布平移）
   const sc = e.target.closest('.codewin.scrolly');
   if (sc && sc.scrollHeight > sc.clientHeight) return;
@@ -1506,8 +1586,8 @@ function endPointer(e) {
 vp.addEventListener('pointerup', endPointer);
 vp.addEventListener('pointercancel', endPointer);
 vp.addEventListener('wheel', e => {
-  // 悬停在展开态的一体滚动窗：滚轮归它（滑离核心区），不缩放画布
-  const sc = e.target.closest('.codewin.scrolly');
+  // 悬停在展开态的一体滚动窗或沙盘输出区：滚轮归它，不缩放画布
+  const sc = e.target.closest('.codewin.scrolly, .rn-out, .rn-input');
   if (sc && sc.scrollHeight > sc.clientHeight) return;
   e.preventDefault();
   const f = Math.exp(-e.deltaY * .0012);

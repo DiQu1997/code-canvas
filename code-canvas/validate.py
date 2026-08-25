@@ -40,7 +40,53 @@ def check_blocks(blocks, lo, hi, path, nlines):
             warn(f"{p}: summary 超 20 字（{len(b['summary'])}）")
         if len(b.get("explain") or "") > 140:
             warn(f"{p}: explain 超 120 字（{len(b['explain'])}）")
+        if b.get("run"):
+            check_run(b["run"], p)
         check_blocks(b.get("children"), s, e, p, nlines)
+
+
+NO_EXEC = False
+
+
+def check_run(run, p):
+    """块沙盘：结构 + 真跑核验（expected 必须是实际运行的产物，不许想象）。"""
+    harness = run.get("harness")
+    inputs = run.get("inputs")
+    lang = run.get("lang", "py")
+    if not isinstance(harness, str) or harness.count("__INPUT__") != 1:
+        err(f"{p}: run.harness 必须是含恰好一处 __INPUT__ 的脚本")
+        return
+    if not isinstance(inputs, list) or not 1 <= len(inputs) <= 5:
+        err(f"{p}: run.inputs 要 1–5 个")
+        return
+    if len(run.get("note") or "") > 80:
+        warn(f"{p}: run.note 超 70 字（{len(run['note'])}）")
+    for i, x in enumerate(inputs):
+        q = f"{p} run.inputs[{i}]"
+        if not x.get("label") or not isinstance(x.get("value"), str) or not x["value"].strip():
+            err(f"{q}: 缺 label 或 value")
+            continue
+        if len(x["label"]) > 16:
+            warn(f"{q}: label 超 16 字")
+        if len(x.get("note") or "") > 60:
+            warn(f"{q}: note 超 50 字（{len(x['note'])}）")
+        if not isinstance(x.get("expected"), str):
+            err(f"{q}: 缺 expected（预录输出——由真实运行回填，静态画布靠它）")
+            continue
+        if lang != "py" or NO_EXEC:
+            continue
+        import subprocess
+        code = harness.replace("__INPUT__", x["value"])
+        try:
+            r = subprocess.run([sys.executable, "-I", "-c", code],
+                               capture_output=True, text=True, timeout=8)
+        except subprocess.TimeoutExpired:
+            err(f"{q}: 沙盘运行超时（>8s）——沙盘必须小而确定")
+            continue
+        if r.returncode != 0:
+            err(f"{q}: 沙盘运行报错：{(r.stderr or '')[-200:]}")
+        elif r.stdout.strip() != x["expected"].strip():
+            err(f"{q}: expected 与实际输出不符——预录输出必须是真跑的产物")
 
 
 def block_names(blocks):
@@ -52,6 +98,8 @@ def block_names(blocks):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     strict = "--strict" in sys.argv
+    global NO_EXEC
+    NO_EXEC = "--no-exec" in sys.argv   # 跳过沙盘真跑核验（无解释器的环境用）
     if len(args) != 1:
         sys.exit(__doc__.strip())
     d = json.loads(Path(args[0]).read_text(encoding="utf-8"))
