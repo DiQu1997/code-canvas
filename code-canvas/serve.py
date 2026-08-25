@@ -109,6 +109,102 @@ def run_cli(prompt: str) -> dict:
     return res
 
 
+# ---------- 问答画布补丁：agent 边答边画（validate 闸门 + 可撤销） ----------
+
+PATCH_RE = re.compile(r"```canvas-patch\s*\n(.*?)```", re.S)
+NOTE_KEYS = {"tag", "text", "anchor", "place", "flavor", "step"}
+
+
+def _validate_and_write(d: dict, jp: Path, html_path: Path):
+    """副本过 validate（结构检查，--no-exec）→ 通过才写回并重渲染。"""
+    tmp = jp.with_suffix(".qa-tmp.json")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    v = subprocess.run([sys.executable, str(SKILL_DIR / "validate.py"), str(tmp), "--no-exec"],
+                       capture_output=True, text=True)
+    errs = [l for l in v.stdout.splitlines() if l.startswith("ERROR")]
+    if errs:
+        tmp.unlink()
+        return "补丁未过验证，已拒绝：" + "；".join(errs)[:400]
+    tmp.replace(jp)
+    subprocess.run([sys.executable, str(SKILL_DIR / "render.py"), str(jp), str(html_path)],
+                   capture_output=True, timeout=30)
+    return None
+
+
+def apply_patch(html_path: Path, ops: list) -> dict:
+    jp = html_path.with_suffix(".json")
+    if not jp.exists():
+        return {"ok": False, "error": "画布没有 JSON 源，改不了图"}
+    d = json.loads(jp.read_text(encoding="utf-8"))
+    pid = time.strftime("qa%m%d-%H%M%S")
+    n, prev_layouts = 0, {}
+    for o in ops[:3]:                     # 纪律：一次回答最多 3 个操作
+        op = o.get("op")
+        if op == "add_note" and isinstance(o.get("note"), dict):
+            note = {k: v for k, v in o["note"].items() if k in NOTE_KEYS}
+            note.setdefault("flavor", "intent")
+            note["id"] = "{}-n{}".format(pid, n)
+            note["qa"] = pid
+            d.setdefault("notes", []).append(note)
+        elif op == "add_wire" and isinstance(o.get("wire"), dict):
+            w = dict(o["wire"])
+            w["id"] = "{}-w{}".format(pid, n)
+            w["qa"] = pid
+            d.setdefault("wires", []).append(w)
+        elif op == "add_card" and isinstance(o.get("card"), dict):
+            c = dict(o["card"])
+            if not (c.get("code") and c.get("name") and c.get("file")):
+                continue                  # 新卡必须带原文与出处
+            c["id"] = c.get("id") or "{}-c{}".format(pid, n)
+            c["qa"] = pid
+            c.setdefault("collapsed", False)
+            d.setdefault("cards", []).append(c)
+        elif op == "set_layout" and o.get("card") and isinstance(o.get("layout"), dict):
+            hitc = next((c for c in d.get("cards", []) if c.get("id") == o["card"]), None)
+            if not hitc:
+                continue
+            prev_layouts[hitc["id"]] = hitc.get("layout")
+            hitc["layout"] = o["layout"]
+        else:
+            continue
+        n += 1
+    if not n:
+        return {"ok": False, "error": "补丁里没有可用操作"}
+    e = _validate_and_write(d, jp, html_path)
+    if e:
+        return {"ok": False, "error": e}
+    rec = {"ok": True, "patch_id": pid, "n": n, "ops": [o.get("op") for o in ops[:3]]}
+    if prev_layouts:
+        rec["prev_layouts"] = prev_layouts
+    return rec
+
+
+def undo_patch(html_path: Path, pid: str) -> dict:
+    jp = html_path.with_suffix(".json")
+    if not jp.exists() or not re.match(r"^qa[0-9-]+$", pid or ""):
+        return {"ok": False, "error": "无效请求"}
+    d = json.loads(jp.read_text(encoding="utf-8"))
+    for key in ("notes", "wires", "cards"):
+        d[key] = [x for x in d.get(key, []) if x.get("qa") != pid]
+    # 被移动的卡：从问答 sidecar 里的补丁记录还原原位
+    sc = html_path.with_suffix(html_path.suffix + ".qa.json")
+    try:
+        recs = json.loads(sc.read_text(encoding="utf-8")) if sc.exists() else []
+    except Exception:
+        recs = []
+    for r in recs:
+        pl = (r.get("patch") or {}).get("prev_layouts") if (r.get("patch") or {}).get("patch_id") == pid else None
+        for cid, lay in (pl or {}).items():
+            for c in d.get("cards", []):
+                if c.get("id") == cid:
+                    if lay is None:
+                        c.pop("layout", None)
+                    else:
+                        c["layout"] = lay
+    e = _validate_and_write(d, jp, html_path)
+    return {"ok": False, "error": e} if e else {"ok": True, "patch_id": pid}
+
+
 def persist(html_path: Path, record: dict) -> None:
     path = html_path.with_suffix(html_path.suffix + ".qa.json")
     try:
@@ -651,6 +747,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._ask(hit[0])
             if hit and hit[1].startswith("/run"):
                 return self._run_snippet()
+            if hit and hit[1].startswith("/unpatch"):
+                try:
+                    pid = self._read_body().get("patch_id")
+                except Exception:
+                    return self._json(400, {"ok": False, "error": "bad request"})
+                return self._json(200, undo_patch(hit[0], pid))
             if self.path.startswith("/generate"):
                 try:
                     req = self._read_body()
@@ -694,6 +796,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._ask(ARGS.html)
         if self.path.startswith("/run"):
             return self._run_snippet()
+        if self.path.startswith("/unpatch"):
+            try:
+                pid = self._read_body().get("patch_id")
+            except Exception:
+                return self._json(400, {"ok": False, "error": "bad request"})
+            return self._json(200, undo_patch(ARGS.html, pid))
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_DELETE(self):
@@ -747,11 +855,32 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"ok": False, "error": "bad request: {}".format(e)})
         result = run_cli(prompt)
         if result.get("ok"):
+            # 回答里可携带画布补丁：show 类回给页面即时执行；持久类过 validate 写回
+            m = PATCH_RE.search(result["answer"])
+            if m and req.get("kind") != "rewrite":
+                result["answer"] = PATCH_RE.sub("", result["answer"]).strip()
+                try:
+                    ops = json.loads(m.group(1))
+                    ops = ops.get("ops", []) if isinstance(ops, dict) else ops
+                except ValueError:
+                    ops, result["patch_error"] = [], "canvas-patch 不是合法 JSON"
+                show = [o for o in ops if o.get("op") == "show"]
+                persist_ops = [o for o in ops if o.get("op") != "show"]
+                if show:
+                    result["show"] = show[0]
+                if persist_ops:
+                    pr = apply_patch(html_path, persist_ops)
+                    if pr.get("ok"):
+                        result["patched"] = pr
+                    else:
+                        result["patch_error"] = pr.get("error")
             rec = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "card": req.get("card"),
                    "block": req.get("block"), "question": req.get("question"),
                    "answer": result["answer"]}
             if result.get("metrics"):
                 rec["metrics"] = result["metrics"]
+            if result.get("patched"):
+                rec["patch"] = result["patched"]
             persist(html_path, rec)
         self._json(200, result)
 

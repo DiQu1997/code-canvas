@@ -28,7 +28,7 @@ python3 render.py demo/nano-vllm.json /tmp/t.html
 node tests/interactions.mjs demo/nano-vllm.html         # 36 PASS
 node tests/note-follow.mjs                              # 4 PASS
 node tests/personalize.mjs demo/nano-vllm.html          # 6 PASS
-node tests/hub.mjs                                      # 53 PASS
+node tests/hub.mjs                                      # 59 PASS
 node tests/plan.mjs                                     # 18 PASS
 python3 tests/extract_test.py                           # 21 PASS（部分依赖 /tmp clone，缺则 SKIP）
 ```

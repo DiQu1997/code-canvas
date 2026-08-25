@@ -279,6 +279,62 @@ const evilGen = await (await fetch(`${base}/generate`, {
 })).json();
 check('generate rejects bad name', evilGen.ok === false);
 
+// 7. QA canvas-patch: agent answer carries ops → show passthrough, validate-gated
+// persist, rejection on bogus refs, undo restores. Second server with a fake CLI.
+const shq = s => "'" + s.replace(/'/g, "'\\''") + "'";
+const goodEnv = JSON.stringify({
+  result: '看图。\n```canvas-patch\n' + JSON.stringify({ ops: [
+    { op: 'show', focus: ['a'] },
+    { op: 'add_note', note: { tag: '问答', text: 'f 恒返回 1', anchor: { card: 'a', line: 2 } } },
+    { op: 'set_layout', card: 'a', layout: { col: 1, band: 0 } },
+  ] }) + '\n```',
+  total_cost_usd: 0.01, duration_ms: 100, usage: { input_tokens: 1, output_tokens: 2 },
+});
+const badEnv = JSON.stringify({
+  result: '答。\n```canvas-patch\n' + JSON.stringify({ ops: [
+    { op: 'add_note', note: { tag: 'x', text: 'y', anchor: { card: 'ghost', line: 999 } } },
+  ] }) + '\n```',
+  total_cost_usd: 0, duration_ms: 1, usage: {},
+});
+writeFileSync(join(hub, 'fakepatch.sh'),
+  `#!/bin/bash\ncase "$*" in *BADPATCH*) printf '%s' ${shq(badEnv)};; *) printf '%s' ${shq(goodEnv)};; esac\n`,
+  { mode: 0o755 });
+const PORT2 = 8353;
+const server2 = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
+  '--port', String(PORT2), '--cli-bin', join(hub, 'fakepatch.sh')], { stdio: 'ignore' });
+const base2 = `http://127.0.0.1:${PORT2}`;
+for (let i = 0; i < 30; i++) {
+  try { if ((await fetch(`${base2}/__alive`)).ok) break; } catch (e) {}
+  await new Promise(r => setTimeout(r, 200));
+}
+const pj = () => JSON.parse(readFileSync(join(hub, 'pv-fix.json'), 'utf8'));
+const pa = await (await fetch(`${base2}/c/pv-fix/ask`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ prompt: 'x', card: 'a', block: '-', question: '画出来' }),
+})).json();
+check('patch answer stripped of fence, show passed through',
+  pa.ok === true && !pa.answer.includes('canvas-patch') && pa.show && pa.show.focus[0] === 'a');
+check('persist ops applied behind validate gate', pa.patched && pa.patched.n === 2);
+const dj = pj();
+check('qa note landed tagged in canvas JSON',
+  dj.notes.some(n => n.qa === pa.patched.patch_id && n.text === 'f 恒返回 1'));
+check('set_layout moved the card', dj.cards.find(c => c.id === 'a').layout.col === 1);
+const pb = await (await fetch(`${base2}/c/pv-fix/ask`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ prompt: 'BADPATCH', card: 'a', block: '-', question: 'q' }),
+})).json();
+check('bogus patch rejected, answer still delivered',
+  pb.ok === true && !!pb.patch_error && !pj().notes.some(n => n.text === 'y'));
+const un = await (await fetch(`${base2}/c/pv-fix/unpatch`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ patch_id: pa.patched.patch_id }),
+})).json();
+const dj2 = pj();
+check('undo removes qa elements and restores layout', un.ok === true
+  && !dj2.notes.some(n => n.qa === pa.patched.patch_id)
+  && dj2.cards.find(c => c.id === 'a').layout.col === 0);
+server2.kill();
+
 await browser.close();
 server.kill();
 rmSync(hub, { recursive: true, force: true });
