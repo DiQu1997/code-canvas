@@ -349,6 +349,31 @@
     max-height: 8.5em; overflow-y: auto; white-space: pre-wrap; }
   #sdetail[hidden] { display: none; }
 
+  /* ---- 移动端卡片流：同一份数据的另一种投影——步进驱动的垂直流 ---- */
+  #mstream { position: fixed; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    background: #f6f8fa; z-index: 5; padding: 104px 10px 160px; }
+  #mstream[hidden] { display: none; }
+  body.mstream #vp { display: none; }
+  #mstream .card { position: static !important; width: auto !important; max-width: 100%;
+    margin: 0 0 12px; }
+  #mstream .card .body { overflow-x: auto; }
+  #mstream .note { position: static !important; width: auto !important; max-width: none;
+    display: block; margin: -6px 0 12px; }
+  #mstream .ms-head { font-size: 13px; color: #57606a; line-height: 1.65; margin: 2px 2px 12px; }
+  #mstream .ms-sect { font-size: 13px; font-weight: 600; color: #1f2328; margin: 14px 2px 8px;
+    padding-left: 8px; border-left: 3px solid var(--sc, #8c959f); }
+  #mstream .ms-sect .ms-ord { display: inline-block; min-width: 18px; height: 18px;
+    line-height: 18px; border-radius: 50%; background: #0969da; color: #fff; font-size: 11px;
+    text-align: center; margin-right: 6px; font-weight: 600; }
+  #mstream .ms-wire { display: block; font-size: 12px; color: #57606a; background: #fff;
+    border: 1px solid #d0d7de; border-radius: 8px; padding: 7px 10px; margin: 0 0 8px;
+    cursor: pointer; }
+  #mstream .ms-wire b { color: #1f2328; font-weight: 600; }
+  #mode-btn { position: fixed; right: 12px; bottom: 108px; z-index: 30; font-size: 11px;
+    color: #57606a; background: rgba(255,255,255,.92); border: 1px solid #d0d7de;
+    border-radius: 999px; padding: 5px 12px; }
+  #mode-btn[hidden] { display: none; }
+
   /* ---- 移动端：画布不变，收纳 HUD ---- */
   @media (max-width: 640px) {
     .legend, #hint { display: none; }
@@ -374,6 +399,8 @@
 <body>
 
 <div id="vp"><div id="world"><svg id="routes"></svg><svg id="wires"></svg></div></div>
+<div id="mstream" hidden></div>
+<button id="mode-btn" hidden>2D 画布</button>
 
 <div id="topbar">
   <a id="home-link" href="/" hidden>← 画布库</a>
@@ -911,6 +938,7 @@ function renderStateCards() {
   }
 }
 function drawWires() {
+  if (document.body.classList.contains('mstream')) return;  // 卡片流没有空间布线
   relayoutColumns(); placeNotes(); fitRegions(); sizeWorld();
   svg.innerHTML = '<defs>' + Object.entries(ARROW_COLORS).map(([k, c]) =>
     `<marker id="ah-${k}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -1059,7 +1087,8 @@ function setStep(i, animate = true) {
     n.classList.toggle('dim', step > 0 && !mine);
   });
   renderStateCards();
-  if (s.fit || !s.focus) fitAll(animate); else focusOn(s.focus, animate);
+  if (document.body.classList.contains('mstream')) buildStream();
+  else if (s.fit || !s.focus) fitAll(animate); else focusOn(s.focus, animate);
   drawWires();
   const reg = (DATA.regions || []).find(r => r.id === s.storyline);
   const hue = reg && (HUES[reg.hue] || HUES.blue);
@@ -1386,8 +1415,113 @@ async function sendQA() {
   try { localStorage.setItem(QA_STORE, JSON.stringify(QA.log)); } catch (e) {}
   renderQALog();
 }
+/* ================= 移动端卡片流：同一份画布数据的另一种投影 =================
+   <700px 视口默认进入：不再平移缩放大图，而是按步进把该步聚焦的卡按阅读序
+   竖排铺开（块/沙盘/问答/上下文全部可用），行级 note 内联在卡下，点亮的线
+   变成可点的关系条；总览步 = 故事线目录。「2D 画布」按钮可切回。 */
+const mstreamEl = document.getElementById('mstream');
+let forceCanvas = false;
+function streamOn() { return document.body.classList.contains('mstream'); }
+function restoreFromStream() {
+  for (const el of [...mstreamEl.querySelectorAll('.card, .note')]) world.appendChild(el);
+  mstreamEl.innerHTML = '';
+}
+function msSect(html, color) {
+  const el = document.createElement('div');
+  el.className = 'ms-sect';
+  if (color) el.style.setProperty('--sc', color);
+  el.innerHTML = html;
+  mstreamEl.appendChild(el);
+}
+function msMoveCard(id) {
+  const el = document.getElementById('card-' + id);
+  if (el) mstreamEl.appendChild(el);
+  // 该卡的行级 note 内联跟进（当前步的优先，无 step 的常驻）
+  for (const n of DATA.notes || []) {
+    if ((n.anchor || {}).card !== id) continue;
+    if (n.step !== undefined && n.step !== step) continue;
+    const ne = document.getElementById('note-' + n.id);
+    if (ne) { ne.classList.remove('dim'); mstreamEl.appendChild(ne); }
+  }
+}
+function buildStream() {
+  restoreFromStream();
+  const s = STEPS[step];
+  const head = document.createElement('div');
+  head.className = 'ms-head';
+  head.textContent = s.caption || '';
+  mstreamEl.appendChild(head);
+  const focusCards = (s.order || s.focus || []).filter(id => cardById[id]);
+  if (!focusCards.length) {
+    // 总览/无 focus 步：画布级 bg note + 按故事线分节的目录
+    for (const n of DATA.notes || []) {
+      if (n.flavor !== 'bg' || n.anchor || (n.step || 0) !== step) continue;
+      const ne = document.getElementById('note-' + n.id);
+      if (ne) { ne.classList.remove('dim'); mstreamEl.appendChild(ne); }
+    }
+    const grouped = new Set();
+    for (const r of DATA.regions || []) {
+      const hue = (HUES[r.hue] || HUES.blue);
+      msSect(esc(r.title) + (r.blurb ? ` <span style="font-weight:400;color:#57606a">· ${esc(r.blurb)}</span>` : ''), hue.lb);
+      for (const id of r.cards || []) {
+        if (!cardById[id]) continue;
+        grouped.add(id);
+        msMoveCard(id);
+      }
+    }
+    for (const c of DATA.cards) if (!grouped.has(c.id)) msMoveCard(c.id);
+  } else {
+    // 关系条：这步点亮的线
+    for (const wid of s.wires || []) {
+      const w = (DATA.wires || []).find(x => x.id === wid);
+      if (!w || !cardById[w.from.card] || !cardById[w.to.card]) continue;
+      const el = document.createElement('div');
+      el.className = 'ms-wire';
+      el.innerHTML = `<b>${esc(cardById[w.from.card].name)}</b> ─${esc(w.label || w.kind)}→ <b>${esc(cardById[w.to.card].name)}</b>`;
+      el.addEventListener('click', () => {
+        const t = mstreamEl.querySelector('#card-' + w.to.card);
+        if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      mstreamEl.appendChild(el);
+    }
+    focusCards.forEach((id, i) => {
+      if (focusCards.length > 1)
+        msSect(`<span class="ms-ord">${i + 1}</span>${esc(cardById[id].name)}`);
+      msMoveCard(id);
+    });
+  }
+  mstreamEl.scrollTop = 0;
+}
+function syncStreamMode() {
+  const want = innerWidth < 700 && !forceCanvas;
+  const btn = document.getElementById('mode-btn');
+  btn.hidden = innerWidth >= 700;
+  btn.textContent = want ? '2D 画布' : '卡片流';
+  if (want === streamOn()) { if (want) buildStream(); return; }
+  document.body.classList.toggle('mstream', want);
+  mstreamEl.hidden = !want;
+  if (want) buildStream();
+  else { restoreFromStream(); setStep(step, false); drawWires(); }
+}
+document.getElementById('mode-btn').addEventListener('click', () => {
+  forceCanvas = streamOn();
+  syncStreamMode();
+});
+
 /* show 指令：agent 的即时镜头——聚焦+高亮，不落盘 */
 function applyShow(op) {
+  if (streamOn()) {   // 卡片流里：滚到第一张目标卡并高亮行
+    (op.lines || []).forEach(([cid, ln]) => {
+      const e = document.getElementById(cid + '-L' + ln);
+      if (e) e.classList.add('hot');
+    });
+    const t = mstreamEl.querySelector('#card-' + ((op.focus || [])[0] || ''));
+    if (t) { t.classList.remove('collapsed'); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    return;
+  }
+  return applyShowCanvas(op);
+}
+function applyShowCanvas(op) {
   (op.focus || []).forEach(id => {
     const el = document.getElementById('card-' + id);
     if (el && el.classList.contains('collapsed')) {
@@ -1565,7 +1699,7 @@ document.addEventListener('scroll', e => {
 }, true);
 
 /* ================= interactions ================= */
-world.addEventListener('click', e => {
+const canvasClick = e => {
   const cbar = e.target.closest('.ctx-bar');
   if (cbar) {
     ctxToggle(cbar.closest('.card'));
@@ -1618,7 +1752,9 @@ world.addEventListener('click', e => {
     hdr.querySelector('.chev').textContent = card.classList.contains('collapsed') ? '▸' : '▾';
     drawWires();
   }
-});
+};
+world.addEventListener('click', canvasClick);
+document.getElementById('mstream').addEventListener('click', canvasClick);
 /* Pan starts only after real movement (>4px). Capturing on pointerdown would
    retarget the click event to the viewport and swallow clicks on terms, bars,
    headers etc. — so a still pointer is a click, a moved pointer is a drag.
@@ -1687,7 +1823,11 @@ vp.addEventListener('wheel', e => {
   cam.s = ns;
   apply(false);
 }, { passive: false });
-addEventListener('resize', () => { drawWires(); if (STEPS[step].fit) fitAll(false); });
+addEventListener('resize', () => {
+  syncStreamMode();
+  drawWires();
+  if (!streamOn() && STEPS[step].fit) fitAll(false);
+});
 
 /* ================= init =================
    #s2 jumps to step 2; trailing debug letters: x = unfold everything,
@@ -1705,6 +1845,7 @@ requestAnimationFrame(() => {
   });
   if (flags.includes('t')) document.querySelectorAll('.tnote').forEach(n => n.classList.add('open'));
   setStep(m ? +m[1] : 0, false);
+  syncStreamMode();
   if (flags.includes('q')) {
     const bar = document.querySelector('.bbar');
     if (bar) openQA(bar.dataset.card, bar.dataset.bname);
