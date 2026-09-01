@@ -40,6 +40,7 @@ python3 tests/embed_test.py                             # 4 PASS（上下文嵌�
 |---|---|
 | extract.py | 结构层机械提取（函数卡/call 线/diff 映射/布局，零 LLM 毫秒级；--merge 增量保留叙事） |
 | preview.py | 目录级机械摘要（研究材料，不是产物；--recommend 一次轻 LLM） |
+| embed_context.py | 画布上下文全文嵌入（溯源核对/行漂移修正/子目录根定位；serve 生成收尾自动跑） |
 | preview-spec.md | 研究型预览地图规程（逻辑分组，agent 研究产物） |
 | validate.py | 渲染前强制关卡（ERROR=结构坏必须清零；warn=预算提示逐条自查） |
 | render.py | JSON → 自包含 HTML |
