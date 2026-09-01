@@ -32,6 +32,24 @@ def main():
     jp, repo = Path(ns.canvas), Path(ns.repo)
     d = json.loads(jp.read_text(encoding="utf-8"))
 
+    # 仓库根自动定位：卡路径若相对某一级子目录（如 monorepo 的 codex-rs/），
+    # 挑"能命中最多卡路径"的根
+    paths = {m.group(1) for c in d.get("cards", [])
+             for m in [re.match(r"([^:]+):\d+$", c.get("file") or "")] if m}
+    if paths:
+        def score(r):
+            return sum(1 for p in paths if (r / p).exists())
+        best, bs = repo, score(repo)
+        if bs < len(paths):
+            for sub in sorted(repo.iterdir()):
+                if sub.is_dir() and not sub.name.startswith("."):
+                    s = score(sub)
+                    if s > bs:
+                        best, bs = sub, s
+        if best != repo:
+            print("仓库根自动定位到子目录: {}".format(best.name), file=sys.stderr)
+            repo = best
+
     files, ok, skip, fixed = {}, 0, [], []
     for c in d.get("cards", []):
         m = re.match(r"([^:]+):(\d+)$", c.get("file") or "")

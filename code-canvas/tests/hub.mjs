@@ -296,8 +296,19 @@ const badEnv = JSON.stringify({
   ] }) + '\n```',
   total_cost_usd: 0, duration_ms: 1, usage: {},
 });
+const ppCanvas = JSON.stringify({
+  meta: { title: 'pp' },
+  cards: [{ id: 'a', name: 'f', file: 'x.py:2', lang: 'py',
+            code: 'def f():\n    return 1', layout: { col: 0, band: 0 } }],
+  wires: [], notes: [], steps: [{ title: 't', fit: true }],
+});
 writeFileSync(join(hub, 'fakepatch.sh'),
-  `#!/bin/bash\ncase "$*" in *BADPATCH*) printf '%s' ${shq(badEnv)};; *) printf '%s' ${shq(goodEnv)};; esac\n`,
+  `#!/bin/bash
+case "$*" in
+  *pp-test*) printf '%s' ${shq(ppCanvas)} > ${shq(join(hub, 'pp-test.json'))}; echo dummy > ${shq(join(hub, 'pp-test.html'))}; echo done;;
+  *BADPATCH*) printf '%s' ${shq(badEnv)};;
+  *) printf '%s' ${shq(goodEnv)};;
+esac\n`,
   { mode: 0o755 });
 const PORT2 = 8353;
 const server2 = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
@@ -333,6 +344,28 @@ const dj2 = pj();
 check('undo removes qa elements and restores layout', un.ok === true
   && !dj2.notes.some(n => n.qa === pa.patched.patch_id)
   && dj2.cards.find(c => c.id === 'a').layout.col === 0);
+// 8. service post-pass: agent "forgets" to embed context → server does it
+// mechanically after the job (embed_context + re-render), before status lands.
+mkdirSync(join(hub, 'pp-repo'));
+writeFileSync(join(hub, 'pp-repo', 'x.py'), 'x=0\ndef f():\n    return 1\n');
+const ppGen = await (await fetch(`${base2}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', repo: join(hub, 'pp-repo'), name: 'pp-test' }),
+})).json();
+check('post-pass job accepted', ppGen.ok === true);
+let ppDone = false;
+for (let i = 0; i < 40; i++) {
+  const js = await (await fetch(`${base2}/jobs`)).json();
+  const j = js.jobs.find(x => x.id === ppGen.job.id);
+  if (j && j.status !== 'running') { ppDone = j.status === 'done'; break; }
+  await new Promise(r => setTimeout(r, 250));
+}
+check('post-pass job done', ppDone);
+const ppd = JSON.parse(readFileSync(join(hub, 'pp-test.json'), 'utf8'));
+check('server embedded context mechanically (agent skipped it)',
+  ppd.files && (ppd.files['x.py'] || '').includes('def f()'));
+check('server re-rendered html after embed',
+  readFileSync(join(hub, 'pp-test.html'), 'utf8').includes('ctx-bar'));
 server2.kill();
 
 await browser.close();

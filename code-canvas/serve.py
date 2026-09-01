@@ -399,13 +399,28 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
     cli = ARGS.cli_bin or "claude"
     result_f = jd / (job_id + ".result.json")
     timing_f = jd / (job_id + ".timing.json")
+
+    def post_pass(repo_dir) -> str:
+        """服务端兜底（不信任 agent 守规程）：任务成功后机械嵌入上下文并重渲染。
+        embed 幂等且自动定位仓库根；预览图等无代码卡的画布它自己会跳过。"""
+        hj = ARGS.hub / (name + ".json")
+        hh = ARGS.hub / (name + ".html")
+        return ('if [ "$rc" -eq 0 ] && [ -f {hj} ]; then '
+                'python3 {embed} {hj} {repo} >> {log} 2>&1 && '
+                'python3 {render} {hj} {hh} >> {log} 2>&1; fi; ').format(
+                    embed=shlex.quote(str(SKILL_DIR / "embed_context.py")),
+                    render=shlex.quote(str(SKILL_DIR / "render.py")),
+                    hj=shlex.quote(str(hj)), hh=shlex.quote(str(hh)),
+                    repo=shlex.quote(str(repo_dir)), log=shlex.quote(str(log_f)))
+
     # claude 输出 stream-json（NDJSON 事件流：监视器读活动，尾行 result 事件是指标信封）
     gen = ('T1=$(date +%s); {cli} -p "$(cat {pf})" --output-format stream-json --verbose '
            '--dangerously-skip-permissions > {res} 2>> {log}; rc=$?; T2=$(date +%s); '
            'printf \'{{"clone_s": %s, "claude_s": %s}}\' "$((T1-T0))" "$((T2-T1))" > {tm}; '
-           'echo $rc > {st}').format(
+           '{post}echo $rc > {st}').format(
                cli=shlex.quote(cli), pf=shlex.quote(str(prompt_f)), res=shlex.quote(str(result_f)),
-               log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)))
+               log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)),
+               post="{post}")
     embed = ("2) python3 {skill}/embed_context.py {work}/canvas.json <仓库根>（必须执行，"
              "上下文全文靠它）；\n" if src["kind"] != "code" else "")
     tail = ("步骤：1) 产出 {work}/canvas.json；{embed}"
@@ -427,6 +442,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
 
     if src["kind"] == "git":
         clone_dir = workdir / "repo"
+        gen = gen.replace("{post}", post_pass(clone_dir))
         prompt = head + task_line("{d}（clone 自 {u}）".format(d=clone_dir, u=src["git_url"])) + tail
         # clone 失败：跳过 claude，status 记非零码，timing 只有 clone 段
         script = ('T0=$(date +%s); git clone --depth 1 {u} {d} >> {log} 2>&1 && cd {d} && {gen}'
@@ -439,9 +455,11 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
         cwd = str(ARGS.hub)
         source_desc = src["git_url"]
     elif src["kind"] == "path":
+        gen = gen.replace("{post}", post_pass(src["repo"]))
         prompt = head + task_line(src["repo"]) + tail
         script, cwd, source_desc = "T0=$(date +%s); " + gen, src["repo"], src["repo"]
-    else:  # code：粘贴的代码片段
+    else:  # code：粘贴的代码片段（无仓库，无兜底后处理）
+        gen = gen.replace("{post}", "")
         src_dir = workdir / "src"
         src_dir.mkdir(exist_ok=True)
         (src_dir / "pasted.txt").write_text(src["code"], encoding="utf-8")
