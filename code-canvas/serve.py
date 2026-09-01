@@ -406,10 +406,14 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
            'echo $rc > {st}').format(
                cli=shlex.quote(cli), pf=shlex.quote(str(prompt_f)), res=shlex.quote(str(result_f)),
                log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)))
-    tail = ("步骤：1) 产出 {work}/canvas.json；2) python3 {skill}/validate.py 清零 ERROR；\n"
-            "3) python3 {skill}/render.py 渲染；4) 把最终 html 复制为 {hub}/{name}.html，"
+    embed = ("2) python3 {skill}/embed_context.py {work}/canvas.json <仓库根>（必须执行，"
+             "上下文全文靠它）；\n" if src["kind"] != "code" else "")
+    tail = ("步骤：1) 产出 {work}/canvas.json；{embed}"
+            "接着 python3 {skill}/validate.py 清零 ERROR（warn 逐条自查）；\n"
+            "然后 python3 {skill}/render.py 渲染；最后把 html 复制为 {hub}/{name}.html，"
             "json 复制为 {hub}/{name}.json。完成后打印 DONE。").format(
-                skill=SKILL_DIR, work=workdir, hub=ARGS.hub, name=name)
+                skill=SKILL_DIR, work=workdir, hub=ARGS.hub, name=name,
+                embed=embed.format(skill=SKILL_DIR, work=workdir) if embed else "")
     head = "阅读 {skill}/SKILL.md 并严格按其管线执行（规模闸门、验证器、截图自检都算数）。\n".format(skill=SKILL_DIR)
 
     def task_line(where: str) -> str:

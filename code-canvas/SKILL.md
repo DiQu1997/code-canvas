@@ -26,8 +26,7 @@ description: Turns code reading, change planning, or diff review into an interac
    ```
 
    毫秒级机械产出：函数/方法卡（原文逐字）、call 线（调用点行锚）、
-   diff 行映射、粗布局。加 `--embed-context` 把引用文件全文嵌入 files
-   映射——渲染后每张卡可就地展开上下文（读者不离开画布看前后文）。**结构层的事实字段（code/file/行号/diff）一律
+   diff 行映射、粗布局。**结构层的事实字段（code/file/行号/diff）一律
    不许手改**——你的全部工作是叙事层：
    - **策展**：删掉与故事无关的卡和线（提取是全量的，画布不是）
    - 写 regions / notes / blocks / terms / steps，改 meta 与卡片 name
@@ -70,7 +69,17 @@ description: Turns code reading, change planning, or diff review into an interac
    在干什么、为什么这么设计、容易误解什么——**不复述 caption、不贴代码、
    不抢行级 note 的活**（贴着具体行的断言仍写 note）。caption 永远要能
    独立成立，detail 只是自愿加深
-7. **产出 JSON，先过验证器再渲染**（不可跳过）：
+7. **嵌入上下文全文（必选，不是可选项）**：
+
+   ```bash
+   python3 embed_context.py canvas.json <仓库根>
+   ```
+
+   把引用文件全文写进顶层 files 映射——渲染后每张卡可展开一体滚动的
+   上下文（读者不离开画布看前后文）。脚本会逐卡溯源核对并机械修正
+   行漂移；对不上的卡它自己会跳过并告知。粘贴代码等没有仓库的场景
+   才可省略
+8. **产出 JSON，先过验证器再渲染**（不可跳过）：
 
    ```bash
    python3 validate.py canvas.json   # ERROR 必须清零；warn 逐条自查
@@ -80,10 +89,10 @@ description: Turns code reading, change planning, or diff review into an interac
    验证器抓机械错误（悬空引用、行号越界、块区间重叠、token 不在行上）
    和预算超限（每步线数/行数、各类文字上限）。ERROR 不清零的图是坏的。
 
-8. **截图自检**（有 headless chromium 时，逐项过下面的清单）：
+9. **截图自检**（有 headless chromium 时，逐项过下面的清单）：
    总览 + 每个 step 各截一张；`#s2` 直达步骤，调试尾缀 `x` 全展开、
    `e` 开说明、`t` 开变元注释、`q` 开问答抽屉
-9. **（可选）开启块级问答**：`python3 serve.py output.html --repo <仓库路径>`，
+10. **（可选）开启块级问答**：`python3 serve.py output.html --repo <仓库路径>`，
    从 localhost 打开——每个块的「问」变成真问答（桥接 `claude -p`）。
    静态打开时「问」降级为复制上下文提问到剪贴板
 
@@ -206,6 +215,7 @@ agent 打算修改代码时，**动手前**先出计划画布（`meta.mode: "pla
 - `DESIGN.md` — 设计决定与理由
 - `schema.md` — canvas JSON 格式
 - `preview-spec.md` — 研究型预览地图的完整规格（分区/线路/硬约束）
+- `embed_context.py` — 上下文全文嵌入（溯源核对 + 行漂移修正，语言无关）
 - `template/canvas.html` — 数据驱动的单文件渲染模板（布局引擎在里面）
 - `validate.py` — canvas JSON 验证器：机械错误 + 预算超限（渲染前必过）
 - `render.py` — JSON → HTML 注入脚本

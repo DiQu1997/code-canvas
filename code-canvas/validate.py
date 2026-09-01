@@ -112,6 +112,18 @@ def main():
     regions = {r.get("id"): r for r in d.get("regions", [])}
     mode = (d.get("meta") or {}).get("mode") or ""
 
+    # 上下文全文：有 file:line 的代码卡应有 files 映射兜底（embed_context.py）
+    have_files = set((d.get("files") or {}).keys())
+    ctx_missing = [c.get("id") for c in d.get("cards", [])
+                   if c.get("code") and c.get("kind") not in ("state", "district")
+                   and c.get("plan") != "add"
+                   and re.match(r"([^:]+):\d+$", c.get("file") or "")
+                   and (c.get("file") or "").rsplit(":", 1)[0] not in have_files]
+    if ctx_missing:
+        warn("{} 张卡有 file:line 却无 files 上下文映射（{}…）——"
+             "跑 embed_context.py 补上，读者才能就地展开上下文".format(
+                 len(ctx_missing), ", ".join(ctx_missing[:3])))
+
     seen_in_region = {}
     for r in d.get("regions", []):
         for cid in r.get("cards", []):

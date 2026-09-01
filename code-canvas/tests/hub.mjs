@@ -251,7 +251,7 @@ check('preview rejects pasted code', pvCode.ok === false);
 
 // 5b. stale canvas auto-rerender: html older than template gets refreshed on serve
 const { utimesSync, statSync } = await import('fs');
-const old = new Date(Date.now() - 86400e3);
+const old = new Date('2000-01-01');  // 必须早于模板 mtime，回拨一天不够（模板不是每天都改）
 utimesSync(join(hub, 'nano-vllm.html'), old, old);
 await fetch(`${base}/c/nano-vllm/`);
 check('stale html re-rendered against current template',
