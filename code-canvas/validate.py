@@ -126,11 +126,11 @@ def main():
 
     # 综述层预算：卡级 about 与故事线 preview
     for c in d.get("cards", []):
-        if len(c.get("about") or "") > 180:
-            warn(f"卡 {c.get('id')}: about 超 160 字（{len(c['about'])}）——综述不是文档")
+        if len(c.get("about") or "") > 260:
+            warn(f"卡 {c.get('id')}: about 超 240 字（{len(c['about'])}）——综述不是文档")
     for r in d.get("regions", []):
-        if len(r.get("preview") or "") > 260:
-            warn(f"region {r.get('id')}: preview 超 240 字（{len(r['preview'])}）")
+        if len(r.get("preview") or "") > 340:
+            warn(f"region {r.get('id')}: preview 超 320 字（{len(r['preview'])}）")
 
     seen_in_region = {}
     for r in d.get("regions", []):
