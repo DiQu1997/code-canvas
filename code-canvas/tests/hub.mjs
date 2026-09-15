@@ -10,7 +10,18 @@ import { mkdtempSync, mkdirSync, copyFileSync, existsSync, readFileSync, writeFi
 import { tmpdir } from 'os';
 const { chromium } = await import(process.env.CANVAS_TEST_PW || 'playwright');
 
-const PORT = 8352;
+// 端口随机化：崩溃泄漏的旧 server 若还占着固定端口，新 run 会静默绑定失败、
+// 对着挂旧目录的僵尸服务器测试（实案）。随 pid 挑端口根治这一类。
+const PORT = 18400 + (process.pid % 1000) * 2;
+const procs = [];                          // 本 run 拉起的所有 server，崩溃也要收尸
+const results = [];
+const check = (name, ok) => results.push(`${ok ? 'PASS' : 'FAIL'} ${name}`);
+process.on('uncaughtException', err => {   // 崩溃也要吐出已收集的结果，别哑死
+  console.log(results.join('\n'));
+  console.error('CRASH:', err.message.split('\n')[0]);
+  for (const pr of procs) { try { pr.kill(); } catch (e) {} }
+  process.exit(1);
+});
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const hub = mkdtempSync(join(tmpdir(), 'canvas-hub-'));
 for (const f of ['nano-vllm.html', 'nano-vllm.json', 'cache-diff.html', 'cache-diff.json'])
@@ -50,6 +61,7 @@ writeFileSync(join(hub, '.jobs', 'j00000000-000000.result.json'), [
 
 const server = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
   '--port', String(PORT), '--cli-bin', '/bin/echo'], { stdio: 'ignore' });
+procs.push(server);
 const base = `http://127.0.0.1:${PORT}`;
 const alive = async () => {
   for (let i = 0; i < 30; i++) {
@@ -59,9 +71,6 @@ const alive = async () => {
   return false;
 };
 if (!await alive()) { server.kill(); console.error('FAIL server did not start'); process.exit(1); }
-
-const results = [];
-const check = (name, ok) => results.push(`${ok ? 'PASS' : 'FAIL'} ${name}`);
 
 // 1. front page: generation form first, then library, then examples section
 const listHtml = await (await fetch(`${base}/`)).text();
@@ -310,9 +319,10 @@ case "$*" in
   *) printf '%s' ${shq(goodEnv)};;
 esac\n`,
   { mode: 0o755 });
-const PORT2 = 8353;
+const PORT2 = PORT + 1;
 const server2 = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
   '--port', String(PORT2), '--cli-bin', join(hub, 'fakepatch.sh')], { stdio: 'ignore' });
+procs.push(server2);
 const base2 = `http://127.0.0.1:${PORT2}`;
 for (let i = 0; i < 30; i++) {
   try { if ((await fetch(`${base2}/__alive`)).ok) break; } catch (e) {}

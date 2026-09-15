@@ -31,6 +31,10 @@
     border-bottom: 1px solid #e4e8ec; border-radius: 10px 10px 0 0; cursor: pointer; white-space: nowrap; }
   .card.collapsed .hdr { border-bottom: none; border-radius: 10px; }
   .card.collapsed .body { display: none; }
+  /* 卡级综述：读代码前先读它——干什么/在哪个模块/什么机制 */
+  .about { font-size: 11.5px; line-height: 1.7; color: #57606a; padding: 7px 12px 8px;
+    border-bottom: 1px solid #eaeef2; background: #fbfcfd; max-width: 620px; }
+  .card.collapsed .about { display: none; }
   .chev { color: #8c959f; font-size: 9px; width: 10px; flex: none; }
   .fname { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px;
     color: #1f2328; font-weight: 600; }
@@ -336,6 +340,16 @@
     border: 1px solid; margin-right: 8px; vertical-align: 1px; }
   #stitle { font-weight: 600; font-size: 13px; color: #1f2328; margin-bottom: 2px; }
   #scap { font-size: 12px; color: #57606a; line-height: 1.5; max-width: 560px; }
+  /* 故事线预告：走进一条线的第一步时自动亮出——这条线讲什么、涉及什么、读完懂什么 */
+  #spreview { font-size: 12px; color: #424a53; line-height: 1.65; max-width: 560px;
+    border-left: 3px solid #8c959f; padding: 4px 10px 5px; margin-bottom: 7px;
+    background: rgba(9,105,218,.05); border-radius: 0 6px 6px 0;
+    max-height: 7em; overflow-y: auto; }
+  #spreview b { display: block; font-size: 10.5px; margin-bottom: 2px; letter-spacing: .3px; }
+  #spreview[hidden] { display: none; }
+  #mstream .ms-prev { font-size: 12px; color: #424a53; line-height: 1.65;
+    border-left: 3px solid var(--sc, #8c959f); padding: 5px 10px; margin: -2px 0 10px;
+    background: #fff; border-radius: 0 8px 8px 0; }
   #sdetail-btn { display: inline-block; font-size: 10.5px; color: #0969da; cursor: pointer;
     margin-top: 3px; user-select: none; }
   #sdetail-btn:hover { text-decoration: underline; }
@@ -430,7 +444,7 @@
   <button class="navbtn" id="prev">◀</button>
   <div id="dots"></div>
   <button class="navbtn" id="next">▶</button>
-  <div id="stext"><div id="stitle"></div><div id="scap"></div>
+  <div id="stext"><div id="spreview" hidden></div><div id="stitle"></div><div id="scap"></div>
     <div id="sdetail" hidden></div>
     <span id="sdetail-btn" hidden>详解 ▾</span><span id="dive-btn" hidden>→ 深潜这条</span>
   </div>
@@ -558,7 +572,9 @@ for (const c of DATA.cards) {
     el.className = 'card state';
     el.id = 'card-' + c.id;
     el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>`
-      + `<span class="file">${esc(c.file || '')}</span></div><div class="body sbody"></div>`;
+      + `<span class="file">${esc(c.file || '')}</span></div>`
+      + (c.about ? `<div class="about">${esc(c.about)}</div>` : '')
+      + `<div class="body sbody"></div>`;
     world.appendChild(el);
     continue;
   }
@@ -634,6 +650,7 @@ for (const c of DATA.cards) {
   }
   el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>${badge}`
     + `<span class="file">${esc(c.file || '')}</span></div>`
+    + (c.about ? `<div class="about">${esc(c.about)}</div>` : '')
     + `<div class="body">${coreHtml}</div>`;
   world.appendChild(el);
 }
@@ -1096,6 +1113,13 @@ function setStep(i, animate = true) {
     (reg ? `<span class="schip" style="color:${hue.lb}; border-color:${hue.lb}">${esc(reg.title.replace(/^故事线\s*/, ''))}</span>` : '')
     + esc(s.title || '');
   document.getElementById('scap').textContent = s.caption || '';
+  // 故事线预告：这条线的第一步自动亮出 region.preview（What to expect）
+  const pv = document.getElementById('spreview');
+  if (reg && reg.preview && firstStepOf[reg.id] === step) {
+    pv.hidden = false;
+    pv.style.borderColor = hue ? hue.lb : '#8c959f';
+    pv.innerHTML = `<b style="color:${hue ? hue.lb : '#57606a'}">预告 · ${esc(reg.title.replace(/^故事线\s*/, ''))}</b>${esc(reg.preview)}`;
+  } else pv.hidden = true;
   // 步级详解：有 detail 才出「详解」按钮，换步自动收起
   const dbtn = document.getElementById('sdetail-btn');
   const dpanel = document.getElementById('sdetail');
@@ -1169,7 +1193,7 @@ function canvasContext() {
     }
     const lines = c.code.split('\n');
     const code = lines.length > 60 ? lines.slice(0, 60).join('\n') + '\n…（截断）' : c.code;
-    return `— ${c.name}（${c.file || ''}）:\n${code}`;
+    return `— ${c.name}（${c.file || ''}）${c.about ? '：' + c.about : ''}\n${code}`;
   }).join('\n\n');
   const notes = (DATA.notes || []).map(n => `${n.tag || 'NOTE'}: ${n.text}`).join('\n');
   const s = STEPS[step];
@@ -1298,7 +1322,7 @@ function buildQAPrompt(question) {
   const hist = (QA.log[qaKey()] || []).filter(x => x.a && !x.err).slice(-3)
     .map(x => `Q: ${x.q}\nA: ${x.a}`).join('\n');
   const profile = getProfile();
-  return `你是一张交互式代码画布（Code Canvas）的讲解员。只根据给出的代码与上下文回答；代码里没有依据的不要编造；不确定就直说不确定。用中文回答，尽量不超过 200 字。${profile ? `\n读者画像: ${profile}（回答的深度、术语与语言风格按画像来）` : ''}\n\n主题: ${DATA.meta?.title || ''} — ${DATA.meta?.subtitle || ''}\n卡片: ${card.name}（${card.file || ''}）\n逻辑块: ${b.name} — ${b.summary || ''}${b.explain ? '\n已有说明: ' + b.explain : ''}\n\n块内代码（卡片内行号 ${b.lines[0]}–${b.lines[1]}）:\n${blockCode}\n\n所在函数完整代码:\n${card.code}\n${hist ? '\n此前的问答:\n' + hist + '\n' : ''}${patchProtocol()}\n读者的问题: ${question}`;
+  return `你是一张交互式代码画布（Code Canvas）的讲解员。只根据给出的代码与上下文回答；代码里没有依据的不要编造；不确定就直说不确定。用中文回答，尽量不超过 200 字。${profile ? `\n读者画像: ${profile}（回答的深度、术语与语言风格按画像来）` : ''}\n\n主题: ${DATA.meta?.title || ''} — ${DATA.meta?.subtitle || ''}\n卡片: ${card.name}（${card.file || ''}）${card.about ? '\n卡片综述: ' + card.about : ''}\n逻辑块: ${b.name} — ${b.summary || ''}${b.explain ? '\n已有说明: ' + b.explain : ''}\n\n块内代码（卡片内行号 ${b.lines[0]}–${b.lines[1]}）:\n${blockCode}\n\n所在函数完整代码:\n${card.code}\n${hist ? '\n此前的问答:\n' + hist + '\n' : ''}${patchProtocol()}\n读者的问题: ${question}`;
 }
 function renderQALog() {
   const el = document.getElementById('qa-log');
@@ -1463,6 +1487,13 @@ function buildStream() {
     for (const r of DATA.regions || []) {
       const hue = (HUES[r.hue] || HUES.blue);
       msSect(esc(r.title) + (r.blurb ? ` <span style="font-weight:400;color:#57606a">· ${esc(r.blurb)}</span>` : ''), hue.lb);
+      if (r.preview) {
+        const pe = document.createElement('div');
+        pe.className = 'ms-prev';
+        pe.style.setProperty('--sc', hue.lb);
+        pe.textContent = r.preview;
+        mstreamEl.appendChild(pe);
+      }
       for (const id of r.cards || []) {
         if (!cardById[id]) continue;
         grouped.add(id);

@@ -20,6 +20,8 @@ check('stream mode auto-on under 700px',
   await page.evaluate(() => document.body.classList.contains('mstream')));
 check('canvas viewport hidden', !(await page.isVisible('#vp')));
 check('overview lists storyline sections', (await page.$$('#mstream .ms-sect')).length >= 2);
+check('overview shows per-storyline previews', (await page.$$('#mstream .ms-prev')).length >= 3);
+check('about strip present in stream', (await page.$$('#mstream .about')).length >= 1);
 check('cards are stacked full-width', await page.$eval('#mstream .card',
   el => Math.abs(el.getBoundingClientRect().width - (390 - 20)) < 30));
 

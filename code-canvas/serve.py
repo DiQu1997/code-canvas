@@ -389,7 +389,8 @@ def job_monitor(job_id: str):
 
 def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dict:
     """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。"""
-    job_id = time.strftime("j%Y%m%d-%H%M%S")
+    # 毫秒后缀去重：同一秒下多单会共享 id，prompt/status/workdir 互相踩（实案）
+    job_id = time.strftime("j%Y%m%d-%H%M%S") + "-{:03d}".format(int(time.time() * 1000) % 1000)
     jd = jobs_dir()
     prompt_f, log_f, status_f = jd / (job_id + ".prompt"), jd / (job_id + ".log"), jd / (job_id + ".status")
     meta_f = jd / (job_id + ".meta.json")

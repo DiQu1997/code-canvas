@@ -14,7 +14,8 @@
         "step",
         "run",
         "sampler"
-      ]
+      ],
+      "preview": "这条线走 LLMEngine.step() 的一圈：调度器挑出本步要跑的序列 → ModelRunner 跑一次前向 → Sampler 取出 token → postprocess 写回并判终止。涉及 engine/llm_engine.py 与 model_runner.py。核心机制是连续批处理：每一步都重新组批，谁就绪谁上车。读完你能说清一个 token 是经过哪四站生出来的。"
     },
     {
       "id": "B",
@@ -25,7 +26,8 @@
         "schedule",
         "preempt",
         "postprocess"
-      ]
+      ],
+      "preview": "这条线看 Scheduler.schedule() 每一步怎么决定谁上车：先尽量把 waiting 里的新请求组成 prefill 批（token 预算 + 席位上限 + 只许队首切块），组不出才轮到 decode；显存不够时 preempt 抢占最后进来的请求腾块。涉及 engine/scheduler.py。本质是贪心 + 预算约束，公平靠抢占者回队首保住。"
     },
     {
       "id": "C",
@@ -36,7 +38,8 @@
         "can_allocate",
         "allocate",
         "hash_blocks"
-      ]
+      ],
+      "preview": "这条线讲 KV cache 的记账：BlockManager 把显存切成定长块，序列只持有 block_table 页表；相同前缀的块按链式哈希查重复用——ref_count 加一，数据不搬。涉及 engine/block_manager.py，配一张块池实例快照随步进演化。读完你能解释前缀缓存为什么省显存、抢占为什么只是改账本。"
     }
   ],
   "cards": [
@@ -57,7 +60,8 @@
           "token": "is_prefill",
           "note": "整批同型标志：一轮要么全 prefill 要么全 decode，attention 按它切换 varlen / paged 两条路径。"
         }
-      ]
+      ],
+      "about": "引擎主循环的一拍：每次调用完成调度→前向→采样→写回一整圈，产出每条在跑序列的下一个 token。它是 engine/llm_engine.py 的核心方法，也是三条故事线的交汇点——调度和显存账本都为这一圈服务。"
     },
     {
       "id": "run",
@@ -186,7 +190,8 @@
           "token": "num_scheduled_tokens",
           "note": "这条 seq 本轮真正要算的 token 数；chunked prefill 时小于剩余全量，decode 时恒为 1。"
         }
-      ]
+      ],
+      "about": "每一拍的谁上车决策：优先把 waiting 里的新请求组成 prefill 批（token 预算与席位上限约束，只许队首切块），组不出才让 running 里的老请求走 decode。贪心 + 预算约束，engine/scheduler.py 的中枢。"
     },
     {
       "id": "preempt",
@@ -217,7 +222,8 @@
           "token": "num_cached_tokens",
           "note": "已写入 KV cache 的 token 数；prefill 分几轮时靠它记录进度，也是下次增量的起点。"
         }
-      ]
+      ],
+      "about": "一圈的收尾站：把采样出的 token 追加进各序列，命中 eos 或达到 max_tokens 的标记完成并释放其块。engine/llm_engine.py 里写回的那一站。"
     },
     {
       "id": "can_allocate",
@@ -236,7 +242,8 @@
           "token": "num_new_blocks",
           "note": "按全新分配估算的块数；每命中一个「在用」的共享块就减一，用来判断 free 池够不够。"
         }
-      ]
+      ],
+      "about": "分配前的只读探测：沿序列逐块算链式哈希查缓存，返回能复用的前缀块数；-1 表示 free 池不够、本步不收这个请求。探测与分配分离，账本只在 allocate 里动。"
     },
     {
       "id": "allocate",
@@ -299,7 +306,8 @@
           "token": "block_table",
           "note": "seq 的页表：逻辑块序号 → 物理块 id。attention 用它把逻辑位置翻译成显存里的块。"
         }
-      ]
+      ],
+      "about": "给新序列上块表：先认领前缀命中的缓存块（只加 ref_count，不搬数据），再从 free 池取新块补齐。BlockManager 的核心写路径，前缀缓存省显存的落点就在这几行。"
     },
     {
       "id": "hash_blocks",
@@ -497,7 +505,8 @@
             }
           }
         }
-      ]
+      ],
+      "about": "块池的具象实例：free 队列与两个块的账本随步进演化，格子变色 = 这一步改了哪。盯住 ref_count：共享只加引用、回收只改账本。"
     }
   ],
   "wires": [

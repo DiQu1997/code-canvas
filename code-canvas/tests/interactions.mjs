@@ -73,6 +73,25 @@ await page.click('#card-allocate .bbtn[data-act="run"]');
 await page.waitForTimeout(200);
 check('run panel toggles closed', !(await page.isVisible('#card-allocate .brun')));
 
+// card about strip + storyline preview
+check('about strip visible on expanded card',
+  (await page.textContent('#card-step .about')).includes('主循环'));
+check('about hidden on collapsed card', !(await page.isVisible('#card-run .about'))
+  || (await page.$('#card-run .about')) === null);
+check('no preview on overview', !(await page.isVisible('#spreview')));
+await page.click('#next'); await page.waitForTimeout(400);   // step1 = 故事线 A 第一步
+check('storyline preview auto-shows on its first step',
+  await page.isVisible('#spreview') && (await page.textContent('#spreview')).includes('预告')
+  && (await page.textContent('#spreview')).includes('连续批处理'));
+await page.click('#next'); await page.waitForTimeout(400);   // step2 = 故事线 B 第一步
+check('preview switches per storyline',
+  (await page.textContent('#spreview')).includes('谁上车'));
+await page.evaluate(() => setStep(5));                        // 故事线 A 的第二段
+await page.waitForTimeout(400);
+check('no preview on later steps of same storyline', !(await page.isVisible('#spreview')));
+await page.evaluate(() => setStep(0));
+await page.waitForTimeout(400);
+
 // reading-order chips: none on overview, appear on a multi-focus step, renumber on step change
 check('no order chips on overview', (await page.$$('.ordchip')).length === 0);
 await page.click('#next'); await page.waitForTimeout(700);
