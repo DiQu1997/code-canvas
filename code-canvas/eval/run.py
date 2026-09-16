@@ -180,7 +180,7 @@ def main():
     sub.add_parser("list")
     pe = sub.add_parser("exam")
     pe.add_argument("id")
-    pe.add_argument("--cli", default="claude -p")
+    pe.add_argument("--cli", default="claude -p --dangerously-skip-permissions")
     pe.add_argument("--dry-run", action="store_true")
     pg = sub.add_parser("grade")
     pg.add_argument("out_dir", type=Path)
