@@ -44,7 +44,7 @@ def norm(s: str) -> str:
     return re.sub(r"\s+", "", s).replace("//", "").replace("#", "").replace("\\", "")
 
 
-def grade(out_dir: Path, repo: Path, mode: str | None) -> dict:
+def grade(out_dir: Path, repo: Path, mode=None) -> dict:
     r = {"out": str(out_dir), "checks": [], "verdict": "FAIL"}
 
     def add(name, ok, detail=""):
