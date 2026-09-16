@@ -91,6 +91,16 @@ def grade(out_dir: Path, repo: Path, mode: str | None) -> dict:
 
     n_steps = len(d.get("steps", []))
     add("有故事线步骤（≥3）", n_steps >= 3, f"{n_steps} 步")
+
+    # 综述层覆盖（软指标：不进 hard 列表，缺了 PASS (warn)）
+    key_cards = [c for c in cards if c.get("code") and c.get("collapsed") is False
+                 and not c.get("kind")]
+    n_about = len([c for c in key_cards if c.get("about")])
+    add("重点卡有 about 综述", not key_cards or n_about == len(key_cards),
+        f"{n_about}/{len(key_cards)} 张重点卡")
+    regs = d.get("regions", [])
+    n_pv = len([r for r in regs if r.get("preview")])
+    add("故事线有 preview 预告", not regs or n_pv == len(regs), f"{n_pv}/{len(regs)} 条")
     if mode == "orientation":
         add("领航图卡数 ≤9", total <= 9, f"{total} 张")
     elif mode == "deep":

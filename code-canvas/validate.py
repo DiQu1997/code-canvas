@@ -124,13 +124,19 @@ def main():
              "跑 embed_context.py 补上，读者才能就地展开上下文".format(
                  len(ctx_missing), ", ".join(ctx_missing[:3])))
 
-    # 综述层预算：卡级 about 与故事线 preview
+    # 综述层：预算 + 覆盖（重点卡必写 about、故事线必写 preview——warn 逼自查）
     for c in d.get("cards", []):
         if len(c.get("about") or "") > 260:
             warn(f"卡 {c.get('id')}: about 超 240 字（{len(c['about'])}）——综述不是文档")
+        if (c.get("code") and c.get("collapsed") is False
+                and not c.get("kind") and not c.get("about")):
+            warn(f"卡 {c.get('id')}: 重点卡（collapsed:false）缺 about 综述——"
+                 "读者读代码前该先知道它怎么干活")
     for r in d.get("regions", []):
         if len(r.get("preview") or "") > 340:
             warn(f"region {r.get('id')}: preview 超 320 字（{len(r['preview'])}）")
+        if not r.get("preview") and mode not in ("plan", "diff"):
+            warn(f"region {r.get('id')}: 故事线缺 preview 预告——读者不知道 what to expect")
 
     seen_in_region = {}
     for r in d.get("regions", []):
