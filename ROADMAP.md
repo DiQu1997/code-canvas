@@ -47,6 +47,7 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
 | codex-exec 深潜 | PASS | 15/15 | 34 min | 手工（Rust） |
 | nanovllm-deep 深潜 | PASS (warn:18卡>16) | 18/18 | **16 min** | **结构层先行** |
 | nanovllm-deep 深潜 v2（2026-08-19） | **PASS 全绿** | 15/15 | 20.7 min | 结构层 + **数据结构四件套**：考生零上下文自发产出 KV 块池快照卡（三态、含惰性失效细节）、struct 线、step.detail；16 卡压线（上场超预算已改）。产物 examples/nanovllm-deep-v2/ |
+| nanovllm-deep 深潜 v3（2026-09-15，盒子首考） | **PASS 全绿 0 warn** | 12/12 | 24.2 min | 全家桶管线：考生零上下文自发产出**机制级综述**（about 5/5、preview 3/3——"Gumbel-max 除以指数噪声后 argmax""抢占代价是 KV 重算换 decode 永远推进"段位）+ 沙盘 1 + 快照卡 + 上下文 6 文件 + 9 截图。$7.25 折算。产物 examples/nanovllm-deep-v3/ |
 
 未跑：requests-nav。评分器容忍面已补：`#`/`\` 续行（sglang 审计与考试各暴露一处）。
 真实用户产物审计：sglang 8/9（engine 卡省略中段违规——提取器管线根治此类）。
@@ -158,3 +159,9 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   （数据结构/判据/步骤），纯职责定位句不合格；preview 须把核心机制一段
   讲透。vllm 与 kafka 画布按新规程补装（agent 读源码核实，机制以真实
   实现为准）
+- **2026-09-15**：作者问 service 的 agent 能否自发产出同质量综述 →
+  补机械闸门（validate 覆盖警告 + 考试评分 2 软指标）→ 盒子首次开考连
+  暴两个潜伏 bug（run.py 3.10 注解语法炸 3.8；无 skip-permissions 考生
+  被静默锁死，$2.28 学费换考生一条有价值反馈：方法论没写运行前提）→
+  第三考 **PASS 全绿 0 warn**：零上下文考生仅凭 SKILL 自发写出机制级
+  综述，与专用提示词补装版同档。结论：service 的 agent 已同质量

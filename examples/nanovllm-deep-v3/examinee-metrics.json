@@ -1,0 +1,9 @@
+{
+  "cost_usd": 7.2479,
+  "dur_s": 1454.3,
+  "turns": 62,
+  "in_tok": 13835,
+  "out_tok": 75645,
+  "cache_read": 7011095,
+  "cache_write": 178086
+}
