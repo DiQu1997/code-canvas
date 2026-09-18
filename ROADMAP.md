@@ -189,3 +189,10 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   信封是 claude 专属——codex 任务只有分段计时（如实降级）；问答桥仍
   claude（server 级 --cli 可换）。hub 71 项全绿；nano-vllm-codex 实弹
   首跑发出（质量待核验）
+  → **评测污染发现**（诚实记录）：codex 首跑 nano-vllm 118 秒"全绿"
+  ——核验发现整卷照抄黄金样本（about 6/6、preview 3/3、沙盘 2/2 逐字同；
+  demo 与考题同仓库=答案泄露）。产物已删。连带修正：claude v3 考试的
+  部分 about 也与 golden 高度相似，"零上下文自发"结论打折（其原创部分
+  ——sampler Gumbel-max、prepare_prefill 沙盘等——仍真实）。教训入册：
+  **nanovllm 考卷已污染，评 agent 能力必须用 golden 之外的仓库**；
+  codex 干净重测已下单（requests，golden 无此仓库）
