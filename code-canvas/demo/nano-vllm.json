@@ -147,6 +147,15 @@
                 "expected": "本批 prefill（预算 16 token / 3 席）:\n  A → 2 token（整条）\n  B → 2 token（整条）\n  C → 2 token（整条）\n合计 6 token；还在排队: ['D']\n"
               }
             ]
+          },
+          "detail": {
+            "why": "prefill 优先于 decode：新请求首token延迟对体验最敏感，且整段 prompt 一次前向的算力利用率远高于逐 token 的 decode；代价是 decode 请求可能被饿一拍，靠预算上限兜住。",
+            "invariants": [
+              "num_batched_tokens 永不超过 max_num_batched_tokens",
+              "只有批里第一条序列允许被切块（chunked prefill）",
+              "进入 RUNNING 的序列必然已拿到全部所需块"
+            ],
+            "failure_modes": "若 can_allocate 返回 -1（free 池不够整条所需），整个 prefill 收批立即停止——不跳过它去收后面的小请求，避免大请求被无限插队饿死。"
           }
         },
         {

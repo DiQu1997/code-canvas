@@ -58,6 +58,22 @@ await page.waitForTimeout(400);
 check('context window scrolls in stream', await page.$eval('#card-allocate .codewin',
   el => el.classList.contains('scrolly') && el.scrollHeight > el.clientHeight));
 
+// 3b. reader on narrow screen: side panel stacks below, nothing overlaps
+await page.$eval('#card-allocate .rd-btn', el => el.click());
+await page.waitForTimeout(400);
+check('reader opens from stream', await page.evaluate(() =>
+  document.body.classList.contains('reading')));
+check('narrow screen stacks explain below code', await page.evaluate(() => {
+  const c = document.getElementById('rd-main').getBoundingClientRect();
+  const s = document.getElementById('rd-side').getBoundingClientRect();
+  return s.top >= c.bottom - 2;
+}));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+check('exit restores stream', await page.evaluate(() =>
+  document.body.classList.contains('mstream'))
+  && (await page.$$('#mstream .card')).length >= 1);
+
 // 4. mode toggle escapes to 2D canvas and back
 check('mode button visible on phone', await page.isVisible('#mode-btn'));
 await page.click('#mode-btn');

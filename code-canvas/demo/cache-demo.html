@@ -190,7 +190,7 @@
   .tnote.open { display: block; }
 
   /* ---- per-block Q&A drawer ---- */
-  #qa { position: fixed; top: 0; right: -420px; width: 390px; height: 100%; z-index: 20;
+  #qa { position: fixed; top: 0; right: -420px; width: 390px; height: 100%; z-index: 50;
     background: #ffffff; border-left: 1px solid #d0d7de; display: flex; flex-direction: column;
     transition: right .3s ease; box-shadow: -12px 0 30px rgba(31,35,40,.16); }
   #qa.open { right: 0; }
@@ -371,6 +371,51 @@
     max-height: 8.5em; overflow-y: auto; white-space: pre-wrap; }
   #sdetail[hidden] { display: none; }
 
+  /* ---- 精读模式：原卡放大为阅读容器，背景画布淡化留在身后 ---- */
+  #reader { position: fixed; inset: 0; z-index: 40; display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px; gap: 14px;
+    padding: 16px 18px; background: rgba(246,248,250,.86);
+    backdrop-filter: blur(2px); user-select: text; }
+  #reader[hidden] { display: none; }
+  #rd-main { display: flex; flex-direction: column; min-height: 0; }
+  #rd-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+  #rd-title { font-weight: 700; font-size: 14px; color: #1f2328; }
+  #rd-exit { margin-left: auto; font-size: 11.5px; color: #57606a; cursor: pointer;
+    border: 1px solid #d0d7de; border-radius: 999px; padding: 3px 12px; background: #fff; }
+  #rd-exit:hover { color: #cf222e; border-color: #cf222e; }
+  #rd-card { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  #rd-card .card { position: static !important; width: auto !important;
+    max-width: 920px; margin: 0 auto; box-shadow: 0 6px 28px rgba(31,35,40,.14); }
+  #rd-card .ln { font-size: 12.5px; line-height: 1.7; }
+  #rd-card .blk.rd-sel { outline: 2px solid #0969da; outline-offset: 1px; }
+  #rd-card .rd-btn { display: none; }
+  #rd-side { min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    background: #fff; border: 1px solid #d0d7de; border-radius: 12px; padding: 14px 16px;
+    font-size: 12.5px; line-height: 1.7; color: #24292f; }
+  #rd-side h4 { margin: 0 0 4px; font-size: 12px; color: #57606a; }
+  #rd-side .rs-file { font: 11px ui-monospace, Menlo, monospace; color: #8c959f;
+    word-break: break-all; margin-bottom: 8px; }
+  #rd-side .rs-nav { display: flex; flex-direction: column; gap: 3px; margin: 8px 0 12px; }
+  #rd-side .rs-nav span { font-size: 11.5px; color: #57606a; cursor: pointer;
+    padding: 2px 8px; border-left: 3px solid var(--bc, #d0d7de); }
+  #rd-side .rs-nav span.on { color: #0969da; background: #eef4fb; font-weight: 600; }
+  #rd-side details { margin: 6px 0; border: 1px solid #e4e8ec; border-radius: 8px;
+    padding: 5px 10px; background: #fbfcfd; }
+  #rd-side summary { font-size: 11.5px; color: #57606a; cursor: pointer; font-weight: 600; }
+  #rd-side .rs-note { border-left: 3px solid #bf8700; background: rgba(191,135,0,.05);
+    padding: 4px 8px; margin: 5px 0; font-size: 11.5px; border-radius: 0 6px 6px 0; }
+  #rd-side .bbtn { border: 1px solid #d0d7de; border-radius: 999px; padding: 2px 12px;
+    font-size: 11.5px; cursor: pointer; background: #fff; color: #0969da; }
+  /* 精读期间：藏掉会遮挡的全局导航；连线暂隐 */
+  body.reading #topbar, body.reading #hint, body.reading #bar,
+  body.reading #profile-btn, body.reading #canvas-ask-btn, body.reading #dl-btn,
+  body.reading #mode-btn { display: none; }
+  body.reading #wires, body.reading #routes { visibility: hidden; }
+  @media (max-width: 900px) {
+    #reader { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(120px, 38%);
+      padding: 10px; gap: 10px; }
+  }
+
   /* ---- 移动端卡片流：同一份数据的另一种投影——步进驱动的垂直流 ---- */
   #mstream { position: fixed; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
     background: #f6f8fa; z-index: 5; padding: 104px 10px 160px; }
@@ -423,6 +468,13 @@
 <div id="vp"><div id="world"><svg id="routes"></svg><svg id="wires"></svg></div></div>
 <div id="mstream" hidden></div>
 <button id="mode-btn" hidden>2D 画布</button>
+<div id="reader" hidden>
+  <div id="rd-main">
+    <div id="rd-head"><span id="rd-title"></span><span id="rd-exit">✕ 退出精读 · Esc</span></div>
+    <div id="rd-card"></div>
+  </div>
+  <aside id="rd-side"></aside>
+</div>
 
 <div id="topbar">
   <a id="home-link" href="/" hidden>← 画布库</a>
@@ -660,6 +712,7 @@ for (const c of DATA.cards) {
     }
   }
   el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>${badge}`
+    + `<span class="rd-btn" title="精读：原地放大连续阅读">⛶</span>`
     + `<span class="file">${esc(c.file || '')}</span></div>`
     + (c.about ? `<div class="about">${esc(c.about)}</div>` : '')
     + `<div class="body">${coreHtml}</div>`;
@@ -966,7 +1019,9 @@ function renderStateCards() {
   }
 }
 function drawWires() {
-  if (document.body.classList.contains('mstream')) return;  // 卡片流没有空间布线
+  // 卡片流没有空间布线；精读时卡在阅读容器里，布线等它归位
+  if (document.body.classList.contains('mstream')
+      || document.body.classList.contains('reading')) return;
   relayoutColumns(); placeNotes(); fitRegions(); sizeWorld();
   svg.innerHTML = '<defs>' + Object.entries(ARROW_COLORS).map(([k, c]) =>
     `<marker id="ah-${k}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -1173,6 +1228,8 @@ for (const r of DATA.regions || []) {
   lb.addEventListener('click', () => setStep(firstStepOf[r.id]));
 }
 addEventListener('keydown', e => {
+  if (e.key === 'Escape' && readingOn()) { exitReader(); return; }
+  if (readingOn()) return;   // 精读期间步进导航停摆
   if (e.key === 'ArrowLeft') setStep(step - 1);
   if (e.key === 'ArrowRight') setStep(step + 1);
 });
@@ -1367,6 +1424,7 @@ function renderQALog() {
    小屏抽屉全屏盖住画布，平移没有意义，跳过 */
 function ensureVisible(el) {
   if (innerWidth < 700) return;
+  if (readingOn()) return;   // 精读态：卡在阅读容器里，别拿画布相机去追它
   const p = wpos(el);
   const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
   const availW = innerWidth - 410;
@@ -1549,6 +1607,115 @@ document.getElementById('mode-btn').addEventListener('click', () => {
   forceCanvas = streamOn();
   syncStreamMode();
 });
+
+/* ================= 精读模式：原卡放大连续读，背景画布淡化在身后 =================
+   进入：真卡搬进阅读容器（块/沙盘/上下文/问答全保留），强制展开全部块；
+   选块：点块条或块内代码 → 高亮 + 侧栏同步该块的作用/解释/设计理由/不变量/
+   失败情况（block.detail，可选字段，旧数据自然缺省）+ 块内行级断言；
+   退出（Esc/✕）：卡归还原位，折叠态逐块还原，镜头分毫未动。 */
+const RD = { card: null, foldedWas: [], collapsedWas: false, sel: null };
+const readerEl = document.getElementById('reader');
+function readingOn() { return document.body.classList.contains('reading'); }
+function enterReader(cardId, selBlock) {
+  const c = cardById[cardId];
+  const el = document.getElementById('card-' + cardId);
+  if (!c || !el || readingOn()) return;
+  RD.card = cardId;
+  RD.sel = null;
+  RD.next = el.nextElementSibling;   // 记住 DOM 原位，退出按原位归还
+  RD.collapsedWas = el.classList.contains('collapsed');
+  el.classList.remove('collapsed');
+  RD.foldedWas = [];
+  el.querySelectorAll('.blk.folded').forEach(b => {
+    RD.foldedWas.push(b.querySelector('.bname').textContent);
+    b.classList.remove('folded');
+    b.querySelector('.bchev').textContent = '▾';
+  });
+  document.getElementById('rd-card').appendChild(el);
+  document.getElementById('rd-title').textContent = c.name;
+  document.body.classList.add('reading');
+  readerEl.hidden = false;
+  rdSelect(selBlock || null);
+  document.getElementById('rd-card').scrollTop = 0;
+}
+function exitReader() {
+  if (!readingOn()) return;
+  const el = document.getElementById('card-' + RD.card);
+  document.querySelectorAll('#rd-card .blk.rd-sel').forEach(b => b.classList.remove('rd-sel'));
+  for (const name of RD.foldedWas) {
+    const blk = [...el.querySelectorAll('.blk')]
+      .find(b => b.querySelector('.bname').textContent === name);
+    if (blk) { blk.classList.add('folded'); blk.querySelector('.bchev').textContent = '▸'; }
+  }
+  if (RD.collapsedWas) {
+    el.classList.add('collapsed');
+    el.querySelector('.chev').textContent = '▸';
+  }
+  world.insertBefore(el, RD.next && RD.next.parentNode === world ? RD.next : null);
+  document.body.classList.remove('reading');
+  readerEl.hidden = true;
+  RD.card = null;
+  RD.next = null;
+  if (streamOn()) buildStream();
+  else drawWires();   // 镜头从未动过，归还后原样重绘即是恢复
+}
+function rdSelect(bname) {
+  RD.sel = bname;
+  const c = cardById[RD.card];
+  const cardEl = document.getElementById('card-' + RD.card);
+  cardEl.querySelectorAll('.blk.rd-sel').forEach(b => b.classList.remove('rd-sel'));
+  let blk = null, b = null;
+  if (bname) {
+    b = findBlock(c.blocks, bname);
+    blk = [...cardEl.querySelectorAll('.blk')]
+      .find(x => x.querySelector('.bname').textContent === bname);
+    if (blk) blk.classList.add('rd-sel');
+  }
+  renderRdSide(c, b);
+  if (blk) blk.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function renderRdSide(c, b) {
+  const side = document.getElementById('rd-side');
+  const det = (b && b.detail) || {};
+  const names = [];
+  (function walk(bs) { (bs || []).forEach(x => { names.push(x); walk(x.children); }); })(c.blocks);
+  const notesIn = b ? (DATA.notes || []).filter(n => (n.anchor || {}).card === c.id
+    && n.anchor.line >= b.lines[0] && n.anchor.line <= b.lines[1]) : [];
+  const invs = Array.isArray(det.invariants) ? det.invariants
+    : det.invariants ? [det.invariants] : [];
+  side.innerHTML = `<h4>${esc(c.name)}</h4><div class="rs-file">${esc(c.file || '')}</div>`
+    + (c.about ? `<div style="color:#57606a">${esc(c.about)}</div>` : '')
+    + (names.length ? `<h4 style="margin-top:12px">逻辑块（点选）</h4><div class="rs-nav">`
+      + names.map(x => `<span data-b="${esc(x.name)}"${x.name === RD.sel ? ' class="on"' : ''}>`
+        + `${esc(x.name)} <i style="color:#8c959f;font-style:normal">${x.lines[0]}–${x.lines[1]}</i></span>`).join('')
+      + `</div>` : '')
+    + (b ? `<h4>当前块 · ${esc(b.name)}</h4>`
+      + (b.summary ? `<div><b>作用：</b>${esc(b.summary)}</div>` : '')
+      + (b.explain ? `<div style="margin-top:4px"><b>解释：</b>${esc(b.explain)}</div>` : '')
+      + (det.why ? `<details><summary>设计理由</summary><div>${esc(det.why)}</div></details>` : '')
+      + (invs.length ? `<details><summary>不变量</summary>`
+        + invs.map(x => `<div class="rs-note">${esc(x)}</div>`).join('') + `</details>` : '')
+      + (det.failure_modes ? `<details><summary>失败情况</summary><div>${esc(det.failure_modes)}</div></details>` : '')
+      + (notesIn.length ? `<details open><summary>块内行级断言</summary>`
+        + notesIn.map(n => `<div class="rs-note">L${n.anchor.line} · ${esc(n.text)}</div>`).join('') + `</details>` : '')
+      + `<div style="margin-top:10px"><span class="bbtn" id="rd-ask">问这个块</span></div>`
+      : `<div style="margin-top:10px;color:#8c959f">${names.length ? '点左侧块条或上面的目录选一个块，解释随选同步。' : '这张卡没有逻辑块，直接连续阅读。'}</div>`);
+  side.querySelectorAll('.rs-nav span').forEach(s =>
+    s.addEventListener('click', () => rdSelect(s.dataset.b)));
+  const ask = side.querySelector('#rd-ask');
+  if (ask) ask.addEventListener('click', () => openQA(c.id, b.name));
+}
+document.getElementById('rd-exit').addEventListener('click', exitReader);
+document.getElementById('rd-card').addEventListener('click', e => {
+  // 精读里点块条/块内代码 = 选块（不折叠）；卡头不收起；块上的按钮照常工作
+  if (e.target.closest('.bbtn, .ctx-bar, .brun, .term')) return;
+  if (e.target.closest('.hdr')) { e.stopPropagation(); return; }
+  const blk = e.target.closest('.blk');
+  if (blk) {
+    e.stopPropagation();
+    rdSelect(blk.querySelector('.bname').textContent);
+  }
+}, true);
 
 /* show 指令：agent 的即时镜头——聚焦+高亮，不落盘 */
 function applyShow(op) {
@@ -1773,6 +1940,11 @@ document.addEventListener('scroll', e => {
 
 /* ================= interactions ================= */
 const canvasClick = e => {
+  const rb = e.target.closest('.rd-btn');
+  if (rb) {
+    enterReader(rb.closest('.card').id.replace(/^card-/, ''));
+    return;
+  }
   const da = e.target.closest('.dact .bbtn');
   if (da) {
     districtOrder(da.closest('.dact').dataset.card, da.classList.contains('dact-pv'), da);
@@ -1833,6 +2005,7 @@ const canvasClick = e => {
 };
 world.addEventListener('click', canvasClick);
 document.getElementById('mstream').addEventListener('click', canvasClick);
+document.getElementById('rd-card').addEventListener('click', canvasClick);
 /* Pan starts only after real movement (>4px). Capturing on pointerdown would
    retarget the click event to the viewport and swallow clicks on terms, bars,
    headers etc. — so a still pointer is a click, a moved pointer is a drag.

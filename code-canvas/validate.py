@@ -40,6 +40,19 @@ def check_blocks(blocks, lo, hi, path, nlines):
             warn(f"{p}: summary 超 20 字（{len(b['summary'])}）")
         if len(b.get("explain") or "") > 140:
             warn(f"{p}: explain 超 120 字（{len(b['explain'])}）")
+        det = b.get("detail")
+        if det is not None:
+            if not isinstance(det, dict):
+                err(f"{p}: block.detail 必须是对象（why/invariants/failure_modes）")
+            else:
+                if len(det.get("why") or "") > 220:
+                    warn(f"{p}: detail.why 超 200 字")
+                if len(det.get("failure_modes") or "") > 220:
+                    warn(f"{p}: detail.failure_modes 超 200 字")
+                invs = det.get("invariants")
+                for iv in (invs if isinstance(invs, list) else [invs] if invs else []):
+                    if len(iv or "") > 90:
+                        warn(f"{p}: 不变量条目超 80 字")
         if b.get("run"):
             check_run(b["run"], p)
         check_blocks(b.get("children"), s, e, p, nlines)

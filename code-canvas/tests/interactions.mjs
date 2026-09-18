@@ -73,6 +73,55 @@ await page.click('#card-allocate .bbtn[data-act="run"]');
 await page.waitForTimeout(200);
 check('run panel toggles closed', !(await page.isVisible('#card-allocate .brun')));
 
+// reader mode: in-place close reading
+const camBefore = await page.$eval('#world', el => el.style.transform);
+await page.$eval('#card-schedule', el => { el.classList.add('collapsed'); });  // 制造可还原状态
+await page.$eval('#card-schedule', el => el.classList.remove('collapsed'));
+const foldedBefore = await page.$eval('#card-schedule', el =>
+  [...el.querySelectorAll('.blk.folded')].map(b => b.querySelector('.bname').textContent));
+await page.$eval('#card-schedule .rd-btn', el => el.click());
+await page.waitForTimeout(400);
+check('reader opens, canvas nav hidden', await page.evaluate(() =>
+  document.body.classList.contains('reading')) && !(await page.isVisible('#bar')));
+check('reader is outside pan-zoom viewport', await page.evaluate(() =>
+  !document.getElementById('vp').contains(document.getElementById('rd-card'))));
+check('all blocks unfolded for continuous reading',
+  (await page.$$('#rd-card .blk.folded')).length === 0);
+check('comfortable font size', await page.$eval('#rd-card .ln',
+  el => parseFloat(getComputedStyle(el).fontSize)) >= 12.5);
+check('code text selectable in reader', await page.$eval('#rd-card',
+  el => getComputedStyle(el).userSelect) !== 'none');
+await page.$eval('#rd-card', el => { el.scrollTop = 40; });
+check('reader scrolls internally, camera untouched',
+  await page.$eval('#rd-card', el => el.scrollTop) > 0
+  && (await page.$eval('#world', el => el.style.transform)) === camBefore);
+const bname = await page.$eval('#rd-card .blk .bname', el => el.textContent);
+await page.click('#rd-card .blk .bbar');
+await page.waitForTimeout(300);
+check('clicking block selects (not folds) and syncs side panel',
+  (await page.$$('#rd-card .blk.folded')).length === 0
+  && await page.isVisible('#rd-card .blk.rd-sel')
+  && (await page.textContent('#rd-side')).includes(bname));
+check('detail.why expandable in side panel',
+  (await page.textContent('#rd-side')).includes('设计理由')
+  && (await page.textContent('#rd-side')).includes('不变量'));
+await page.click('#rd-ask');
+await page.waitForTimeout(300);
+check('QA binds to selected block', await page.isVisible('#qa.open')
+  && (await page.textContent('#qa-name')).includes(bname));
+await page.click('#qa-close');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+check('Esc restores card, folds and camera', !(await page.evaluate(() =>
+  document.body.classList.contains('reading')))
+  && await page.evaluate(() => document.getElementById('world')
+      .contains(document.getElementById('card-schedule')))
+  && (await page.$eval('#world', el => el.style.transform)) === camBefore
+  && JSON.stringify(await page.$eval('#card-schedule', el =>
+      [...el.querySelectorAll('.blk.folded')].map(b => b.querySelector('.bname').textContent)))
+    === JSON.stringify(foldedBefore)
+  && await page.isVisible('#bar'));
+
 // card about strip + storyline preview
 check('about strip visible on expanded card',
   (await page.textContent('#card-step .about')).includes('主循环'));
