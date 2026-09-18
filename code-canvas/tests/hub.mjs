@@ -63,7 +63,8 @@ writeFileSync(join(hub, '.jobs', 'j00000000-000000.result.json'), [
 ].join('\n'));
 
 const server = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
-  '--port', String(PORT), '--cli-bin', '/bin/echo'], { stdio: 'ignore' });
+  '--port', String(PORT), '--cli-bin', '/bin/echo', '--codex-bin', '/bin/echo'],
+  { stdio: 'ignore' });
 procs.push(server);
 const base = `http://127.0.0.1:${PORT}`;
 const alive = async () => {
@@ -277,6 +278,35 @@ const pvCode = await (await fetch(`${base}/generate`, {
   body: JSON.stringify({ ask: 'x', code: 'y = 1', preview: true }),
 })).json();
 check('preview rejects pasted code', pvCode.ok === false);
+
+// codex engine: alternate generator CLI, per-job model, subscription-side auth
+check('front page offers codex engine', listHtml.includes('Codex') && listHtml.includes('g-model'));
+const cx = await (await fetch(`${base}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'codex 引擎测试', repo: root, name: 'cxjob',
+                         engine: 'codex', model: 'gpt-5.6-sol' }),
+})).json();
+check('codex job accepted with engine+model recorded', cx.ok === true
+  && cx.job.engine === 'codex' && cx.job.model === 'gpt-5.6-sol');
+let cxDone = false;
+for (let i = 0; i < 40; i++) {
+  const js = await (await fetch(`${base}/jobs`)).json();
+  const j = js.jobs.find(x => x.id === cx.job.id);
+  if (j && j.status !== 'running') { cxDone = j.status === 'done'; break; }
+  await new Promise(r => setTimeout(r, 250));
+}
+check('codex job completes via codex binary', cxDone
+  && readFileSync(join(hub, '.jobs', `${cx.job.id}.result.json`), 'utf8').includes('exec'));
+const badEng = await (await fetch(`${base}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', repo: root, engine: 'gemini' }),
+})).json();
+check('unknown engine rejected', badEng.ok === false);
+const badModel = await (await fetch(`${base}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', repo: root, engine: 'codex', model: 'a b;rm' }),
+})).json();
+check('model id sanitized', badModel.ok === false);
 
 // 5b. stale canvas auto-rerender: html older than template gets refreshed on serve
 const { utimesSync, statSync } = await import('fs');

@@ -387,7 +387,8 @@ def job_monitor(job_id: str):
             "turns": turns, "actions": actions[-3:]}
 
 
-def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dict:
+def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
+                   engine: str = "claude", model: str = "") -> dict:
     """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。"""
     # 毫秒后缀去重：同一秒下多单会共享 id，prompt/status/workdir 互相踩（实案）
     job_id = time.strftime("j%Y%m%d-%H%M%S") + "-{:03d}".format(int(time.time() * 1000) % 1000)
@@ -397,7 +398,6 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
     workdir = jd / job_id
     workdir.mkdir(exist_ok=True)
 
-    cli = ARGS.cli_bin or "claude"
     result_f = jd / (job_id + ".result.json")
     timing_f = jd / (job_id + ".timing.json")
 
@@ -414,12 +414,23 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
                     hj=shlex.quote(str(hj)), hh=shlex.quote(str(hh)),
                     repo=shlex.quote(str(repo_dir)), log=shlex.quote(str(log_f)))
 
-    # claude 输出 stream-json（NDJSON 事件流：监视器读活动，尾行 result 事件是指标信封）
-    gen = ('T1=$(date +%s); {cli} -p "$(cat {pf})" --output-format stream-json --verbose '
-           '--dangerously-skip-permissions > {res} 2>> {log}; rc=$?; T2=$(date +%s); '
+    # 引擎二选一，都走各自的订阅登录，不走 API：
+    #   claude：stream-json 事件流（监视器读活动，尾行 result 事件=指标信封）
+    #   codex ：codex exec --json（事件格式不同——指标/轮数解析不适用，只有分段计时）
+    mflag_c = " --model " + shlex.quote(model) if model else ""
+    if engine == "codex":
+        core = "{cx} exec --dangerously-bypass-approvals-and-sandbox{m} --json \"$(cat {pf})\"".format(
+            cx=shlex.quote(ARGS.codex_bin or "codex"),
+            m=(" -m " + shlex.quote(model)) if model else "", pf=shlex.quote(str(prompt_f)))
+    else:
+        core = ("{cli} -p{m} \"$(cat {pf})\" --output-format stream-json --verbose "
+                "--dangerously-skip-permissions").format(
+                    cli=shlex.quote(ARGS.cli_bin or "claude"), m=mflag_c,
+                    pf=shlex.quote(str(prompt_f)))
+    gen = ('T1=$(date +%s); ' + core + ' > {res} 2>> {log}; rc=$?; T2=$(date +%s); '
            'printf \'{{"clone_s": %s, "claude_s": %s}}\' "$((T1-T0))" "$((T2-T1))" > {tm}; '
            '{post}echo $rc > {st}').format(
-               cli=shlex.quote(cli), pf=shlex.quote(str(prompt_f)), res=shlex.quote(str(result_f)),
+               res=shlex.quote(str(result_f)),
                log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)),
                post="{post}")
     embed = ("2) python3 {skill}/embed_context.py {work}/canvas.json <仓库根>（必须执行，"
@@ -478,6 +489,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False) -> dic
     proc = subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
     meta = {"id": job_id, "name": name, "ask": ask, "source": source_desc,
             "mode": "preview" if preview else "deep", "pid": proc.pid,
+            "engine": engine, "model": model or "",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     meta_f.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     return meta
@@ -542,6 +554,12 @@ GEN_FORM = """
     <label><input type=radio name=ctype value=deep checked> 深潜画布（代码细讲）</label>
     <label><input type=radio name=ctype value=preview> 预览地图（陌生仓库的第一张图）</label>
   </div>
+  <div class=row>
+    <label><input type=radio name=eng value=claude checked> Claude</label>
+    <label><input type=radio name=eng value=codex> Codex（ChatGPT 订阅）</label>
+    <input type=text id=g-model placeholder="模型 id（可选，如 gpt-5.6-sol / gpt-6-astra）"
+      style="flex:1;min-width:200px;display:none;margin-bottom:0">
+  </div>
   <input type=text id=g-ask placeholder="主题 / 关注点（例：讲讲调度器怎么工作）">
   <input type=text id=g-name placeholder="画布名（可选，字母数字-_.）">
   <div class=hintline>生成一张画布约 20-40 分钟，完成后出现在下面的库里；页面会自动刷新任务状态</div>
@@ -561,6 +579,9 @@ document.querySelectorAll('input[name=kind]').forEach(r=>r.onchange=()=>{
   pv.disabled=k==='code';
   if(k==='code')document.querySelector('input[name=ctype][value=deep]').checked=true;
 });
+document.querySelectorAll('input[name=eng]').forEach(r=>r.onchange=()=>{
+  $('g-model').style.display=document.querySelector('input[name=eng]:checked').value==='codex'?'block':'none';
+});
 document.querySelectorAll('input[name=ctype]').forEach(r=>r.onchange=()=>{
   const p=document.querySelector('input[name=ctype]:checked').value==='preview';
   $('g-ask').placeholder=p?'关注点（例：第一次接触，想知道推理请求怎么流过整个系统）'
@@ -573,6 +594,9 @@ $('g-go').onclick=async()=>{
   if(k==='path')body.repo=$('g-src').value.trim();
   if(k==='code')body.code=$('g-code').value;
   if(document.querySelector('input[name=ctype]:checked').value==='preview')body.preview=true;
+  const eng=document.querySelector('input[name=eng]:checked').value;
+  if(eng!=='claude')body.engine=eng;
+  if($('g-model').value.trim())body.model=$('g-model').value.trim();
   if(!body.ask){$('genmsg').textContent='主题/关注点是必填的——这张图为谁、讲什么';return;}
   $('g-go').disabled=true;$('genmsg').textContent='提交中…';
   try{
@@ -634,7 +658,7 @@ async function poll(){
     const el=$('jobs');
     if(el&&j.jobs.length){
       el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）· 点任务行看进度</span></h2>'+j.jobs.map(x=>
-        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('');
+        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':''}${x.engine==='codex'?'codex'+(x.model?'('+x.model+')':'')+' · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('');
       for(const id of openJobs){
         const d=document.getElementById('jd-'+id);
         if(d){d.hidden=false;jobDetail(id);}
@@ -813,7 +837,14 @@ class Handler(BaseHTTPRequestHandler):
                 name = req.get("name") or default
                 if not NAME_RE.match(name):
                     return self._json(400, {"ok": False, "error": "name 只允许 [A-Za-z0-9._-]"})
-                return self._json(200, {"ok": True, "job": spawn_generate(src, ask, name, preview)})
+                engine = (req.get("engine") or "claude").strip()
+                if engine not in ("claude", "codex"):
+                    return self._json(400, {"ok": False, "error": "engine 只支持 claude / codex"})
+                model = (req.get("model") or "").strip()
+                if model and not re.match(r"^[A-Za-z0-9._-]{1,64}$", model):
+                    return self._json(400, {"ok": False, "error": "model 只允许 [A-Za-z0-9._-]"})
+                return self._json(200, {"ok": True,
+                                        "job": spawn_generate(src, ask, name, preview, engine, model)})
             return self._json(404, {"ok": False, "error": "not found"})
         if self.path.startswith("/ask"):
             return self._ask(ARGS.html)
@@ -919,6 +950,7 @@ def main() -> None:
     p.add_argument("--model", default=None)
     p.add_argument("--repo", type=Path, default=None, help="问答 CLI 子进程的工作目录")
     p.add_argument("--cli-bin", default=None, help="CLI 可执行文件路径覆盖（调试用）")
+    p.add_argument("--codex-bin", default=None, help="codex 可执行文件路径覆盖（调试用）")
     ARGS = p.parse_args()
     if not ARGS.hub and not ARGS.html:
         sys.exit("要么给 canvas.html（单画布），要么 --hub <目录>")

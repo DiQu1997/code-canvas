@@ -182,3 +182,10 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   两笔：精读中 ensureVisible 追已搬走的卡把镜头甩飞（守卫）、退出
   appendChild 改变 DOM 序连锁殃及后续选择器（记 nextSibling 原位归还）。
   interactions 52 + mobile 18，全套 66+18+4+6 绿
+  → **Codex 生成引擎**（作者点单：后台 agent 不止 claude code）：/generate
+  加 engine(claude|codex)+model；codex 走 `codex exec --json`（ChatGPT
+  订阅登录，不走 API）；表单引擎选择 + 模型 id（实测 gpt-5.6-sol ✔、
+  gpt-6-astra 需 CLI ≥0.155 已升级 ✔）；任务行显示 codex(model)；指标
+  信封是 claude 专属——codex 任务只有分段计时（如实降级）；问答桥仍
+  claude（server 级 --cli 可换）。hub 71 项全绿；nano-vllm-codex 实弹
+  首跑发出（质量待核验）
