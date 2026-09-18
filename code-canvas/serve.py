@@ -252,6 +252,40 @@ def list_canvases() -> list:
     return sorted(ARGS.hub.glob("*.html"), key=lambda p: p.stat().st_mtime, reverse=True)
 
 
+def canvas_group(html_path: Path) -> str:
+    """库分组键：src sidecar 里的仓库尾名（git_url 或盒子路径都取最后一段）。
+    没有 sidecar（粘贴代码/手工放入）归「其他」。"""
+    sf = html_path.with_name(html_path.stem + ".src.json")
+    if sf.exists():
+        try:
+            rec = json.loads(sf.read_text(encoding="utf-8"))
+            tail = (rec.get("git_url") or rec.get("repo") or "").rstrip("/").split("/")[-1]
+            if tail.endswith(".git"):
+                tail = tail[:-4]
+            if tail:
+                return tail
+        except Exception:
+            pass
+    return "其他"
+
+
+def lib_sections(paths) -> str:
+    """画布库按来源仓库分区，各区带标题+数量；区顺序=区内最新画布的时间序。"""
+    groups = {}
+    order = []  # paths 已按 mtime 降序，首次出现即该区最新时间
+    for p in paths:
+        g = canvas_group(p)
+        if g not in groups:
+            groups[g] = []
+            order.append(g)
+        groups[g].append(p)
+    return "".join(
+        '<h3 class=grp>{g}<span class=grpn>{n}</span></h3>{rows}'.format(
+            g=g.replace("&", "&amp;").replace("<", "&lt;"), n=len(groups[g]),
+            rows=canvas_rows(groups[g], deletable=True))
+        for g in order)
+
+
 def list_examples() -> list:
     d = ARGS.hub / "examples"
     if not d.is_dir():
@@ -515,6 +549,10 @@ a.card:active{background:#f3f4f6}
 .badge.plan{color:#1a7f37;border-color:#2da44e}
 .badge.preview{color:#0969da;border-color:#0969da}
 h2{font-size:15px;color:#57606a;margin:26px 0 8px}
+h3.grp{font-size:13px;color:#1f2328;margin:16px 0 6px;padding-bottom:4px;
+  border-bottom:1px solid #e4e8ec;font-family:ui-monospace,Menlo,monospace}
+.grpn{font-size:11px;color:#8c959f;font-weight:400;margin-left:8px;
+  border:1px solid #d0d7de;border-radius:999px;padding:0 7px;vertical-align:1px}
 .jobscroll{max-height:300px;overflow-y:auto;border:1px solid #e4e8ec;border-radius:10px;
   padding:0 12px;background:#ffffff;overscroll-behavior:contain}
 .job{font-size:13px;color:#57606a;padding:6px 0;border-bottom:1px solid #e4e8ec}
@@ -694,7 +732,7 @@ def canvas_rows(paths, url_prefix="/c/", deletable=False) -> str:
 def render_list_page() -> str:
     lib = list_canvases()
     ex = list_examples()
-    lib_html = ("<h2>画布库</h2>" + canvas_rows(lib, deletable=True)) if lib else \
+    lib_html = ("<h2>画布库</h2>" + lib_sections(lib)) if lib else \
         "<h2>画布库</h2><div class='m'>还没有生成过画布——在上面喂一段代码试试</div>"
     ex_html = ("<h2>示例（质量基准，非产物）</h2>" + canvas_rows(ex)) if ex else ""
     return ("<!doctype html><meta charset=utf-8>"

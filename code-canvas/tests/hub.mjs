@@ -93,6 +93,11 @@ check('library lists canvases',
   listHtml.includes('/c/nano-vllm/') && listHtml.includes('/c/cache-diff/'));
 check('examples section separated',
   listHtml.includes('示例') && listHtml.includes('/c/cache-demo/'));
+// library grouped by source repo: pv-fix + cache-diff share a repo sidecar → one
+// titled section with count 2; nano-vllm has no sidecar → 其他
+check('library grouped by repo with counts',
+  listHtml.includes('<h3 class=grp>code-canvas<span class=grpn>2</span></h3>')
+  && listHtml.includes('<h3 class=grp>其他<span class=grpn>'));
 check('example canvas served via /c/', (await fetch(`${base}/c/cache-demo/`)).ok);
 
 // 2. canvas page loads and its QA goes live via relative __alive
