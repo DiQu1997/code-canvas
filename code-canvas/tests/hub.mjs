@@ -34,7 +34,10 @@ for (const f of ['cache-demo.html', 'cache-demo.json'])
 writeFileSync(join(hub, 'pv-fix.json'), JSON.stringify({
   meta: { title: 'pv fixture', mode: 'preview' },
   cards: [{ id: 'a', name: 'A', file: 'x.py', lang: 'py',
-            code: 'def f():\n    pass', layout: { col: 0, band: 0 } }],
+            code: 'def f():\n    pass', layout: { col: 0, band: 0 } },
+          { id: 'sched', kind: 'district', name: '调度与批组装', role: '核心机制',
+            oneliner: '每步挑谁进批', stat: 'core/sched · 约 4 千行',
+            file: 'core/sched', layout: { col: 1, band: 0 } }],
   wires: [], regions: [], notes: [],
   steps: [{ title: '总览', fit: true },
           { title: '① 调度线', caption: 'p', focus: ['a'], ask: '讲讲调度器怎么工作' }],
@@ -174,6 +177,23 @@ const dive = jobsAfterDive.jobs.find(j => j.name === 'pv-fix-dive1');
 check('dive click spawns generate job with step ask',
   !!dive && dive.ask === '讲讲调度器怎么工作');
 check('dive job reuses canvas source', !!dive && (dive.source || '').includes(root));
+
+// 4d. district-card ordering: per-module buttons → sub-preview or code deep dive
+check('district action buttons visible under hub', await page.isVisible('.dact .dact-pv'));
+page.once('dialog', d => d.accept());
+await page.click('.dact .dact-pv');
+await page.waitForTimeout(900);
+const jobsPv = await (await fetch(`${base}/jobs`)).json();
+const subPv = jobsPv.jobs.find(j => j.name === 'pv-fix-sched-map');
+check('module sub-preview ordered with scope in ask', !!subPv && subPv.mode === 'preview'
+  && subPv.ask.includes('调度与批组装') && subPv.ask.includes('core/sched'));
+page.once('dialog', d => d.accept());
+await page.click('.dact .dact-dive');
+await page.waitForTimeout(900);
+const jobsDv = await (await fetch(`${base}/jobs`)).json();
+const subDv = jobsDv.jobs.find(j => j.name === 'pv-fix-sched');
+check('module code-dive ordered as deep canvas', !!subDv && subDv.mode === 'deep'
+  && subDv.ask.includes('深潜细讲'));
 
 // 5. generate: three sources. code mode runs to done (stub exits instantly)
 const gen = await (await fetch(`${base}/generate`, {

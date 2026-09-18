@@ -354,6 +354,14 @@
     margin-top: 3px; user-select: none; }
   #sdetail-btn:hover { text-decoration: underline; }
   #sdetail-btn[hidden] { display: none; }
+  /* 分区卡点单：整模块交给生成器——子预览（多逻辑线再铺图）或直接代码细讲 */
+  .dact { display: flex; gap: 8px; margin-top: 8px; padding-top: 7px;
+    border-top: 1px dashed #d8dee4; }
+  .dact[hidden] { display: none; }
+  .dact .bbtn { font-size: 11px; padding: 2px 10px; border: 1px solid #d0d7de;
+    border-radius: 999px; background: #fff; }
+  .dact .dact-dive { color: #1a7f37; border-color: #2da44e; font-weight: 600; }
+  .dact .dact-pv { color: #0969da; border-color: #0969da; }
   #dive-btn { display: inline-block; font-size: 10.5px; color: #1a7f37; cursor: pointer;
     margin-top: 3px; margin-left: 12px; user-select: none; font-weight: 600; }
   #dive-btn:hover { text-decoration: underline; }
@@ -592,6 +600,9 @@ for (const c of DATA.cards) {
         + `<i style="width:${Math.round((c.frac || 0) * 100)}%;background:${rc}"></i></span></div>` : '')
       + ((c.highlights || []).length ? `<div class="dchips">`
         + c.highlights.map(h => `<span class="dchip">${esc(h)}</span>`).join('') + `</div>` : '')
+      + `<div class="dact" data-card="${c.id}" hidden>`
+      + `<span class="bbtn dact-pv">🗺 子预览</span>`
+      + `<span class="bbtn dact-dive">→ 代码细讲</span></div>`
       + `</div>`;
     world.appendChild(el);
     continue;
@@ -1617,8 +1628,39 @@ function updateDive(s) {
 }
 if (location.pathname.startsWith('/c/')) {
   fetch('src').then(r => r.ok ? r.json() : null)
-    .then(j => { if (j && (j.git_url || j.repo)) { HUB_SRC = j; updateDive(STEPS[step]); } })
+    .then(j => {
+      if (j && (j.git_url || j.repo)) {
+        HUB_SRC = j;
+        updateDive(STEPS[step]);
+        document.querySelectorAll('.dact').forEach(e => { e.hidden = false; });
+      }
+    })
     .catch(() => {});
+}
+/* 分区卡点单：模块名+构成+定位句组 ask，一键 /generate（子预览或深潜） */
+async function districtOrder(cardId, preview, btn) {
+  const c = cardById[cardId];
+  if (!c || !HUB_SRC) return;
+  const what = preview ? '子预览地图' : '代码细讲深潜画布';
+  const scope = c.stat || c.file || '';
+  const ask = preview
+    ? `为模块「${c.name}」（构成：${scope}）做研究型预览：拆出它内部的逻辑线并给深潜路线。${c.oneliner || ''}`
+    : `深潜细讲模块「${c.name}」（构成：${scope}）：聚焦其核心机制主线。${c.oneliner || ''}`;
+  if (!confirm(`为「${c.name}」生成${what}？\n将启动一个生成任务（约 20-40 分钟）。`)) return;
+  const base = location.pathname.split('/')[2].replace(/-map$/, '');
+  const name = `${base}-${cardId}`.replace(/[^A-Za-z0-9._-]/g, '') + (preview ? '-map' : '');
+  const body = { ask, name };
+  if (preview) body.preview = true;
+  if (HUB_SRC.git_url) body.git_url = HUB_SRC.git_url; else body.repo = HUB_SRC.repo;
+  const orig = btn.textContent;
+  btn.textContent = '点单中…';
+  try {
+    const r = await fetch('/generate', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    btn.textContent = j.ok ? `✓ 已点单「${name}」· 回画布库看进度` : '点单失败：' + (j.error || '');
+  } catch (e) { btn.textContent = '点单失败：' + e; }
+  setTimeout(() => { btn.textContent = orig; }, 6000);
 }
 document.getElementById('dive-btn').onclick = async () => {
   const s = STEPS[step];
@@ -1731,6 +1773,11 @@ document.addEventListener('scroll', e => {
 
 /* ================= interactions ================= */
 const canvasClick = e => {
+  const da = e.target.closest('.dact .bbtn');
+  if (da) {
+    districtOrder(da.closest('.dact').dataset.card, da.classList.contains('dact-pv'), da);
+    return;
+  }
   const cbar = e.target.closest('.ctx-bar');
   if (cbar) {
     ctxToggle(cbar.closest('.card'));
