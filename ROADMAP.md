@@ -196,3 +196,11 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   ——sampler Gumbel-max、prepare_prefill 沙盘等——仍真实）。教训入册：
   **nanovllm 考卷已污染，评 agent 能力必须用 golden 之外的仓库**；
   codex 干净重测已下单（requests，golden 无此仓库）
+  → **codex 干净重测（requests，golden 外仓库）**：6.3 分钟出卷，
+  validate 0 错、溯源 9/9 真原文、about 9/10 + preview 3/3 全为原创
+  且达机制级（"prepare_request 合并会话级 cookie/header/认证得到
+  PreparedRequest""按 URL 前缀挑适配器…末响应与 history 重组"）、
+  state 卡 1、上下文 2 文件覆盖 9 卡（服务端兜底）。短板如实：沙盘
+  0 个（claude 考生通常配 1-2）、过程一次 apply_patch 失误自行恢复。
+  结论：codex(gpt-5.6-sol) 能产出合格深潜画布，速度约为 claude 的
+  1/3 用时，完整度略低。产物 requests-codex 留库供作者检阅
