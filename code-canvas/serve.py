@@ -515,7 +515,10 @@ a.card:active{background:#f3f4f6}
 .badge.plan{color:#1a7f37;border-color:#2da44e}
 .badge.preview{color:#0969da;border-color:#0969da}
 h2{font-size:15px;color:#57606a;margin:26px 0 8px}
+.jobscroll{max-height:300px;overflow-y:auto;border:1px solid #e4e8ec;border-radius:10px;
+  padding:0 12px;background:#ffffff;overscroll-behavior:contain}
 .job{font-size:13px;color:#57606a;padding:6px 0;border-bottom:1px solid #e4e8ec}
+.jobscroll .job:last-child{border-bottom:0}
 .job .st-running{color:#9a6700}.job .st-done{color:#1a7f37}.job .st-failed{color:#cf222e}
 .jobm{font-size:11.5px;color:#8c959f;margin-top:2px;font-family:ui-monospace,Menlo,monospace}
 .job{cursor:pointer}
@@ -657,8 +660,10 @@ async function poll(){
     const j=await(await fetch('/jobs')).json();
     const el=$('jobs');
     if(el&&j.jobs.length){
-      el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）· 点任务行看进度</span></h2>'+j.jobs.map(x=>
-        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':''}${x.engine==='codex'?'codex'+(x.model?'('+x.model+')':'')+' · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('');
+      const sc=el.querySelector('.jobscroll'), keepTop=sc?sc.scrollTop:0;
+      el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）· 点任务行看进度</span></h2><div class=jobscroll>'+j.jobs.map(x=>
+        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':''}${x.engine==='codex'?'codex'+(x.model?'('+x.model+')':'')+' · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('')+'</div>';
+      el.querySelector('.jobscroll').scrollTop=keepTop;
       for(const id of openJobs){
         const d=document.getElementById('jd-'+id);
         if(d){d.hidden=false;jobDetail(id);}

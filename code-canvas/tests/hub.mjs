@@ -61,6 +61,14 @@ writeFileSync(join(hub, '.jobs', 'j00000000-000000.result.json'), [
   JSON.stringify({ type: 'result', total_cost_usd: 0.5, duration_ms: 60000, num_turns: 2,
     usage: { input_tokens: 100, output_tokens: 200, cache_read_input_tokens: 300 } }),
 ].join('\n'));
+// many finished jobs → front page job list must stay bounded (scrollable, not endless)
+for (let i = 1; i <= 15; i++) {
+  const id = `j00000001-${String(i).padStart(6, '0')}`;
+  writeFileSync(join(hub, '.jobs', `${id}.meta.json`), JSON.stringify({
+    id, name: `old-${i}`, ask: 'x', source: 'g', pid: 999999999, started: '2026-01-01T00:00:00',
+  }));
+  writeFileSync(join(hub, '.jobs', `${id}.status`), '0\n');
+}
 
 const server = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
   '--port', String(PORT), '--cli-bin', '/bin/echo', '--codex-bin', '/bin/echo'],
@@ -91,6 +99,11 @@ check('example canvas served via /c/', (await fetch(`${base}/c/cache-demo/`)).ok
 const exe = process.env.CANVAS_TEST_CHROMIUM || '/opt/pw-browsers/chromium';
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+await page.goto(`${base}/`);
+await page.waitForSelector('.jobscroll .job');
+check('job list is a bounded scroll area', await page.$eval('.jobscroll', el =>
+  el.clientHeight <= 320 && el.scrollHeight > el.clientHeight));
+
 await page.goto(`${base}/c/nano-vllm/`);
 await page.waitForTimeout(900);
 check('canvas page renders cards', await page.$$eval('.card', c => c.length > 3));
