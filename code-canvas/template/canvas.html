@@ -379,7 +379,8 @@
   #ordbox[hidden] { display: none; }
   #ordbox .ob-t { font-weight: 700; margin-bottom: 8px; }
   #ordbox .ob-ask { font-size: 12.5px; line-height: 1.6; color: #424a53;
-    background: #f6f8fa; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+    background: #f6f8fa; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+    white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
   #ordbox .ob-meta { font-size: 11.5px; color: #57606a; margin-bottom: 10px; }
   #ordbox .ob-row { display: flex; gap: 16px; margin-bottom: 8px; font-size: 12.5px; }
   #ordbox #ob-model { width: 100%; box-sizing: border-box; border: 1px solid #d0d7de;
@@ -1824,8 +1825,31 @@ if (location.pathname.startsWith('/c/')) {
 /* 深潜点单：step 带 ask 且 hub 记录了本画布的代码来源时，
    底栏出「→ 深潜这条」——一键把 ask + 同一来源交给 /generate */
 let HUB_SRC = null;
+/* 故事线联合任务书：一条线横跨多个版块时，点单必须机械打包整条链路
+   （route 线两端 + 同线各步 focus 的卡），否则生成的深潜会缩水成单个版块 */
+function lineAsk(s) {
+  const wireRoute = {};
+  (DATA.wires || []).forEach(w => { if (w.kind === 'route') wireRoute[w.id] = w.route ?? 0; });
+  const ks = new Set((s.wires || []).map(id => wireRoute[id]).filter(x => x !== undefined));
+  const ids = new Set(s.focus || []);
+  if (ks.size) {
+    (DATA.wires || []).forEach(w => {
+      if (w.kind === 'route' && ks.has(w.route ?? 0)) { ids.add(w.from.card); ids.add(w.to.card); }
+    });
+    (DATA.steps || []).forEach(t => {
+      if ((t.wires || []).some(id => ks.has(wireRoute[id]))) (t.focus || []).forEach(id => ids.add(id));
+    });
+  }
+  const cards = [...ids].map(id => cardById[id]).filter(Boolean);
+  if (!ks.size || cards.length < 2) return s.ask || '';
+  const title = (s.title || '').replace(/^[①-⑩]\s*/, '');
+  return `深潜细讲故事线「${title}」。这条线横跨 ${cards.length} 个版块，要把整条链路联合讲透，`
+    + `重点是版块之间怎么交接（谁调谁、数据怎么传），不要只挑其中一个版块。沿线版块：\n`
+    + cards.map(c => `- ${c.name}（${c.stat || c.file || ''}）${c.oneliner ? '：' + c.oneliner : ''}`).join('\n')
+    + (s.ask ? `\n线路要回答的问题：${s.ask}` : '');
+}
 function updateDive(s) {
-  document.getElementById('dive-btn').hidden = !(s.ask && HUB_SRC);
+  document.getElementById('dive-btn').hidden = !(HUB_SRC && lineAsk(s));
 }
 if (location.pathname.startsWith('/c/')) {
   fetch('src').then(r => r.ok ? r.json() : null)
@@ -1901,10 +1925,10 @@ function districtOrder(cardId, preview, btn) {
   orderDialog({ ask, name, preview, btn });
 }
 document.getElementById('dive-btn').onclick = () => {
-  const s = STEPS[step];
-  if (!s.ask || !HUB_SRC) return;
+  const s = STEPS[step], ask = lineAsk(s);
+  if (!ask || !HUB_SRC) return;
   const name = location.pathname.split('/')[2].replace(/-map$/, '') + '-dive' + step;
-  orderDialog({ ask: s.ask, name, btn: document.getElementById('dive-btn') });
+  orderDialog({ ask, name, btn: document.getElementById('dive-btn') });
 };
 document.getElementById('qa-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQA(); }

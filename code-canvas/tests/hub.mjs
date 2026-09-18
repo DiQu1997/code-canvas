@@ -38,9 +38,11 @@ writeFileSync(join(hub, 'pv-fix.json'), JSON.stringify({
           { id: 'sched', kind: 'district', name: '调度与批组装', role: '核心机制',
             oneliner: '每步挑谁进批', stat: 'core/sched · 约 4 千行',
             file: 'core/sched', layout: { col: 1, band: 0 } }],
-  wires: [], regions: [], notes: [],
+  wires: [{ id: 'w1', kind: 'route', route: 0, from: { card: 'a' }, to: { card: 'sched' } }],
+  regions: [], notes: [],
   steps: [{ title: '总览', fit: true },
-          { title: '① 调度线', caption: 'p', focus: ['a'], ask: '讲讲调度器怎么工作' }],
+          { title: '① 调度线', caption: 'p', focus: ['a'], wires: ['w1'],
+            ask: '讲讲调度器怎么工作' }],
 }));
 execFileSync('python3', [resolve(root, 'render.py'), join(hub, 'pv-fix.json'), join(hub, 'pv-fix.html')]);
 writeFileSync(join(hub, 'pv-fix.src.json'), JSON.stringify({ repo: root }));
@@ -195,8 +197,11 @@ await page.click('#ob-go');
 await page.waitForTimeout(900);
 const jobsAfterDive = await (await fetch(`${base}/jobs`)).json();
 const dive = jobsAfterDive.jobs.find(j => j.name === 'pv-fix-dive1');
-check('dive click spawns generate job with step ask',
-  !!dive && dive.ask === '讲讲调度器怎么工作');
+// storyline dive bundles ALL districts on the route, not just the step's focus
+check('dive ask bundles whole storyline',
+  !!dive && dive.ask.includes('故事线「调度线」') && dive.ask.includes('A（x.py）')
+  && dive.ask.includes('调度与批组装') && dive.ask.includes('core/sched')
+  && dive.ask.includes('讲讲调度器怎么工作'));
 check('dive job reuses canvas source', !!dive && (dive.source || '').includes(root));
 
 // 4d. district-card ordering: per-module buttons → sub-preview or code deep dive
