@@ -371,6 +371,25 @@
     max-height: 8.5em; overflow-y: auto; white-space: pre-wrap; }
   #sdetail[hidden] { display: none; }
 
+  /* ---- 点单面板：深潜/子预览下单时选引擎与模型 ---- */
+  #ordbox { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 60; width: min(440px, 92vw); background: #fff; border: 1px solid #d0d7de;
+    border-radius: 14px; box-shadow: 0 12px 40px rgba(31,35,40,.22); padding: 16px 18px;
+    font-size: 13px; color: #24292f; }
+  #ordbox[hidden] { display: none; }
+  #ordbox .ob-t { font-weight: 700; margin-bottom: 8px; }
+  #ordbox .ob-ask { font-size: 12.5px; line-height: 1.6; color: #424a53;
+    background: #f6f8fa; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  #ordbox .ob-meta { font-size: 11.5px; color: #57606a; margin-bottom: 10px; }
+  #ordbox .ob-row { display: flex; gap: 16px; margin-bottom: 8px; font-size: 12.5px; }
+  #ordbox #ob-model { width: 100%; box-sizing: border-box; border: 1px solid #d0d7de;
+    border-radius: 8px; padding: 7px 10px; font-size: 12.5px; margin-bottom: 10px;
+    font-family: ui-monospace, Menlo, monospace; }
+  #ordbox .ob-btns { display: flex; gap: 10px; }
+  #ordbox button { border: 1px solid #d0d7de; border-radius: 8px; padding: 7px 18px;
+    font-size: 13px; background: #fff; cursor: pointer; }
+  #ordbox #ob-go { background: #1f883d; border-color: #1f883d; color: #fff; font-weight: 600; }
+
   /* ---- 精读模式：原卡放大为阅读容器，背景画布淡化留在身后 ---- */
   #reader { position: fixed; inset: 0; z-index: 40; display: grid;
     grid-template-columns: minmax(0, 1fr) 360px; gap: 14px;
@@ -468,6 +487,17 @@
 <div id="vp"><div id="world"><svg id="routes"></svg><svg id="wires"></svg></div></div>
 <div id="mstream" hidden></div>
 <button id="mode-btn" hidden>2D 画布</button>
+<div id="ordbox" hidden>
+  <div class="ob-t">生成新画布</div>
+  <div class="ob-ask" id="ob-ask"></div>
+  <div class="ob-meta">画布名：<code id="ob-name"></code> · 约 5-40 分钟</div>
+  <div class="ob-row">
+    <label><input type="radio" name="ob-eng" value="claude" checked> Claude</label>
+    <label><input type="radio" name="ob-eng" value="codex"> Codex（ChatGPT 订阅）</label>
+  </div>
+  <input type="text" id="ob-model" placeholder="模型 id（可选，如 gpt-5.6-sol / gpt-6-astra）" style="display:none">
+  <div class="ob-btns"><button id="ob-go">开始生成</button><button id="ob-cancel">取消</button></div>
+</div>
 <div id="reader" hidden>
   <div id="rd-main">
     <div id="rd-head"><span id="rd-title"></span><span id="rd-exit">✕ 退出精读 · Esc</span></div>
@@ -1228,6 +1258,10 @@ for (const r of DATA.regions || []) {
   lb.addEventListener('click', () => setStep(firstStepOf[r.id]));
 }
 addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('ordbox').hidden) {
+    document.getElementById('ordbox').hidden = true;
+    return;
+  }
   if (e.key === 'Escape' && readingOn()) { exitReader(); return; }
   if (readingOn()) return;   // 精读期间步进导航停摆
   if (e.key === 'ArrowLeft') setStep(step - 1);
@@ -1804,47 +1838,73 @@ if (location.pathname.startsWith('/c/')) {
     })
     .catch(() => {});
 }
-/* 分区卡点单：模块名+构成+定位句组 ask，一键 /generate（子预览或深潜） */
-async function districtOrder(cardId, preview, btn) {
+/* 点单面板：深潜/子预览统一走这里——任务书 + 引擎（Claude/Codex+模型）+ 确认。
+   引擎选择记在 localStorage，下次点单默认沿用。 */
+const OB = { opts: null };
+function orderDialog(opts) {   // {ask, name, preview?, btn}
+  OB.opts = opts;
+  document.getElementById('ob-ask').textContent = opts.ask;
+  document.getElementById('ob-name').textContent = opts.name;
+  try {
+    const eng = localStorage.getItem('canvas-order-eng') || 'claude';
+    (document.querySelector(`#ordbox input[value="${eng}"]`)
+      || document.querySelector('#ordbox input[value="claude"]')).checked = true;
+    document.getElementById('ob-model').value = localStorage.getItem('canvas-order-model') || '';
+  } catch (e) {}
+  obSync();
+  document.getElementById('ordbox').hidden = false;
+}
+function obSync() {
+  const codex = document.querySelector('#ordbox input[name="ob-eng"]:checked').value === 'codex';
+  document.getElementById('ob-model').style.display = codex ? 'block' : 'none';
+}
+document.querySelectorAll('#ordbox input[name="ob-eng"]').forEach(r =>
+  r.addEventListener('change', obSync));
+document.getElementById('ob-cancel').addEventListener('click', () => {
+  document.getElementById('ordbox').hidden = true;
+});
+document.getElementById('ob-go').addEventListener('click', async () => {
+  const o = OB.opts;
+  if (!o || !HUB_SRC) return;
+  const eng = document.querySelector('#ordbox input[name="ob-eng"]:checked').value;
+  const model = document.getElementById('ob-model').value.trim();
+  try {
+    localStorage.setItem('canvas-order-eng', eng);
+    localStorage.setItem('canvas-order-model', model);
+  } catch (e) {}
+  const body = { ask: o.ask, name: o.name };
+  if (o.preview) body.preview = true;
+  if (eng !== 'claude') body.engine = eng;
+  if (eng === 'codex' && model) body.model = model;
+  if (HUB_SRC.git_url) body.git_url = HUB_SRC.git_url; else body.repo = HUB_SRC.repo;
+  document.getElementById('ordbox').hidden = true;
+  const btn = o.btn, orig = btn.textContent;
+  btn.textContent = '点单中…';
+  try {
+    const r = await fetch('/generate', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    btn.textContent = j.ok ? `✓ 已点单「${o.name}」· 回画布库看进度` : '点单失败：' + (j.error || '');
+  } catch (e) { btn.textContent = '点单失败：' + e; }
+  setTimeout(() => { btn.textContent = orig; }, 6000);
+});
+/* 分区卡点单：模块名+构成+定位句组 ask */
+function districtOrder(cardId, preview, btn) {
   const c = cardById[cardId];
   if (!c || !HUB_SRC) return;
-  const what = preview ? '子预览地图' : '代码细讲深潜画布';
   const scope = c.stat || c.file || '';
   const ask = preview
     ? `为模块「${c.name}」（构成：${scope}）做研究型预览：拆出它内部的逻辑线并给深潜路线。${c.oneliner || ''}`
     : `深潜细讲模块「${c.name}」（构成：${scope}）：聚焦其核心机制主线。${c.oneliner || ''}`;
-  if (!confirm(`为「${c.name}」生成${what}？\n将启动一个生成任务（约 20-40 分钟）。`)) return;
   const base = location.pathname.split('/')[2].replace(/-map$/, '');
   const name = `${base}-${cardId}`.replace(/[^A-Za-z0-9._-]/g, '') + (preview ? '-map' : '');
-  const body = { ask, name };
-  if (preview) body.preview = true;
-  if (HUB_SRC.git_url) body.git_url = HUB_SRC.git_url; else body.repo = HUB_SRC.repo;
-  const orig = btn.textContent;
-  btn.textContent = '点单中…';
-  try {
-    const r = await fetch('/generate', { method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await r.json();
-    btn.textContent = j.ok ? `✓ 已点单「${name}」· 回画布库看进度` : '点单失败：' + (j.error || '');
-  } catch (e) { btn.textContent = '点单失败：' + e; }
-  setTimeout(() => { btn.textContent = orig; }, 6000);
+  orderDialog({ ask, name, preview, btn });
 }
-document.getElementById('dive-btn').onclick = async () => {
+document.getElementById('dive-btn').onclick = () => {
   const s = STEPS[step];
   if (!s.ask || !HUB_SRC) return;
-  if (!confirm('深潜「' + s.ask + '」？\n将启动一个生成任务（约 20-40 分钟）。')) return;
   const name = location.pathname.split('/')[2].replace(/-map$/, '') + '-dive' + step;
-  const body = { ask: s.ask, name };
-  if (HUB_SRC.git_url) body.git_url = HUB_SRC.git_url; else body.repo = HUB_SRC.repo;
-  const btn = document.getElementById('dive-btn');
-  btn.textContent = '点单中…';
-  try {
-    const r = await fetch('/generate', { method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await r.json();
-    btn.textContent = j.ok ? '✓ 已点单「' + name + '」· 回画布库看进度' : '点单失败：' + (j.error || '');
-  } catch (e) { btn.textContent = '点单失败：' + e; }
-  setTimeout(() => { btn.textContent = '→ 深潜这条'; }, 6000);
+  orderDialog({ ask: s.ask, name, btn: document.getElementById('dive-btn') });
 };
 document.getElementById('qa-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQA(); }

@@ -170,8 +170,10 @@ check('dive btn hidden on step without ask', await page.isHidden('#dive-btn'));
 await page.click('#next');
 await page.waitForTimeout(400);
 check('dive btn shows on ask step under hub', await page.isVisible('#dive-btn'));
-page.once('dialog', d => d.accept());
 await page.click('#dive-btn');
+await page.waitForTimeout(300);
+if (!(await page.isVisible('#ordbox'))) throw new Error('ordbox not shown for dive');
+await page.click('#ob-go');
 await page.waitForTimeout(900);
 const jobsAfterDive = await (await fetch(`${base}/jobs`)).json();
 const dive = jobsAfterDive.jobs.find(j => j.name === 'pv-fix-dive1');
@@ -181,20 +183,34 @@ check('dive job reuses canvas source', !!dive && (dive.source || '').includes(ro
 
 // 4d. district-card ordering: per-module buttons → sub-preview or code deep dive
 check('district action buttons visible under hub', await page.isVisible('.dact .dact-pv'));
-page.once('dialog', d => d.accept());
 await page.click('.dact .dact-pv');
+await page.waitForTimeout(300);
+check('order dialog offers engine choice', await page.isVisible('#ordbox')
+  && (await page.textContent('#ordbox')).includes('Codex'));
+await page.click('#ob-go');
 await page.waitForTimeout(900);
 const jobsPv = await (await fetch(`${base}/jobs`)).json();
 const subPv = jobsPv.jobs.find(j => j.name === 'pv-fix-sched-map');
 check('module sub-preview ordered with scope in ask', !!subPv && subPv.mode === 'preview'
   && subPv.ask.includes('调度与批组装') && subPv.ask.includes('core/sched'));
-page.once('dialog', d => d.accept());
 await page.click('.dact .dact-dive');
+await page.waitForTimeout(300);
+await page.check('#ordbox input[value="codex"]');
+await page.fill('#ob-model', 'gpt-6-astra');
+await page.click('#ob-go');
 await page.waitForTimeout(900);
 const jobsDv = await (await fetch(`${base}/jobs`)).json();
 const subDv = jobsDv.jobs.find(j => j.name === 'pv-fix-sched');
 check('module code-dive ordered as deep canvas', !!subDv && subDv.mode === 'deep'
   && subDv.ask.includes('深潜细讲'));
+check('order dialog engine+model reach the job', !!subDv
+  && subDv.engine === 'codex' && subDv.model === 'gpt-6-astra');
+// 引擎选择被记住：再开一次面板应默认 codex
+await page.click('.dact .dact-pv');
+await page.waitForTimeout(300);
+check('engine choice remembered across orders', await page.$eval(
+  '#ordbox input[value="codex"]', el => el.checked));
+await page.click('#ob-cancel');
 
 // 5. generate: three sources. code mode runs to done (stub exits instantly)
 const gen = await (await fetch(`${base}/generate`, {
