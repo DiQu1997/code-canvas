@@ -34,6 +34,7 @@ tailscale 接口地址，不要绑 0.0.0.0——/ask 和 /generate 都会花钱�
 兼容 Python 3.8。
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -41,6 +42,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -309,23 +311,48 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def sweep_job_clones() -> int:
-    """hub 启动时清扫已结束任务遗留的仓库克隆。正常收尾任务自己会删；
-    被杀/宕机的任务漏网靠这里。只删 repo/，工作目录其余小文件保留。"""
-    n = 0
-    for d in jobs_dir().glob("j*/repo"):
-        jid = d.parent.name
-        sp = jobs_dir() / (jid + ".status")
-        mp = jobs_dir() / (jid + ".meta.json")
-        if not sp.exists():
-            try:
-                pid = json.loads(mp.read_text(encoding="utf-8")).get("pid")
-            except Exception:
-                pid = None
-            if pid and _pid_alive(pid):
-                continue  # 还在跑
-        shutil.rmtree(d, ignore_errors=True)
-        n += 1
+SPAWN_LOCK = threading.Lock()
+
+
+def repos_dir() -> Path:
+    """共享仓库缓存目录（盒子上指到 /mnt/data 大盘，别占 45G 根盘）。"""
+    d = ARGS.repos_dir or (ARGS.hub / ".repos")
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def repo_cache_dir(url: str) -> Path:
+    """按 git_url 定缓存位置：尾名可读 + url 哈希防同尾名相撞。"""
+    tail = re.sub(r"[^A-Za-z0-9._-]", "", url.rstrip("/").split("/")[-1].replace(".git", "")) or "repo"
+    return repos_dir() / (tail + "-" + hashlib.md5(url.encode("utf-8")).hexdigest()[:8])
+
+
+def _running_git_job(url: str) -> bool:
+    """有没有还在跑的、同一 git 来源的任务（决定缓存能否刷新/该不该等）。"""
+    jd = jobs_dir()
+    for mp in jd.glob("*.meta.json"):
+        try:
+            m = json.loads(mp.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if m.get("source") != url or (jd / (m.get("id", "") + ".status")).exists():
+            continue
+        if m.get("pid") and _pid_alive(m["pid"]):
+            return True
+    return False
+
+
+def sweep_repo_cache(days: int = 30) -> int:
+    """hub 启动时清扫太久没用的仓库缓存（.ready 每次使用都会 touch）。"""
+    n, cut = 0, time.time() - days * 86400
+    d = ARGS.repos_dir or (ARGS.hub / ".repos")
+    if not d.is_dir():
+        return 0
+    for f in d.glob("*.ready"):
+        if f.stat().st_mtime < cut:
+            shutil.rmtree(d / f.name[:-len(".ready")], ignore_errors=True)
+            f.unlink()
+            n += 1
     return n
 
 
@@ -401,8 +428,8 @@ def job_monitor(job_id: str):
     except ValueError:
         pass
     stages = []
-    if str(meta.get("source", "")).startswith("http"):
-        stages.append(("克隆仓库", (work / "repo").exists()))
+    if meta.get("cache"):
+        stages.append(("仓库缓存", Path(str(meta["cache"]) + ".ready").exists()))
     stages += [
         ("结构层", bool(list(work.glob("structure*.json")))),
         ("画布 JSON", (work / "canvas.json").exists()),
@@ -507,18 +534,35 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         return "任务：为仓库 {w} 生成一张 Code Canvas，主题/关注点：{a}\n".format(w=where, a=ask)
 
     if src["kind"] == "git":
-        clone_dir = workdir / "repo"
-        gen = gen.replace("{post}", post_pass(clone_dir))
-        prompt = head + task_line("{d}（clone 自 {u}）".format(d=clone_dir, u=src["git_url"])) + tail
-        # clone 失败：跳过 claude，status 记非零码，timing 只有 clone 段
-        # 收尾必删克隆（大仓库一次 2G+，416 单攒了 21G 写爆过磁盘）；
-        # 工作目录里 agent 的 canvas.json 等小文件保留，有恢复价值
-        script = ('T0=$(date +%s); git clone --depth 1 {u} {d} >> {log} 2>&1 && cd {d} && {gen}'
+        # 共享仓库缓存：同一 git_url 的任务共用一份浅克隆（大仓库一次 2G+，
+        # 每单各自 clone 曾攒 21G 写爆磁盘）。任务全程只读缓存，产物写自己的
+        # workdir；刷新只在无同仓任务在跑时做，防止把文件从读者脚下抽走。
+        cache = repo_cache_dir(src["git_url"])
+        ready = cache.parent / (cache.name + ".ready")
+        g, d, rd = shlex.quote(ARGS.git_bin or "git"), shlex.quote(str(cache)), shlex.quote(str(ready))
+        if ready.exists():
+            if _running_git_job(src["git_url"]):
+                prep = "touch {rd}".format(rd=rd)  # 有同仓任务在跑：照用，不折腾
+            else:
+                prep = ("rm -f {rd}; ({g} -C {d} fetch --depth 1 origin HEAD && "
+                        "{g} -C {d} reset --hard FETCH_HEAD && {g} -C {d} clean -fdx) "
+                        "|| echo '[cache] 刷新失败，用旧缓存'; touch {rd}").format(g=g, d=d, rd=rd)
+        elif _running_git_job(src["git_url"]):
+            # 别的任务正在 clone 同一仓库：等它的 .ready（最多 30 分钟）
+            prep = "for i in $(seq 1 900); do [ -f {rd} ] && break; sleep 2; done; [ -f {rd} ]".format(rd=rd)
+        else:
+            prep = "rm -rf {d}; {g} clone --depth 1 {u} {d} && touch {rd}".format(
+                g=g, d=d, u=shlex.quote(src["git_url"]), rd=rd)
+        gen = gen.replace("{post}", post_pass(cache))
+        prompt = head + task_line("{d}（共享缓存，clone 自 {u}）".format(d=cache, u=src["git_url"])) + tail
+        # 缓存取用失败：跳过 claude，status 记非零码，timing 只有 clone 段。
+        # gen 是分号串，必须包成 {} 命令组，否则 && 只约束它第一条命令，
+        # 取缓存失败后 agent 照样在错误目录开跑（存量 bug，测试抓出）
+        script = ('T0=$(date +%s); {{ {prep}; }} >> {log} 2>&1 && cd {d} && {{ {gen}; }}'
                   ' || {{ rc=$?; T1=$(date +%s); '
                   'printf \'{{"clone_s": %s, "claude_s": 0}}\' "$((T1-T0))" > {tm}; '
-                  'echo $rc > {st}; }}; cd {h} && rm -rf {d}').format(
-                      u=shlex.quote(src["git_url"]), d=shlex.quote(str(clone_dir)),
-                      log=shlex.quote(str(log_f)), gen=gen, h=shlex.quote(str(ARGS.hub)),
+                  'echo $rc > {st}; }}').format(
+                      prep=prep, d=d, log=shlex.quote(str(log_f)), gen=gen,
                       tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)))
         cwd = str(ARGS.hub)
         source_desc = src["git_url"]
@@ -547,6 +591,8 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             "mode": "preview" if preview else "deep", "pid": proc.pid,
             "engine": engine, "model": model or "",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    if src["kind"] == "git":
+        meta["cache"] = str(cache)
     meta_f.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     return meta
 
@@ -908,8 +954,9 @@ class Handler(BaseHTTPRequestHandler):
                 model = (req.get("model") or "").strip()
                 if model and not re.match(r"^[A-Za-z0-9._-]{1,64}$", model):
                     return self._json(400, {"ok": False, "error": "model 只允许 [A-Za-z0-9._-]"})
-                return self._json(200, {"ok": True,
-                                        "job": spawn_generate(src, ask, name, preview, engine, model)})
+                with SPAWN_LOCK:  # 缓存取用模式的判定+meta 落盘要原子，防同仓并发单互踩
+                    job = spawn_generate(src, ask, name, preview, engine, model)
+                return self._json(200, {"ok": True, "job": job})
             return self._json(404, {"ok": False, "error": "not found"})
         if self.path.startswith("/ask"):
             return self._ask(ARGS.html)
@@ -1016,6 +1063,9 @@ def main() -> None:
     p.add_argument("--repo", type=Path, default=None, help="问答 CLI 子进程的工作目录")
     p.add_argument("--cli-bin", default=None, help="CLI 可执行文件路径覆盖（调试用）")
     p.add_argument("--codex-bin", default=None, help="codex 可执行文件路径覆盖（调试用）")
+    p.add_argument("--git-bin", default=None, help="git 可执行文件路径覆盖（测试桩用）")
+    p.add_argument("--repos-dir", type=Path, default=None,
+                   help="共享仓库缓存目录（默认 <hub>/.repos；盒子指到 /mnt/data 大盘）")
     ARGS = p.parse_args()
     if not ARGS.hub and not ARGS.html:
         sys.exit("要么给 canvas.html（单画布），要么 --hub <目录>")
@@ -1029,9 +1079,11 @@ def main() -> None:
         sys.exit("{} 不在 PATH 上".format(ARGS.cli))
     what = "hub {}".format(ARGS.hub) if ARGS.hub else str(ARGS.html)
     if ARGS.hub:
-        swept = sweep_job_clones()
+        if ARGS.repos_dir:
+            ARGS.repos_dir = ARGS.repos_dir.resolve()
+        swept = sweep_repo_cache()
         if swept:
-            print("[serve] 清扫了 {} 个遗留仓库克隆".format(swept))
+            print("[serve] 清扫了 {} 个 30 天没用过的仓库缓存".format(swept))
     print("serving {} at http://{}:{}/  (cli: {})".format(what, ARGS.host, ARGS.port, ARGS.cli))
     ThreadingHTTPServer((ARGS.host, ARGS.port), Handler).serve_forever()
 

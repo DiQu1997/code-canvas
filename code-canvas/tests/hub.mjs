@@ -3,10 +3,10 @@
 // Run against a live serve.py --hub backed by a stub CLI (/bin/echo).
 // Usage: node tests/hub.mjs
 // Env: CANVAS_TEST_PW (playwright pkg path if not resolvable), CANVAS_TEST_CHROMIUM.
-import { resolve, dirname, join } from 'path';
+import { resolve, dirname, join, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execFileSync } from 'child_process';
-import { mkdtempSync, mkdirSync, copyFileSync, existsSync, readFileSync, writeFileSync, rmSync } from 'fs';
+import { mkdtempSync, mkdirSync, copyFileSync, existsSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'fs';
 import { tmpdir } from 'os';
 const { chromium } = await import(process.env.CANVAS_TEST_PW || 'playwright');
 
@@ -53,7 +53,7 @@ mkdirSync(join(hub, '.jobs'));
 mkdirSync(join(hub, '.jobs', 'j00000000-000000'));
 writeFileSync(join(hub, '.jobs', 'j00000000-000000.meta.json'), JSON.stringify({
   id: 'j00000000-000000', name: 'zombie', ask: 'x', source: 'https://example.com/x.git',
-  pid: 999999999, started: '2026-01-01T00:00:00',
+  cache: join(hub, '.repos', 'x-deadbeef'), pid: 999999999, started: '2026-01-01T00:00:00',
 }));
 writeFileSync(join(hub, '.jobs', 'j00000000-000000.result.json'), [
   JSON.stringify({ type: 'system', subtype: 'init' }),
@@ -63,20 +63,16 @@ writeFileSync(join(hub, '.jobs', 'j00000000-000000.result.json'), [
   JSON.stringify({ type: 'result', total_cost_usd: 0.5, duration_ms: 60000, num_turns: 2,
     usage: { input_tokens: 100, output_tokens: 200, cache_read_input_tokens: 300 } }),
 ].join('\n'));
-// leftover repo clones: finished job's clone must be swept at hub startup
-// (canvas.json etc. kept — recovery value); a running job's clone must survive
-mkdirSync(join(hub, '.jobs', 'j00000000-000001', 'repo'), { recursive: true });
-writeFileSync(join(hub, '.jobs', 'j00000000-000001', 'repo', 'junk.txt'), 'x');
-writeFileSync(join(hub, '.jobs', 'j00000000-000001', 'canvas.json'), '{}');
-writeFileSync(join(hub, '.jobs', 'j00000000-000001.meta.json'), JSON.stringify({
-  id: 'j00000000-000001', name: 'sweepme', ask: 'x', source: 'g', pid: 999999999,
-  started: '2026-01-01T00:00:00' }));
-writeFileSync(join(hub, '.jobs', 'j00000000-000001.status'), '0\n');
-mkdirSync(join(hub, '.jobs', 'j00000000-000002', 'repo'), { recursive: true });
-writeFileSync(join(hub, '.jobs', 'j00000000-000002', 'repo', 'live.txt'), 'x');
-writeFileSync(join(hub, '.jobs', 'j00000000-000002.meta.json'), JSON.stringify({
-  id: 'j00000000-000002', name: 'stillrunning', ask: 'x', source: 'g', pid: process.pid,
-  started: '2026-01-01T00:00:00' }));
+// fake git: logs every invocation, "clone" creates the dir, url with FAILCLONE fails
+writeFileSync(join(hub, 'fakegit.sh'),
+  `#!/bin/bash
+echo "$@" >> ${JSON.stringify(join(hub, 'gitlog.txt'))}
+case "$*" in
+  *FAILCLONE*) exit 128;;
+  clone*) for last; do :; done; mkdir -p "$last/.git"; echo x > "$last/f.py";;
+esac
+exit 0\n`, { mode: 0o755 });
+const gitlog = () => { try { return readFileSync(join(hub, 'gitlog.txt'), 'utf8'); } catch (e) { return ''; } };
 // many finished jobs → front page job list must stay bounded (scrollable, not endless)
 for (let i = 1; i <= 15; i++) {
   const id = `j00000001-${String(i).padStart(6, '0')}`;
@@ -87,7 +83,8 @@ for (let i = 1; i <= 15; i++) {
 }
 
 const server = spawn('python3', [resolve(root, 'serve.py'), '--hub', hub,
-  '--port', String(PORT), '--cli-bin', '/bin/echo', '--codex-bin', '/bin/echo'],
+  '--port', String(PORT), '--cli-bin', '/bin/echo', '--codex-bin', '/bin/echo',
+  '--git-bin', join(hub, 'fakegit.sh')],
   { stdio: 'ignore' });
 procs.push(server);
 const base = `http://127.0.0.1:${PORT}`;
@@ -114,12 +111,65 @@ check('examples section separated',
 check('library grouped by repo with counts',
   listHtml.includes('<h3 class=grp>code-canvas<span class=grpn>2</span></h3>')
   && listHtml.includes('<h3 class=grp>其他<span class=grpn>'));
-// disk hygiene: startup sweep removed the finished job's clone (kept its
-// canvas.json) and left the running job's clone alone
-check('startup sweep deletes finished job clone only',
-  !existsSync(join(hub, '.jobs', 'j00000000-000001', 'repo'))
-  && existsSync(join(hub, '.jobs', 'j00000000-000001', 'canvas.json'))
-  && existsSync(join(hub, '.jobs', 'j00000000-000002', 'repo', 'live.txt')));
+// shared repo cache: 4 access modes against the fake git
+// (a) first order of a URL clones into <hub>/.repos and marks .ready
+const cacheUrl = 'https://example.test/repos/alpha.git';
+const g1 = await (await fetch(`${base}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', git_url: cacheUrl, name: 'alpha1' }),
+})).json();
+await new Promise(r => setTimeout(r, 1200));
+const cacheDirs = readdirSync(join(hub, '.repos')).filter(d => d.startsWith('alpha-') && !d.endsWith('.ready'));
+check('first git order clones into shared cache',
+  g1.ok && cacheDirs.length === 1
+  && existsSync(join(hub, '.repos', cacheDirs[0] + '.ready'))
+  && (gitlog().match(/^clone /gm) || []).length === 1);
+// (b) next order of the same URL (no job running) refreshes, does not re-clone
+await (await fetch(`${base}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', git_url: cacheUrl, name: 'alpha2' }),
+})).json();
+await new Promise(r => setTimeout(r, 1200));
+check('same-url order refreshes cache instead of recloning',
+  gitlog().includes('fetch --depth 1 origin HEAD')
+  && (gitlog().match(/^clone /gm) || []).length === 1);
+// (c) with a same-url job still running, order uses cache as-is (no git calls)
+writeFileSync(join(hub, '.jobs', 'j00000000-000009.meta.json'), JSON.stringify({
+  id: 'j00000000-000009', name: 'holder', ask: 'x', source: cacheUrl, pid: process.pid,
+  started: '2026-01-01T00:00:00' }));
+const lenBefore = gitlog().length;
+await (await fetch(`${base}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', git_url: cacheUrl, name: 'alpha3' }),
+})).json();
+await new Promise(r => setTimeout(r, 1200));
+check('concurrent same-url order reuses cache untouched', gitlog().length === lenBefore);
+// (d) cache missing + same-url job "cloning": order waits for .ready, then proceeds
+const waitUrl = 'https://example.test/repos/beta.git';
+writeFileSync(join(hub, '.jobs', 'j00000000-000010.meta.json'), JSON.stringify({
+  id: 'j00000000-000010', name: 'cloner', ask: 'x', source: waitUrl, pid: process.pid,
+  started: '2026-01-01T00:00:00' }));
+const g4 = await (await fetch(`${base}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', git_url: waitUrl, name: 'beta1' }),
+})).json();
+await new Promise(r => setTimeout(r, 1500));
+check('waiter has no status while cache not ready',
+  !existsSync(join(hub, '.jobs', `${g4.job.id}.status`)));
+mkdirSync(join(hub, '.repos', basename(g4.job.cache)), { recursive: true });
+writeFileSync(g4.job.cache + '.ready', '');
+await new Promise(r => setTimeout(r, 3500));
+check('waiter proceeds once cache turns ready',
+  existsSync(join(hub, '.jobs', `${g4.job.id}.status`))
+  && readFileSync(join(hub, '.jobs', `${g4.job.id}.status`), 'utf8').trim() === '0');
+// clone failure still lands a failed status
+const gf = await (await fetch(`${base}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', git_url: 'https://example.test/FAILCLONE/x.git', name: 'cfail' }),
+})).json();
+await new Promise(r => setTimeout(r, 1200));
+check('clone failure recorded as failed status',
+  readFileSync(join(hub, '.jobs', `${gf.job.id}.status`), 'utf8').trim() !== '0');
 check('example canvas served via /c/', (await fetch(`${base}/c/cache-demo/`)).ok);
 
 // 2. canvas page loads and its QA goes live via relative __alive
@@ -277,12 +327,12 @@ check('metrics parsed from NDJSON tail result event',
 // 5a. job monitor: stages from workdir files, agent feed from stream-json
 const mon = await (await fetch(`${base}/jobs/j00000000-000000/monitor`)).json();
 check('monitor reports stages', mon.ok === true &&
-  mon.stages.some(s => s.t === '克隆仓库') && mon.stages.every(s => s.done === false));
+  mon.stages.some(s => s.t === '仓库缓存') && mon.stages.every(s => s.done === false));
 check('monitor reads agent feed from stream',
   mon.turns === 2 && mon.actions.some(a => a.includes('validate.py')));
 const monGen = await (await fetch(`${base}/jobs/${gen.job.id}/monitor`)).json();
 check('monitor works for stub job (no clone stage)', monGen.ok === true &&
-  !monGen.stages.some(s => s.t === '克隆仓库'));
+  !monGen.stages.some(s => s.t === '仓库缓存'));
 check('monitor 404s unknown job', (await fetch(`${base}/jobs/j99999999-999999/monitor`)).status === 404);
 // UI: clicking a job row expands the live detail panel
 await page.goto(`${base}/`);
@@ -290,7 +340,7 @@ await page.waitForTimeout(600);
 await page.click('.job[data-jid="j00000000-000000"]');
 await page.waitForTimeout(600);
 check('job row click opens monitor panel', await page.isVisible('#jd-j00000000-000000') &&
-  (await page.textContent('#jd-j00000000-000000')).includes('克隆仓库') &&
+  (await page.textContent('#jd-j00000000-000000')).includes('仓库缓存') &&
   (await page.textContent('#jd-j00000000-000000')).includes('第 2 轮'));
 check('pasted code landed in workdir',
   readFileSync(join(hub, '.jobs', gen.job.id, 'src', 'pasted.txt'), 'utf8').includes('def f()'));
