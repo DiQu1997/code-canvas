@@ -309,6 +309,26 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
+def sweep_job_clones() -> int:
+    """hub 启动时清扫已结束任务遗留的仓库克隆。正常收尾任务自己会删；
+    被杀/宕机的任务漏网靠这里。只删 repo/，工作目录其余小文件保留。"""
+    n = 0
+    for d in jobs_dir().glob("j*/repo"):
+        jid = d.parent.name
+        sp = jobs_dir() / (jid + ".status")
+        mp = jobs_dir() / (jid + ".meta.json")
+        if not sp.exists():
+            try:
+                pid = json.loads(mp.read_text(encoding="utf-8")).get("pid")
+            except Exception:
+                pid = None
+            if pid and _pid_alive(pid):
+                continue  # 还在跑
+        shutil.rmtree(d, ignore_errors=True)
+        n += 1
+    return n
+
+
 def list_jobs() -> list:
     out = []
     for mp in sorted(jobs_dir().glob("*.meta.json"), reverse=True):
@@ -491,12 +511,14 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         gen = gen.replace("{post}", post_pass(clone_dir))
         prompt = head + task_line("{d}（clone 自 {u}）".format(d=clone_dir, u=src["git_url"])) + tail
         # clone 失败：跳过 claude，status 记非零码，timing 只有 clone 段
+        # 收尾必删克隆（大仓库一次 2G+，416 单攒了 21G 写爆过磁盘）；
+        # 工作目录里 agent 的 canvas.json 等小文件保留，有恢复价值
         script = ('T0=$(date +%s); git clone --depth 1 {u} {d} >> {log} 2>&1 && cd {d} && {gen}'
                   ' || {{ rc=$?; T1=$(date +%s); '
                   'printf \'{{"clone_s": %s, "claude_s": 0}}\' "$((T1-T0))" > {tm}; '
-                  'echo $rc > {st}; }}').format(
+                  'echo $rc > {st}; }}; cd {h} && rm -rf {d}').format(
                       u=shlex.quote(src["git_url"]), d=shlex.quote(str(clone_dir)),
-                      log=shlex.quote(str(log_f)), gen=gen,
+                      log=shlex.quote(str(log_f)), gen=gen, h=shlex.quote(str(ARGS.hub)),
                       tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)))
         cwd = str(ARGS.hub)
         source_desc = src["git_url"]
@@ -1006,6 +1028,10 @@ def main() -> None:
     if not ARGS.cli_bin and not shutil.which(ARGS.cli):
         sys.exit("{} 不在 PATH 上".format(ARGS.cli))
     what = "hub {}".format(ARGS.hub) if ARGS.hub else str(ARGS.html)
+    if ARGS.hub:
+        swept = sweep_job_clones()
+        if swept:
+            print("[serve] 清扫了 {} 个遗留仓库克隆".format(swept))
     print("serving {} at http://{}:{}/  (cli: {})".format(what, ARGS.host, ARGS.port, ARGS.cli))
     ThreadingHTTPServer((ARGS.host, ARGS.port), Handler).serve_forever()
 

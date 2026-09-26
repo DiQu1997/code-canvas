@@ -63,6 +63,20 @@ writeFileSync(join(hub, '.jobs', 'j00000000-000000.result.json'), [
   JSON.stringify({ type: 'result', total_cost_usd: 0.5, duration_ms: 60000, num_turns: 2,
     usage: { input_tokens: 100, output_tokens: 200, cache_read_input_tokens: 300 } }),
 ].join('\n'));
+// leftover repo clones: finished job's clone must be swept at hub startup
+// (canvas.json etc. kept — recovery value); a running job's clone must survive
+mkdirSync(join(hub, '.jobs', 'j00000000-000001', 'repo'), { recursive: true });
+writeFileSync(join(hub, '.jobs', 'j00000000-000001', 'repo', 'junk.txt'), 'x');
+writeFileSync(join(hub, '.jobs', 'j00000000-000001', 'canvas.json'), '{}');
+writeFileSync(join(hub, '.jobs', 'j00000000-000001.meta.json'), JSON.stringify({
+  id: 'j00000000-000001', name: 'sweepme', ask: 'x', source: 'g', pid: 999999999,
+  started: '2026-01-01T00:00:00' }));
+writeFileSync(join(hub, '.jobs', 'j00000000-000001.status'), '0\n');
+mkdirSync(join(hub, '.jobs', 'j00000000-000002', 'repo'), { recursive: true });
+writeFileSync(join(hub, '.jobs', 'j00000000-000002', 'repo', 'live.txt'), 'x');
+writeFileSync(join(hub, '.jobs', 'j00000000-000002.meta.json'), JSON.stringify({
+  id: 'j00000000-000002', name: 'stillrunning', ask: 'x', source: 'g', pid: process.pid,
+  started: '2026-01-01T00:00:00' }));
 // many finished jobs → front page job list must stay bounded (scrollable, not endless)
 for (let i = 1; i <= 15; i++) {
   const id = `j00000001-${String(i).padStart(6, '0')}`;
@@ -100,6 +114,12 @@ check('examples section separated',
 check('library grouped by repo with counts',
   listHtml.includes('<h3 class=grp>code-canvas<span class=grpn>2</span></h3>')
   && listHtml.includes('<h3 class=grp>其他<span class=grpn>'));
+// disk hygiene: startup sweep removed the finished job's clone (kept its
+// canvas.json) and left the running job's clone alone
+check('startup sweep deletes finished job clone only',
+  !existsSync(join(hub, '.jobs', 'j00000000-000001', 'repo'))
+  && existsSync(join(hub, '.jobs', 'j00000000-000001', 'canvas.json'))
+  && existsSync(join(hub, '.jobs', 'j00000000-000002', 'repo', 'live.txt')));
 check('example canvas served via /c/', (await fetch(`${base}/c/cache-demo/`)).ok);
 
 // 2. canvas page loads and its QA goes live via relative __alive
