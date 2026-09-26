@@ -229,6 +229,14 @@ check('composition Enter does not send',
   (await page.$$('.qa-q')).length === 0 && await page.inputValue('#qa-input') === '调度器');
 await page.press('#qa-input', 'Enter'); await page.waitForTimeout(300);
 check('plain Enter sends', (await page.$$('.qa-q')).length === 1);
+// QA answers render as markdown (bold / inline code / table / fenced code), HTML escaped
+const mdHtml = await page.evaluate(() => md('**粗** `c<x>`\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```py\nif x<1: pass\n```\n\n- 甲\n- 乙\n\n<img src=x onerror=alert(1)>'));
+check('QA markdown renders rich subset',
+  mdHtml.includes('<strong>粗</strong>') && mdHtml.includes('<code>c&lt;x&gt;</code>')
+  && mdHtml.includes('<table>') && mdHtml.includes('<td>2</td>')
+  && mdHtml.includes('<pre><code>if x&lt;1: pass</code></pre>') && mdHtml.includes('<li>乙</li>'));
+check('QA markdown never emits raw HTML from the answer',
+  !mdHtml.includes('<img') && mdHtml.includes('&lt;img'));
 
 console.log(results.join('\n'));
 await browser.close();

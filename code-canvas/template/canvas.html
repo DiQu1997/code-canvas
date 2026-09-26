@@ -208,8 +208,22 @@
     margin: 10px 0 6px auto; max-width: 88%; width: fit-content; font-size: 12px; color: #24292f; }
   .qa-a { font-size: 12px; line-height: 1.7; color: #424a53; margin: 0 0 10px;
     padding: 8px 11px; background: #f6f8fa; border-radius: 10px 10px 10px 3px;
-    border-left: 2px solid #0969da; white-space: pre-wrap; }
+    border-left: 2px solid #0969da; overflow-wrap: anywhere; }
   .qa-a.err { border-left-color: #cf222e; color: #a2464e; }
+  .qa-a p, .qa-a ul, .qa-a ol, .qa-a pre, .qa-a table { margin: 0 0 8px; }
+  .qa-a > :last-child { margin-bottom: 0; }
+  .qa-a ul, .qa-a ol { padding-left: 20px; }
+  .qa-a h3, .qa-a h4, .qa-a h5, .qa-a h6 { font-size: 12.5px; margin: 6px 0 4px; color: #1f2328; }
+  .qa-a code { font: 11px ui-monospace, Menlo, Consolas, monospace; background: #eef1f4;
+    border-radius: 4px; padding: 1px 4px; }
+  .qa-a pre { background: #ffffff; border: 1px solid #e4e8ec; border-radius: 6px; padding: 8px 10px;
+    overflow-x: auto; }
+  .qa-a pre code { background: none; padding: 0; font-size: 11px; line-height: 1.55; }
+  .qa-a table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 11.5px; }
+  .qa-a th, .qa-a td { border: 1px solid #d8dee4; padding: 3px 8px; text-align: left;
+    white-space: nowrap; }
+  .qa-a th { background: #eef1f4; font-weight: 600; }
+  .qa-a a { color: #0969da; }
   .qa-a.busy { border-left-color: #8c959f; color: #8c959f; font-style: italic; }
   .qa-hint { font-size: 11px; color: #6e7781; line-height: 1.7; padding: 6px 0; }
   .qa-meta { font: 10px ui-monospace, Menlo, monospace; color: #8c959f;
@@ -574,6 +588,48 @@ const KW = {
   js: 'function return if else for while const let var new class import from export try catch finally throw await async of in typeof instanceof null undefined true false break continue switch case default do yield delete void this super extends static get set',
 };
 function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+/* 问答回答的 markdown 子集：围栏代码/表格/列表/标题/段落 + 粗体/行内码/链接。
+   自包含单文件不引库；先整体转义再转换，模型输出里的 HTML 一律当文本。 */
+function mdInline(t) {
+  return t.replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+function md(src) {
+  const lines = esc(src || '').replace(/\r/g, '').split('\n');
+  const out = [];
+  let i = 0;
+  const para = [];
+  const flush = () => { if (para.length) { out.push('<p>' + para.map(mdInline).join('<br>') + '</p>'); para.length = 0; } };
+  while (i < lines.length) {
+    const ln = lines[i];
+    let m;
+    if ((m = ln.match(/^```/))) {                       // 围栏代码
+      flush(); const buf = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) buf.push(lines[i++]);
+      i++; out.push('<pre><code>' + buf.join('\n') + '</code></pre>'); continue;
+    }
+    if (/^\|/.test(ln) && /^\|?\s*:?-{2,}/.test(lines[i + 1] || '')) {   // 表格
+      flush();
+      const cells = l => l.replace(/^\||\|$/g, '').split('|').map(c => mdInline(c.trim()));
+      let html = '<table><thead><tr>' + cells(ln).map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>';
+      i += 2;
+      while (i < lines.length && /^\|/.test(lines[i])) html += '<tr>' + cells(lines[i++]).map(c => '<td>' + c + '</td>').join('') + '</tr>';
+      out.push(html + '</tbody></table>'); continue;
+    }
+    if ((m = ln.match(/^(#{1,4})\s+(.*)/))) { flush(); out.push(`<h${m[1].length + 2}>${mdInline(m[2])}</h${m[1].length + 2}>`); i++; continue; }
+    if (/^\s*([-*]|\d+\.)\s+/.test(ln)) {                // 列表（连续行）
+      flush(); const ol = /^\s*\d+\./.test(ln); const items = [];
+      while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, ''));
+      out.push(`<${ol ? 'ol' : 'ul'}>` + items.map(x => '<li>' + mdInline(x) + '</li>').join('') + `</${ol ? 'ol' : 'ul'}>`); continue;
+    }
+    if (!ln.trim()) { flush(); i++; continue; }
+    para.push(ln); i++;
+  }
+  flush();
+  return out.join('');
+}
 function highlight(line, lang) {
   const kws = (KW[lang] || KW.py).split(' ');
   const re = new RegExp(
@@ -1490,7 +1546,7 @@ function renderQALog() {
   for (const x of QA.log[qaKey()] || []) {
     el.insertAdjacentHTML('beforeend', `<div class="qa-q">${esc(x.q)}</div>`);
     el.insertAdjacentHTML('beforeend',
-      `<div class="qa-a${x.err ? ' err' : x.busy ? ' busy' : ''}">${esc(x.a || '…')}</div>`);
+      `<div class="qa-a${x.err ? ' err' : x.busy ? ' busy' : ''}">${md(x.a || '…')}</div>`);
     if (x.show) el.insertAdjacentHTML('beforeend',
       `<div class="qa-patch">🎥 已在图上带你看过 <span class="bbtn" data-pa="show" data-i="${(QA.log[qaKey()] || []).indexOf(x)}">再看一次</span></div>`);
     if (x.patch) el.insertAdjacentHTML('beforeend', x.patch.undone

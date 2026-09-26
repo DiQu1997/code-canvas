@@ -246,3 +246,7 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   "seq.num_blocks 怎么算的"，答出 sequence.py:56-57 的 property 及 num_tokens/
   block_size 的来源链（llm_engine.py/config.py），$0.12、3 轮。interactions 57 /
   hub 85 全绿
+  → **问答回答 markdown 渲染**（作者：得支持 rich）：自包含单文件不引库，内置
+  md() 子集（围栏代码/表格/列表/标题/段落 + 粗体/行内码/链接），先整体 HTML
+  转义再转换（模型输出里的标签一律当文本）；表格/长代码横向滚动。interactions
+  59 全绿（子集渲染 + 不吐原始 HTML 两断言），截图核验作者例子
