@@ -348,6 +348,10 @@ check('prompt follows SKILL pipeline',
   readFileSync(join(hub, '.jobs', `${gen.job.id}.prompt`), 'utf8').includes('SKILL.md'));
 check('job timing recorded', existsSync(join(hub, '.jobs', `${gen.job.id}.timing.json`)) &&
   JSON.parse(readFileSync(join(hub, '.jobs', `${gen.job.id}.timing.json`), 'utf8')).claude_s >= 0);
+// claude engine defaults to opus-5.5 (stub CLI echoes its own argv into result)
+check('claude jobs default to opus-5.5',
+  readFileSync(join(hub, '.jobs', `${gen.job.id}.result.json`), 'utf8')
+    .includes('--model claude-opus-5-5'));
 
 // source validation
 const noSrc = await (await fetch(`${base}/generate`, {

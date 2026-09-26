@@ -71,11 +71,13 @@ def parse_claude_metrics(obj: dict) -> dict:
     }
 
 
+DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"   # claude 引擎默认模型（作者裁决 2026-09-25）
+
+
 def run_cli(prompt: str) -> dict:
     if ARGS.cli == "claude":
-        cmd = [ARGS.cli_bin or "claude", "-p", "--output-format", "json"]
-        if ARGS.model:
-            cmd += ["--model", ARGS.model]
+        cmd = [ARGS.cli_bin or "claude", "-p", "--output-format", "json",
+               "--model", ARGS.model or DEFAULT_CLAUDE_MODEL]
     else:
         cmd = [ARGS.cli_bin or "codex", "exec"]
         if ARGS.model:
@@ -498,7 +500,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     # 引擎二选一，都走各自的订阅登录，不走 API：
     #   claude：stream-json 事件流（监视器读活动，尾行 result 事件=指标信封）
     #   codex ：codex exec --json（事件格式不同——指标/轮数解析不适用，只有分段计时）
-    mflag_c = " --model " + shlex.quote(model) if model else ""
+    mflag_c = " --model " + shlex.quote(model or DEFAULT_CLAUDE_MODEL)
     if engine == "codex":
         core = "{cx} exec --dangerously-bypass-approvals-and-sandbox{m} --json \"$(cat {pf})\"".format(
             cx=shlex.quote(ARGS.codex_bin or "codex"),
@@ -664,7 +666,7 @@ GEN_FORM = """
     <label><input type=radio name=ctype value=preview> 预览地图（陌生仓库的第一张图）</label>
   </div>
   <div class=row>
-    <label><input type=radio name=eng value=claude checked> Claude</label>
+    <label><input type=radio name=eng value=claude checked> Claude（默认 opus-5.5）</label>
     <label><input type=radio name=eng value=codex> Codex（ChatGPT 订阅）</label>
     <input type=text id=g-model placeholder="模型 id（可选，如 gpt-5.6-sol / gpt-6-astra）"
       style="flex:1;min-width:200px;display:none;margin-bottom:0">
