@@ -1467,7 +1467,7 @@ function buildQAPrompt(question) {
   if (!QA.cur.card) {  // 画布级自由提问
     const hist = (QA.log[qaKey()] || []).filter(x => x.a && !x.err).slice(-3)
       .map(x => `Q: ${x.q}\nA: ${x.a}`).join('\n');
-    return `你是一张交互式代码画布（Code Canvas）的讲解员。下面是整张画布的策展内容（真实代码摘选 + 注释）。只根据给出的内容回答；没有依据的不要编造；若问题超出画布覆盖范围，直说并指出该去读哪个文件。用中文回答，尽量不超过 250 字。${profileLine}\n\n主题: ${DATA.meta?.title || ''} — ${DATA.meta?.subtitle || ''}\n\n${canvasContext()}\n${hist ? '\n此前的问答:\n' + hist + '\n' : ''}${patchProtocol()}\n读者的问题: ${question}`;
+    return `你是一张交互式代码画布（Code Canvas）的讲解员。下面是整张画布的策展内容（真实代码摘选 + 注释），它是回答的起点；没有依据的不要编造。用中文回答，尽量不超过 250 字。${profileLine}\n\n主题: ${DATA.meta?.title || ''} — ${DATA.meta?.subtitle || ''}\n\n${canvasContext()}\n${hist ? '\n此前的问答:\n' + hist + '\n' : ''}${patchProtocol()}\n读者的问题: ${question}`;
   }
   const card = cardById[QA.cur.card];
   const b = findBlock(card.blocks, QA.cur.block);
@@ -1477,7 +1477,7 @@ function buildQAPrompt(question) {
   const hist = (QA.log[qaKey()] || []).filter(x => x.a && !x.err).slice(-3)
     .map(x => `Q: ${x.q}\nA: ${x.a}`).join('\n');
   const profile = getProfile();
-  return `你是一张交互式代码画布（Code Canvas）的讲解员。只根据给出的代码与上下文回答；代码里没有依据的不要编造；不确定就直说不确定。用中文回答，尽量不超过 200 字。${profile ? `\n读者画像: ${profile}（回答的深度、术语与语言风格按画像来）` : ''}\n\n主题: ${DATA.meta?.title || ''} — ${DATA.meta?.subtitle || ''}\n卡片: ${card.name}（${card.file || ''}）${card.about ? '\n卡片综述: ' + card.about : ''}\n逻辑块: ${b.name} — ${b.summary || ''}${b.explain ? '\n已有说明: ' + b.explain : ''}\n\n块内代码（卡片内行号 ${b.lines[0]}–${b.lines[1]}）:\n${blockCode}\n\n所在函数完整代码:\n${card.code}\n${hist ? '\n此前的问答:\n' + hist + '\n' : ''}${patchProtocol()}\n读者的问题: ${question}`;
+  return `你是一张交互式代码画布（Code Canvas）的讲解员。给出的代码与上下文是回答的起点；没有依据的不要编造，不确定就直说不确定。用中文回答，尽量不超过 250 字。${profile ? `\n读者画像: ${profile}（回答的深度、术语与语言风格按画像来）` : ''}\n\n主题: ${DATA.meta?.title || ''} — ${DATA.meta?.subtitle || ''}\n卡片: ${card.name}（${card.file || ''}）${card.about ? '\n卡片综述: ' + card.about : ''}\n逻辑块: ${b.name} — ${b.summary || ''}${b.explain ? '\n已有说明: ' + b.explain : ''}\n\n块内代码（卡片内行号 ${b.lines[0]}–${b.lines[1]}）:\n${blockCode}\n\n所在函数完整代码:\n${card.code}\n${hist ? '\n此前的问答:\n' + hist + '\n' : ''}${patchProtocol()}\n读者的问题: ${question}`;
 }
 function renderQALog() {
   const el = document.getElementById('qa-log');
@@ -1983,8 +1983,9 @@ document.getElementById('dive-btn').onclick = () => {
   orderDialog({ ask, name, btn: document.getElementById('dive-btn') });
 };
 document.getElementById('qa-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQA(); }
   e.stopPropagation();
+  if (e.isComposing || e.keyCode === 229) return;   // 中文输入法选词的回车不是发送
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQA(); }
 });
 
 /* 上下文开关：点一次全量载入滚动区（卡片尺寸不再变），再点收起。

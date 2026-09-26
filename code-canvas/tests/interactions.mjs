@@ -218,6 +218,18 @@ const b2 = await page.evaluate(() => world.style.transform);
 await page.mouse.click(700, 820);
 check('still click does not pan', b2 === await page.evaluate(() => world.style.transform));
 
+// IME: the Enter that confirms a Chinese composition must not send the question
+await page.evaluate(() => { if (readingOn()) exitReader(); });
+await page.$eval('#canvas-ask-btn', el => el.click()); await page.waitForTimeout(200);
+await page.fill('#qa-input', '调度器');
+await page.$eval('#qa-input', el =>
+  el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true })));
+await page.waitForTimeout(200);
+check('composition Enter does not send',
+  (await page.$$('.qa-q')).length === 0 && await page.inputValue('#qa-input') === '调度器');
+await page.press('#qa-input', 'Enter'); await page.waitForTimeout(300);
+check('plain Enter sends', (await page.$$('.qa-q')).length === 1);
+
 console.log(results.join('\n'));
 await browser.close();
 process.exit(results.some(r => r.startsWith('FAIL')) ? 1 : 0);

@@ -74,19 +74,22 @@ def parse_claude_metrics(obj: dict) -> dict:
 DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"   # claude 引擎默认模型（作者裁决 2026-09-25）
 
 
-def run_cli(prompt: str) -> dict:
+def run_cli(prompt: str, cwd=None) -> dict:
+    """问答子进程。cwd 给仓库目录时 agent 可用只读工具去仓库里查证。"""
     if ARGS.cli == "claude":
-        cmd = [ARGS.cli_bin or "claude", "-p", "--output-format", "json",
-               "--model", ARGS.model or DEFAULT_CLAUDE_MODEL]
+        # prompt 必须紧跟 -p：--allowedTools 是可变参数，放它后面会被吞成工具名（实案）
+        cmd = [ARGS.cli_bin or "claude", "-p", prompt, "--output-format", "json",
+               "--model", ARGS.model or DEFAULT_CLAUDE_MODEL,
+               "--allowedTools", "Read,Grep,Glob"]
     else:
         cmd = [ARGS.cli_bin or "codex", "exec"]
         if ARGS.model:
             cmd += ["-m", ARGS.model]
-    cmd.append(prompt)
+        cmd.append(prompt)
     t0 = time.time()
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S,
-                              cwd=str(ARGS.repo) if ARGS.repo else None)
+                              cwd=str(cwd) if cwd else None)
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "CLI 超时"}
     except OSError as e:
@@ -342,6 +345,56 @@ def _running_git_job(url: str) -> bool:
         if m.get("pid") and _pid_alive(m["pid"]):
             return True
     return False
+
+
+def _bg_clone(url: str, cache: Path) -> None:
+    """后台准备仓库缓存（问答触发）：先 clone 到临时目录再原子改名，
+    不和生成任务的 clone 互踩；对方先到就丢弃自己的。"""
+    tmp = cache.parent / (cache.name + ".tmp-{}".format(os.getpid()))
+    shutil.rmtree(str(tmp), ignore_errors=True)
+    rc = subprocess.run([ARGS.git_bin or "git", "clone", "--depth", "1", url, str(tmp)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+    try:
+        if rc == 0:
+            os.rename(str(tmp), str(cache))
+            (cache.parent / (cache.name + ".ready")).touch()
+    except OSError:
+        pass
+    shutil.rmtree(str(tmp), ignore_errors=True)
+
+
+def canvas_repo(html_path: Path):
+    """问答要能像 coding agent 一样查仓库：从来源 sidecar 找本地仓库
+    （盒子路径直接用；git 来源用共享缓存，没就绪就后台去 clone，这次先无仓库作答）。"""
+    sf = html_path.with_name(html_path.stem + ".src.json")
+    if not sf.exists():
+        return None
+    try:
+        rec = json.loads(sf.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if rec.get("repo"):
+        p = Path(rec["repo"])
+        return p if p.is_dir() else None
+    url = rec.get("git_url")
+    if not url:
+        return None
+    cache = repo_cache_dir(url)
+    if (cache.parent / (cache.name + ".ready")).exists():
+        return cache
+    if not cache.exists() and not list(cache.parent.glob(cache.name + ".tmp-*")):
+        threading.Thread(target=_bg_clone, args=(url, cache), daemon=True).start()
+    return None
+
+
+def research_preamble(repo) -> str:
+    """问答规程：有仓库就必须去查，禁止"这里看不到"。"""
+    if repo:
+        return ("【可查仓库】你的工作目录就是这张画布对应的仓库（{}），可用 Read/Grep/Glob 读任何文件。"
+                "画布给的上下文只是起点：凡是上下文里没有的——某个字段/值怎么算出来的、谁调用、"
+                "定义在哪、默认值是什么——必须到仓库里找到对应代码再回答，并附 文件:行号；"
+                "禁止回答\"这里看不到/上下文里没有\"。\n\n").format(repo)
+    return "【无仓库】本画布没有可查的仓库（粘贴代码或仓库缓存尚未就绪），只根据给出的内容回答，超出范围直说。\n\n"
 
 
 def sweep_repo_cache(days: int = 30) -> int:
@@ -1021,8 +1074,10 @@ class Handler(BaseHTTPRequestHandler):
             prompt = req["prompt"]
         except Exception as e:
             return self._json(400, {"ok": False, "error": "bad request: {}".format(e)})
-        result = run_cli(prompt)
+        repo = ARGS.repo if ARGS.repo else (canvas_repo(html_path) if ARGS.hub else None)
+        result = run_cli(research_preamble(repo) + prompt, cwd=repo)
         if result.get("ok"):
+            result["researched"] = bool(repo)
             # 回答里可携带画布补丁：show 类回给页面即时执行；持久类过 validate 写回
             m = PATCH_RE.search(result["answer"])
             if m and req.get("kind") != "rewrite":

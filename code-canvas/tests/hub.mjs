@@ -247,6 +247,14 @@ await page.click('#qa-send');
 await page.waitForTimeout(1200);
 const drawerText = await page.textContent('#qa-log');
 check('canvas ask answers via stub', drawerText.includes('这个 PR 治什么病'));
+// QA runs as a coding agent: canvas with a repo sidecar gets the research mandate
+check('QA with repo gets research mandate', drawerText.includes('可查仓库'));
+const noRepoAsk = await (await fetch(`${base}/c/nano-vllm/ask`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ prompt: 'q', card: 'allocate', block: '-', question: 'q' }),
+})).json();
+check('QA without repo says so explicitly',
+  noRepoAsk.ok && noRepoAsk.researched === false && noRepoAsk.answer.includes('无仓库'));
 const sidecar2 = JSON.parse(readFileSync(join(hub, 'cache-diff.html.qa.json'), 'utf8'));
 const canvasRec = sidecar2.find(r => r.card === '__canvas__');
 check('canvas ask persisted with __canvas__ marker', !!canvasRec);

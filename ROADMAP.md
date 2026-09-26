@@ -235,3 +235,14 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   无读点的老步子对准首个 focus 卡顶部。黄金样本各步比例 .85–1.15（原整卡
   取景 .4–.6），截图核验 ②③ 步构图。interactions 55 全绿；claude 引擎默认
   模型升 opus-5.5（盒子 CLI 升 2.1.283 实测）
+  → **问答两修**（作者反馈）：① 中文输入法选词的回车被当成发送——keydown 判
+  isComposing/229；② 问答说"这里看不到"——根因是 prompt 明写"只根据给出的
+  上下文"且 hub 模式下 CLI 不在仓库目录。改为像 coding agent 一样研究：
+  canvas_repo 从来源 sidecar 找本地仓库（盒子路径/共享缓存；缓存未建则后台
+  clone 到临时目录再原子改名），CLI 以仓库为 cwd + 只读工具（Read/Grep/Glob），
+  服务端注入研究规程（上下文只是起点，上下文没有的必须查仓库并附 文件:行号，
+  禁止"看不到"）；无仓库时明说。踩坑：--allowedTools 是可变参数，prompt 放它
+  后面被吞（真机报错抓出，prompt 改为紧跟 -p）。真机核验：问 nano-vllm
+  "seq.num_blocks 怎么算的"，答出 sequence.py:56-57 的 property 及 num_tokens/
+  block_size 的来源链（llm_engine.py/config.py），$0.12、3 轮。interactions 57 /
+  hub 85 全绿
