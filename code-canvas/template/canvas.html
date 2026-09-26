@@ -1170,6 +1170,58 @@ function focusOn(ids, animate = true) {
   centerOn((x0 + x1) / 2, (y0 + y1) / 2, s, animate);
 }
 
+/* 读点取景：一步要读的是那几行/那个块，不是整卡——长函数整卡取景会缩成
+   看不清（作者反馈）。读点 = lines ∪ unfold 块 ∪ 本步 note；先按包围盒取景，
+   缩到可读比例以下就改为怼住阅读起点（第一个读点），其余靠平移。 */
+const READ_FLOOR = () => innerWidth < 700 ? .5 : .85;
+function readRect(s) {
+  const els = [];
+  (s.lines || []).forEach(([cid, ln]) => {
+    const c = document.getElementById('card-' + cid), le = document.getElementById(cid + '-L' + ln);
+    if (c && le && !c.classList.contains('collapsed')) els.push(visibleProxy(le, c));
+  });
+  (s.unfold || []).forEach(([cid, name]) => {
+    const c = document.getElementById('card-' + cid);
+    const blk = c && [...c.querySelectorAll('.blk')].find(e => e.querySelector('.bname').textContent === name);
+    if (blk && !c.classList.contains('collapsed')) els.push(blk);
+  });
+  // 本步 note 及其锚点（note 解释的那行/那张卡的头）——镜头落在"注释 + 它指的代码"之间
+  for (const n of DATA.notes || []) {
+    if (n.flavor === 'bg' || (n.step ?? '') === '' || +n.step !== step) continue;
+    const c = n.anchor && document.getElementById('card-' + n.anchor.card);
+    if (c && !c.classList.contains('collapsed')) {
+      const le = n.anchor.line && document.getElementById(n.anchor.card + '-L' + n.anchor.line);
+      els.push(le ? visibleProxy(le, c) : (c.querySelector('.hdr') || c));
+    }
+    const ne = document.getElementById('note-' + n.id);
+    if (ne) els.push(ne);
+  }
+  if (!els.length) return null;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, first = null;
+  for (const el of els) {
+    const p = wpos(el);
+    if (!first) first = { cx: p.x + p.w / 2, cy: p.y + p.h / 2 };
+    x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x + p.w); y1 = Math.max(y1, p.y + p.h);
+  }
+  return { x0, y0, x1, y1, first };
+}
+function focusRead(s, animate = true) {
+  const r = readRect(s);
+  if (!r) {
+    // 没有读点：不整卡缩小，对准首个 focus 卡的顶部（阅读起点）
+    const el = (s.focus || []).map(id => document.getElementById('card-' + id)).find(Boolean);
+    if (!el) return focusOn(s.focus || [], animate);
+    const p = wpos(el);
+    const fit = Math.min(innerWidth / (p.w + 160), (innerHeight - 170) / (p.h + 120), 1.1);
+    if (fit >= READ_FLOOR()) return focusOn(s.focus, animate);
+    return centerOn(p.x + p.w / 2, p.y + Math.min(p.h, 380) / 2, READ_FLOOR(), animate);
+  }
+  const sc = Math.min(innerWidth / (r.x1 - r.x0 + 140), (innerHeight - 170) / (r.y1 - r.y0 + 140), 1.15);
+  if (sc >= READ_FLOOR()) centerOn((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, sc, animate);
+  else centerOn(r.first.cx, r.first.cy, READ_FLOOR(), animate);
+}
+
 /* ================= steps ================= */
 function setStep(i, animate = true) {
   step = Math.max(0, Math.min(STEPS.length - 1, i));
@@ -1202,7 +1254,7 @@ function setStep(i, animate = true) {
   });
   renderStateCards();
   if (document.body.classList.contains('mstream')) buildStream();
-  else if (s.fit || !s.focus) fitAll(animate); else focusOn(s.focus, animate);
+  else if (s.fit || !s.focus) fitAll(animate); else focusRead(s, animate);
   drawWires();
   const reg = (DATA.regions || []).find(r => r.id === s.storyline);
   const hue = reg && (HUES[reg.hue] || HUES.blue);

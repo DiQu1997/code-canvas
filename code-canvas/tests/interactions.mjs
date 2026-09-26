@@ -146,13 +146,25 @@ check('no order chips on overview', (await page.$$('.ordchip')).length === 0);
 await page.click('#next'); await page.waitForTimeout(700);
 const s1chips = await page.$$eval('.ordchip', els => els.map(e => e.textContent));
 check('order chips on step 1 follow focus order', s1chips.length >= 2 && s1chips[0] === '1');
+// read-point framing: a step zooms to its lines/blocks at a legible scale,
+// not to the whole (tall) cards — first pinned line must be on screen
+const inView = sel => page.$eval(sel, el => {
+  const r = el.getBoundingClientRect();
+  return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
+});
+check('step with line pins zooms in legibly', await page.evaluate(() => cam.s) >= 1
+  && await inView('#step-L2'));
 await page.click('#next'); await page.waitForTimeout(700);
 const s2chips = await page.$$('.ordchip');
 check('chips refresh on step change', s2chips.length >= 2);
 check('lit wire has direction arrow', await page.$('svg path.wire.on[marker-end]') !== null);
+check('note-only step frames note with its anchored card',
+  await inView('#note-n-chunk') && await inView('#card-schedule .hdr'));
 
 // state snapshot card: per-step diff highlighting
 await page.click('#next'); await page.waitForTimeout(700);   // step 3: 分配 + 前缀命中
+check('wide read set keeps legible floor and shows reading start',
+  await page.evaluate(() => cam.s) >= .85 && await inView('#schedule-L12'));
 check('snapshot shows added cells on allocate step',
   (await page.$$('#card-kv-pool .scell.add')).length >= 2);
 check('snapshot shows changed record field',
