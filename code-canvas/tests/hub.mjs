@@ -249,6 +249,17 @@ const drawerText = await page.textContent('#qa-log');
 check('canvas ask answers via stub', drawerText.includes('这个 PR 治什么病'));
 // QA runs as a coding agent: canvas with a repo sidecar gets the research mandate
 check('QA with repo gets research mandate', drawerText.includes('可查仓库'));
+// overview backfill: canvas without overview offers「补装算法总览」→ order dialog → overview job
+check('canvas without overview offers backfill button', await page.isVisible('#ov-btn')
+  && (await page.textContent('#ov-btn')) === '补装算法总览');
+await page.$eval('#ov-btn', el => el.click()); await page.waitForTimeout(300);   // QA drawer overlaps the HUD
+check('backfill opens the order dialog', await page.isVisible('#ordbox')
+  && (await page.textContent('#ob-ask')).includes('overview.json'));
+await page.click('#ob-go'); await page.waitForTimeout(900);
+const ovJob = (await (await fetch(`${base}/jobs`)).json()).jobs.find(j => j.mode === 'overview' && j.name === 'cache-diff');
+check('overview job spawned with its own mode and prompt', !!ovJob
+  && readFileSync(join(hub, '.jobs', `${ovJob.id}.prompt`), 'utf8').includes('overview.json')
+  && !readFileSync(join(hub, '.jobs', `${ovJob.id}.prompt`), 'utf8').includes('canvas.json'));
 const noRepoAsk = await (await fetch(`${base}/c/nano-vllm/ask`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ prompt: 'q', card: 'allocate', block: '-', question: 'q' }),
@@ -487,6 +498,11 @@ writeFileSync(join(hub, 'fakepatch.sh'),
 case "$*" in
   *pp-test*) printf '%s' ${shq(ppCanvas)} > ${shq(join(hub, 'pp-test.json'))}; echo dummy > ${shq(join(hub, 'pp-test.html'))}; echo done;;
   *BADPATCH*) printf '%s' ${shq(badEnv)};;
+  *overview.json*) p=$(printf '%s' "$*" | grep -o '/[^ ]*/overview\\.json' | head -1); printf '%s' ${shq(JSON.stringify({
+    problem: 'p', idea: 'i',
+    flow: [{ text: 'a', card: 'a' }, { text: 'b', card: 'sched' }, { text: 'c', step: 1 }, { text: 'd', card: 'a' }, { text: 'e', card: 'a' }],
+    vars: [{ name: 'f', meaning: 'm', rw: 'r' }, { name: 'f', meaning: 'm', rw: 'r' }, { name: 'f', meaning: 'm', rw: 'r' }, { name: 'f', meaning: 'm', rw: 'r' }],
+    example: 'x', pitfalls: ['1', '2'] }))} > "$p"; echo done;;
   *) printf '%s' ${shq(goodEnv)};;
 esac\n`,
   { mode: 0o755 });
@@ -525,6 +541,19 @@ const dj2 = pj();
 check('undo removes qa elements and restores layout', un.ok === true
   && !dj2.notes.some(n => n.qa === pa.patched.patch_id)
   && dj2.cards.find(c => c.id === 'a').layout.col === 0);
+// 7b. overview backfill end-to-end: agent writes overview.json → server merges
+// behind validate and re-renders (pv-fix has a path sidecar)
+const ovGen = await (await fetch(`${base2}/c/pv-fix/overview`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+})).json();
+for (let i = 0; i < 40 && !existsSync(join(hub, '.jobs', `${ovGen.job.id}.status`)); i++)
+  await new Promise(r => setTimeout(r, 250));
+check('overview backfill merged into canvas JSON', ovGen.ok
+  && readFileSync(join(hub, '.jobs', `${ovGen.job.id}.status`), 'utf8').trim() === '0'
+  && (pj().overview || {}).flow?.length === 5);
+check('overview backfill re-rendered html', readFileSync(join(hub, 'pv-fix.html'), 'utf8').includes('"overview"'));
+check('overview backfill rejected for pasted-code canvas',
+  (await (await fetch(`${base2}/c/nano-vllm/overview`, { method: 'POST', body: '{}' })).json()).ok === false);
 // 8. service post-pass: agent "forgets" to embed context → server does it
 // mechanically after the job (embed_context + re-render), before status lands.
 mkdirSync(join(hub, 'pp-repo'));

@@ -524,8 +524,10 @@ def job_monitor(job_id: str):
 
 
 def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
-                   engine: str = "claude", model: str = "") -> dict:
-    """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。"""
+                   engine: str = "claude", model: str = "", overview: bool = False) -> dict:
+    """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。
+    overview=True：给已有画布补装算法总览板——agent 只产 overview.json，
+    服务端 merge_overview.py 合并（validate 闸门）+ 重渲染。"""
     # 毫秒后缀去重：同一秒下多单会共享 id，prompt/status/workdir 互相踩（实案）
     job_id = time.strftime("j%Y%m%d-%H%M%S") + "-{:03d}".format(int(time.time() * 1000) % 1000)
     jd = jobs_dir()
@@ -542,6 +544,15 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         embed 幂等且自动定位仓库根；预览图等无代码卡的画布它自己会跳过。"""
         hj = ARGS.hub / (name + ".json")
         hh = ARGS.hub / (name + ".html")
+        if overview:
+            ovj = workdir / "overview.json"
+            return ('if [ "$rc" -eq 0 ] && [ -f {ov} ]; then '
+                    'python3 {merge} {hj} {ov} >> {log} 2>&1 && '
+                    'python3 {render} {hj} {hh} >> {log} 2>&1; fi; ').format(
+                        merge=shlex.quote(str(SKILL_DIR / "merge_overview.py")),
+                        render=shlex.quote(str(SKILL_DIR / "render.py")),
+                        hj=shlex.quote(str(hj)), hh=shlex.quote(str(hh)),
+                        ov=shlex.quote(str(ovj)), log=shlex.quote(str(log_f)))
         return ('if [ "$rc" -eq 0 ] && [ -f {hj} ]; then '
                 'python3 {embed} {hj} {repo} >> {log} 2>&1 && '
                 'python3 {render} {hj} {hh} >> {log} 2>&1; fi; ').format(
@@ -578,8 +589,19 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                 skill=SKILL_DIR, work=workdir, hub=ARGS.hub, name=name,
                 embed=embed.format(skill=SKILL_DIR, work=workdir) if embed else "")
     head = "阅读 {skill}/SKILL.md 并严格按其管线执行（规模闸门、验证器、截图自检都算数）。\n".format(skill=SKILL_DIR)
+    if overview:
+        head = "阅读 {skill}/SKILL.md 的「4c. 算法总览板」与 {skill}/schema.md 的「算法总览板（overview）」一节。\n".format(skill=SKILL_DIR)
+        tail = ("产出物只有一个：{work}/overview.json（一个 overview 对象：problem / idea / flow / vars / "
+                "example / pitfalls）。不改画布 JSON、不渲染——合并、校验、渲染由服务端做。"
+                "flow 的直达链接只能指向画布里真实存在的卡 id / 块名 / 步序号；vars 的 name 必须是"
+                "卡片代码里真实出现的标识符；example 的数字必须按代码复算得出。完成后打印 DONE。").format(work=workdir)
 
     def task_line(where: str) -> str:
+        if overview:
+            return ("任务：为已有画布 {hub}/{name}.json 补写算法总览板。先读画布 JSON（cards 的 id/name/"
+                    "code/blocks 名、steps 序号——这是链接的全部合法目标），再到仓库 {w} 里读代码核实"
+                    "机制（哪些状态变量贯穿全程、判据与循环怎么推进、边界在哪）。读者关注点：{a}\n").format(
+                        hub=ARGS.hub, name=name, w=where, a=ask)
         if preview:
             return ("任务：为仓库 {w} 生成一张**研究型预览地图**（meta.mode:\"preview\"），"
                     "严格按 {skill}/preview-spec.md 执行：研究先行（读文档 + 每组抽查 2-3 个"
@@ -643,7 +665,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             json.dumps(rec, ensure_ascii=False), encoding="utf-8")
     proc = subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
     meta = {"id": job_id, "name": name, "ask": ask, "source": source_desc,
-            "mode": "preview" if preview else "deep", "pid": proc.pid,
+            "mode": "overview" if overview else "preview" if preview else "deep", "pid": proc.pid,
             "engine": engine, "model": model or "",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     if src["kind"] == "git":
@@ -823,7 +845,7 @@ async function poll(){
     if(el&&j.jobs.length){
       const sc=el.querySelector('.jobscroll'), keepTop=sc?sc.scrollTop:0;
       el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）· 点任务行看进度</span></h2><div class=jobscroll>'+j.jobs.map(x=>
-        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':''}${x.engine==='codex'?'codex'+(x.model?'('+x.model+')':'')+' · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('')+'</div>';
+        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':x.mode==='overview'?'补总览 · ':''}${x.engine==='codex'?'codex'+(x.model?'('+x.model+')':'')+' · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('')+'</div>';
       el.querySelector('.jobscroll').scrollTop=keepTop;
       for(const id of openJobs){
         const d=document.getElementById('jd-'+id);
@@ -966,6 +988,28 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     return self._json(400, {"ok": False, "error": "bad request"})
                 return self._json(200, undo_patch(hit[0], pid))
+            if hit and hit[1].startswith("/overview"):
+                # 给已有画布补装算法总览板：来源沿用 sidecar，agent 只产 overview.json
+                html_path = hit[0]
+                if html_path.parent != ARGS.hub or not html_path.with_suffix(".json").exists():
+                    return self._json(400, {"ok": False, "error": "只有画布库里带 JSON 的画布能补装"})
+                sf = html_path.with_name(html_path.stem + ".src.json")
+                try:
+                    rec = json.loads(sf.read_text(encoding="utf-8"))
+                    req = self._read_body()
+                except Exception:
+                    return self._json(400, {"ok": False, "error": "本画布没有代码来源记录（粘贴代码无法补装）"})
+                src = {"kind": "git", "git_url": rec["git_url"]} if rec.get("git_url") else {"kind": "path", "repo": rec.get("repo", "")}
+                if src["kind"] == "path" and not Path(src["repo"]).is_dir():
+                    return self._json(400, {"ok": False, "error": "来源目录已不存在"})
+                engine = (req.get("engine") or "claude").strip()
+                model = (req.get("model") or "").strip()
+                if engine not in ("claude", "codex") or (model and not re.match(r"^[A-Za-z0-9._-]{1,64}$", model)):
+                    return self._json(400, {"ok": False, "error": "engine/model 不合法"})
+                with SPAWN_LOCK:
+                    job = spawn_generate(src, (req.get("ask") or "补装算法总览板").strip(), html_path.stem,
+                                         False, engine, model, overview=True)
+                return self._json(200, {"ok": True, "job": job})
             if self.path.startswith("/generate"):
                 try:
                     req = self._read_body()

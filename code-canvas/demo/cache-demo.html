@@ -316,6 +316,60 @@
     color: #57606a; cursor: pointer; }
   #profile-btn:hover { color: #1f2328; border-color: #8c959f; }
   body.has-profile #profile-btn { color: #0969da; border-color: #79b8ff; }
+  /* ---- 算法总览板：逻辑级一页纸，读代码前先知道 what to expect ---- */
+  #ov-btn { position: fixed; top: 182px; right: 18px; z-index: 15; font-size: 11px;
+    padding: 4px 12px; border-radius: 99px; border: 1px solid #0969da; background: #ffffff;
+    color: #0969da; cursor: pointer; font-weight: 600; }
+  #ov-btn:hover { background: #ddf4ff; }
+  #ov-btn[hidden] { display: none; }
+  #overview { position: fixed; inset: 0; z-index: 45; background: rgba(246,248,250,.88);
+    backdrop-filter: blur(2px); overflow-y: auto; padding: 24px 16px; user-select: text; }
+  #overview[hidden] { display: none; }
+  #ov-box { max-width: 860px; margin: 0 auto; background: #ffffff; border: 1px solid #d0d7de;
+    border-radius: 14px; box-shadow: 0 8px 30px rgba(31,35,40,.12); padding: 18px 24px 22px; }
+  #ov-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+  #ov-head b { font-size: 16px; color: #1f2328; }
+  #ov-head .ov-sub { font-size: 12px; color: #57606a; flex: 1; }
+  #ov-close { font-size: 11.5px; color: #57606a; cursor: pointer; border: 1px solid #d0d7de;
+    border-radius: 99px; padding: 3px 10px; background: #fff; }
+  #ov-close:hover { color: #1f2328; border-color: #8c959f; }
+  .ov-sec { margin-top: 16px; }
+  .ov-sec h2 { font-size: 12px; color: #0969da; letter-spacing: .04em; margin-bottom: 6px; }
+  .ov-sec p { font-size: 13px; line-height: 1.75; color: #24292f; }
+  .ov-idea { font-size: 13.5px; line-height: 1.7; color: #1f2328; background: #f6f8fa;
+    border-left: 3px solid #0969da; border-radius: 8px; padding: 8px 12px; }
+  .ov-flow { list-style: none; counter-reset: ovf; }
+  .ov-flow li { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0;
+    border-bottom: 1px dashed #e4e8ec; font-size: 13px; line-height: 1.65; color: #24292f; }
+  .ov-flow li::before { counter-increment: ovf; content: counter(ovf); flex: none; width: 22px;
+    height: 22px; border-radius: 50%; background: #0969da; color: #fff; font-size: 11px;
+    font-weight: 600; text-align: center; line-height: 22px; margin-top: 1px; }
+  .ov-flow .ov-txt { flex: 1; }
+  .ov-link { flex: none; font-size: 11px; color: #0969da; border: 1px solid #79b8ff;
+    border-radius: 99px; padding: 1px 9px; cursor: pointer; white-space: nowrap; margin-top: 2px; }
+  .ov-link:hover { background: #ddf4ff; }
+  .ov-vars { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .ov-vars th, .ov-vars td { border: 1px solid #d8dee4; padding: 5px 9px; text-align: left;
+    vertical-align: top; line-height: 1.6; }
+  .ov-vars th { background: #f6f8fa; font-weight: 600; color: #57606a; font-size: 11.5px; }
+  .ov-vars td:first-child { font: 12px ui-monospace, Menlo, Consolas, monospace; color: #0550ae;
+    white-space: nowrap; }
+  .ov-vars tr.hl td { background: #fff8c5; }
+  .ov-ex { font-size: 12.5px; line-height: 1.7; color: #24292f; }
+  .ov-ex p, .ov-ex ul, .ov-ex ol, .ov-ex pre, .ov-ex table { margin: 0 0 8px; }
+  .ov-ex code { font: 11.5px ui-monospace, Menlo, Consolas, monospace; background: #eef1f4;
+    border-radius: 4px; padding: 1px 4px; }
+  .ov-ex pre { background: #f6f8fa; border: 1px solid #e4e8ec; border-radius: 6px; padding: 8px 10px;
+    overflow-x: auto; }
+  .ov-ex pre code { background: none; padding: 0; }
+  .ov-ex table { display: block; overflow-x: auto; border-collapse: collapse; }
+  .ov-ex th, .ov-ex td { border: 1px solid #d8dee4; padding: 3px 9px; white-space: nowrap; }
+  .ov-ex th { background: #f6f8fa; }
+  .ov-pit { padding-left: 18px; font-size: 12.5px; line-height: 1.7; color: #24292f; }
+  .ov-pit li { margin-bottom: 3px; }
+  /* 代码里的关键变量：悬停出含义，点击回总览板 */
+  .vref { border-bottom: 1px dotted #0969da; cursor: help; }
+  .vref:hover { background: #ddf4ff; }
   #pp { position: fixed; top: 120px; right: 18px; z-index: 15; width: 320px;
     background: #ffffff; border: 1px solid #d0d7de; border-radius: 12px; padding: 14px;
     box-shadow: 0 14px 34px rgba(31,35,40,.18); }
@@ -442,7 +496,7 @@
     font-size: 11.5px; cursor: pointer; background: #fff; color: #0969da; }
   /* 精读期间：藏掉会遮挡的全局导航；连线暂隐 */
   body.reading #topbar, body.reading #hint, body.reading #bar,
-  body.reading #profile-btn, body.reading #canvas-ask-btn, body.reading #dl-btn,
+  body.reading #profile-btn, body.reading #canvas-ask-btn, body.reading #dl-btn, body.reading #ov-btn,
   body.reading #mode-btn { display: none; }
   body.reading #wires, body.reading #routes { visibility: hidden; }
   @media (max-width: 900px) {
@@ -484,6 +538,7 @@
     #profile-btn { top: 56px; }
     #canvas-ask-btn { top: 88px; }
     #dl-btn { top: 120px; }
+    #ov-btn { top: 152px; }
     #pp { width: calc(100vw - 36px); top: 96px; }
     #qa { width: 100vw; right: -110vw; }
     /* 步进条改两行：上排 ◀ 点 ▶，下排标题+caption 占满宽 */
@@ -536,6 +591,13 @@
 
 <button id="profile-btn">阅读画像</button>
 <button id="canvas-ask-btn">问画布</button>
+<button id="ov-btn" hidden>算法总览</button>
+<div id="overview" hidden>
+  <div id="ov-box">
+    <div id="ov-head"><b>算法总览</b><span class="ov-sub"></span><span id="ov-close">✕ 关闭 · Esc</span></div>
+    <div id="ov-body"></div>
+  </div>
+</div>
 <a id="dl-btn" href="download" hidden>下载离线版</a>
 <div id="pp" hidden>
   <div class="pp-t">阅读画像 — 你想被怎么讲</div>
@@ -1371,6 +1433,7 @@ addEventListener('keydown', e => {
     document.getElementById('ordbox').hidden = true;
     return;
   }
+  if (e.key === 'Escape' && !document.getElementById('overview').hidden) { closeOverview(); return; }
   if (e.key === 'Escape' && readingOn()) { exitReader(); return; }
   if (readingOn()) return;   // 精读期间步进导航停摆
   if (e.key === 'ArrowLeft') setStep(step - 1);
@@ -1930,6 +1993,120 @@ if (location.pathname.startsWith('/c/')) {
   document.getElementById('dl-btn').hidden = false;
 }
 
+/* ================= 算法总览板 =================
+   画布级、逻辑级的一页纸（schema.md overview）：问题/核心思想/流程骨架（行行直达
+   卡·块·步）/关键变量（代码里同名标识符自动可悬停）/例子跑一遍/陷阱。
+   首次打开画布自动展开一次（localStorage 记住），HUD「算法总览」随时回来。 */
+const OV = DATA.overview || null;
+function ovLinkLabel(f) {
+  if (f.step != null && STEPS[f.step]) return '→ 第 ' + f.step + ' 步 · ' + (STEPS[f.step].title || '').replace(/^[①-⑩]\s*/, '');
+  const c = cardById[f.card];
+  if (!c) return '';
+  return '→ ' + c.name + (f.block ? ' · ' + f.block : '');
+}
+function buildOverview() {
+  if (!OV) return;
+  document.querySelector('#ov-head .ov-sub').textContent = (DATA.meta || {}).title || '';
+  const sec = (t, html) => `<div class="ov-sec"><h2>${t}</h2>${html}</div>`;
+  const flow = (OV.flow || []).map((f, i) => {
+    const lab = ovLinkLabel(f);
+    return `<li><span class="ov-txt">${esc(f.text || '')}</span>${lab ? `<span class="ov-link" data-i="${i}">${esc(lab)}</span>` : ''}</li>`;
+  }).join('');
+  const vars = (OV.vars || []).map(v =>
+    `<tr id="ov-var-${esc(v.name)}"><td>${esc(v.name)}</td><td>${esc(v.meaning || '')}</td><td>${esc(v.rw || '')}</td></tr>`).join('');
+  document.getElementById('ov-body').innerHTML =
+    sec('问题：输入 · 输出 · 目标', `<p>${esc(OV.problem || '')}</p>`)
+    + sec('核心思想', `<div class="ov-idea">${esc(OV.idea || '')}</div>`)
+    + sec('流程骨架（点右侧直达代码）', `<ol class="ov-flow">${flow}</ol>`)
+    + sec('关键变量（代码里悬停同名标识符可查）', `<table class="ov-vars"><thead><tr><th>变量</th><th>装的是什么</th><th>谁写 · 谁读</th></tr></thead><tbody>${vars}</tbody></table>`)
+    + sec('例子跑一遍', `<div class="ov-ex">${md(OV.example || '')}</div>`)
+    + sec('边界与陷阱', `<ul class="ov-pit">${(OV.pitfalls || []).map(p => `<li>${esc(p)}</li>`).join('')}</ul>`);
+  document.getElementById('ov-btn').hidden = false;
+}
+function openOverview(varName) {
+  const ov = document.getElementById('overview');
+  ov.hidden = false;
+  ov.querySelectorAll('.ov-vars tr.hl').forEach(r => r.classList.remove('hl'));
+  if (varName) {
+    const row = document.getElementById('ov-var-' + varName);
+    if (row) { row.classList.add('hl'); row.scrollIntoView({ block: 'center' }); }
+  } else ov.scrollTop = 0;
+}
+function closeOverview() {
+  document.getElementById('overview').hidden = true;
+  try { localStorage.setItem('canvas-ov-seen:' + location.pathname, '1'); } catch (e) {}
+}
+function ovJump(f) {
+  closeOverview();
+  if (readingOn()) exitReader();
+  if (f.step != null) { setStep(f.step); return; }
+  const cardEl = document.getElementById('card-' + f.card);
+  if (!cardEl) return;
+  applyShowCanvas({ focus: [f.card] });
+  if (f.block) {
+    const blk = [...cardEl.querySelectorAll('.blk')].find(e => e.querySelector('.bname').textContent === f.block);
+    if (blk) {
+      if (blk.classList.contains('folded')) { blk.classList.remove('folded'); blk.querySelector('.bchev').textContent = '▾'; }
+      if (!streamOn()) { const p = wpos(blk); centerOn(p.x + p.w / 2, p.y + Math.min(p.h, 380) / 2, Math.max(cam.s, READ_FLOOR()), true); }
+      else blk.scrollIntoView({ block: 'center' });
+      drawWires();
+    }
+  }
+}
+/* 代码里的关键变量：文本节点级标注，不碰高亮结构；悬停 title 出含义 */
+function markVars() {
+  if (!OV || !(OV.vars || []).length) return;
+  const meaning = {};
+  OV.vars.forEach(v => { meaning[v.name] = v.meaning || ''; });
+  const names = Object.keys(meaning).sort((a, b) => b.length - a.length).map(escRe);
+  const re = new RegExp('(?<![\\w.])(' + names.join('|') + ')(?![\\w])', 'g');
+  for (const ln of document.querySelectorAll('.card .ln')) {
+    const walker = document.createTreeWalker(ln, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode())
+      if (!n.parentElement.closest('.no, .vref') && re.test(n.nodeValue)) nodes.push(n);
+    for (const n of nodes) {
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      n.nodeValue.replace(re, (m, name, off) => {
+        frag.appendChild(document.createTextNode(n.nodeValue.slice(last, off)));
+        const s = document.createElement('span');
+        s.className = 'vref'; s.dataset.v = name; s.title = name + ' — ' + meaning[name]; s.textContent = name;
+        frag.appendChild(s);
+        last = off + m.length;
+      });
+      frag.appendChild(document.createTextNode(n.nodeValue.slice(last)));
+      n.parentNode.replaceChild(frag, n);
+    }
+  }
+}
+buildOverview();
+markVars();
+document.getElementById('ov-btn').addEventListener('click', () => {
+  const b = document.getElementById('ov-btn');
+  if (b.dataset.order) {
+    orderDialog({ kind: 'overview', btn: b, name: location.pathname.split('/')[2] || '',
+      ask: '为本画布补写算法总览板：problem / idea / flow（行行直达卡·块·步）/ vars（真实标识符 + 谁写谁读）/ example（带数字跑一遍）/ pitfalls。agent 只产 overview.json，服务端合并、校验、渲染。' });
+    return;
+  }
+  openOverview();
+});
+document.getElementById('ov-close').addEventListener('click', closeOverview);
+document.getElementById('overview').addEventListener('click', e => {
+  if (e.target === e.currentTarget) { closeOverview(); return; }
+  const l = e.target.closest('.ov-link');
+  if (l) ovJump(OV.flow[+l.dataset.i]);
+});
+document.addEventListener('click', e => {
+  const v = e.target.closest('.vref');
+  if (v) { e.stopPropagation(); openOverview(v.dataset.v); }
+}, true);
+if (OV) {
+  let seen = false;
+  try { seen = !!localStorage.getItem('canvas-ov-seen:' + location.pathname); } catch (e) {}
+  if (!seen && !location.hash) openOverview();
+}
+
 /* 深潜点单：step 带 ask 且 hub 记录了本画布的代码来源时，
    底栏出「→ 深潜这条」——一键把 ask + 同一来源交给 /generate */
 let HUB_SRC = null;
@@ -1966,6 +2143,10 @@ if (location.pathname.startsWith('/c/')) {
         HUB_SRC = j;
         updateDive(STEPS[step]);
         document.querySelectorAll('.dact').forEach(e => { e.hidden = false; });
+        if (!DATA.overview && (DATA.meta || {}).mode !== 'preview') {   // 老画布：可点单补装
+          const ob = document.getElementById('ov-btn');
+          ob.hidden = false; ob.textContent = '补装算法总览'; ob.dataset.order = '1';
+        }
       }
     })
     .catch(() => {});
@@ -2013,7 +2194,8 @@ document.getElementById('ob-go').addEventListener('click', async () => {
   const btn = o.btn, orig = btn.textContent;
   btn.textContent = '点单中…';
   try {
-    const r = await fetch('/generate', { method: 'POST',
+    // 补装总览：对本画布的服务端任务（agent 只产 overview.json，服务端合并+校验+渲染）
+    const r = await fetch(o.kind === 'overview' ? 'overview' : '/generate', { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json();
     btn.textContent = j.ok ? `✓ 已点单「${o.name}」· 回画布库看进度` : '点单失败：' + (j.error || '');

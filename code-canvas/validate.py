@@ -301,6 +301,68 @@ def main():
             warn(f"卡 {cid} 有 {k} 条 intent note（>3）")
 
     steps = d.get("steps", [])
+
+    # 算法总览板：深潜画布必写；链接指向真实卡/块/步；变量名必须真在代码里出现
+    ov = d.get("overview")
+    if ov is None:
+        if mode not in ("preview", "plan", "diff"):
+            warn("缺 overview 算法总览板——读者进代码前不知道 what to expect（见 schema.md）")
+    elif not isinstance(ov, dict):
+        err("overview 必须是对象")
+    else:
+        for k, lim in (("problem", 240), ("idea", 120), ("example", 900)):
+            v = ov.get(k)
+            if not isinstance(v, str) or not v.strip():
+                err(f"overview.{k} 必写（字符串）")
+            elif len(v) > lim + 20:
+                warn(f"overview.{k} 超限（{len(v)} 字，上限 {lim}）")
+        flow = ov.get("flow")
+        if not isinstance(flow, list) or not flow:
+            err("overview.flow 必写（5-9 行高层伪码）")
+        else:
+            if not (5 <= len(flow) <= 9):
+                warn(f"overview.flow 有 {len(flow)} 行（建议 5-9）")
+            for j, f in enumerate(flow):
+                fp = f"overview.flow[{j}]"
+                if not isinstance(f, dict) or not (f.get("text") or "").strip():
+                    err(f"{fp}: 需要 text"); continue
+                if len(f["text"]) > 100:
+                    warn(f"{fp}: text 超 90 字（{len(f['text'])}）")
+                if "step" in f:
+                    if not isinstance(f["step"], int) or not (0 <= f["step"] < len(steps)):
+                        err(f"{fp}: step {f.get('step')} 越界")
+                elif f.get("card"):
+                    if f["card"] not in cards:
+                        err(f"{fp}: card {f['card']} 不存在")
+                    elif f.get("block") and f["block"] not in set(block_names(cards[f["card"]].get("blocks"))):
+                        err(f"{fp}: 卡 {f['card']} 没有名为 “{f['block']}” 的块")
+                else:
+                    warn(f"{fp}: 没有直达链接（card 或 step）——读者看完骨架进不去")
+        vs = ov.get("vars")
+        if not isinstance(vs, list) or not vs:
+            err("overview.vars 必写（4-12 个贯穿全程的状态变量）")
+        else:
+            if not (4 <= len(vs) <= 12):
+                warn(f"overview.vars 有 {len(vs)} 个（建议 4-12）")
+            all_code = "\n".join(c.get("code") or "" for c in cards.values())
+            for j, v in enumerate(vs):
+                vp = f"overview.vars[{j}]"
+                name = (v.get("name") if isinstance(v, dict) else None) or ""
+                if not name or not (v.get("meaning") or "").strip():
+                    err(f"{vp}: 需要 name 与 meaning"); continue
+                if not re.search(r"(?<![\w.])" + re.escape(name) + r"(?![\w])", all_code):
+                    err(f"{vp}: 变量 {name} 在任何卡片代码里都没出现——不许编造")
+                if not (v.get("rw") or "").strip():
+                    warn(f"{vp}: {name} 缺 rw（谁写谁读）")
+                for k, lim in (("meaning", 80), ("rw", 60)):
+                    if len(v.get(k) or "") > lim + 10:
+                        warn(f"{vp}: {k} 超限（{len(v[k])} 字，上限 {lim}）")
+        pf = ov.get("pitfalls")
+        if not isinstance(pf, list) or not pf:
+            err("overview.pitfalls 必写（2-5 条）")
+        elif not (2 <= len(pf) <= 5):
+            warn(f"overview.pitfalls 有 {len(pf)} 条（建议 2-5）")
+
     for i, s in enumerate(steps):
         sp = f"step[{i}] {s.get('title','')}"
         if s.get("storyline") and s["storyline"] not in regions:
