@@ -8,6 +8,7 @@ merge_overview.py <canvas.json> <overview.json>
 exit 0 合并成功；1 参数/格式错；2 validate 未过（画布原样不动）。
 """
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -30,6 +31,19 @@ def main() -> int:
     if not isinstance(ov, dict):
         print("overview.json 必须是对象")
         return 1
+    # 机械修剪（不整份作废）：编造的变量名剔除并如实记录，其余交 validate 把关
+    corpus = "\n".join(c.get("code") or "" for c in d.get("cards", [])) + "\n" \
+        + "\n".join(str(t) for t in (d.get("files") or {}).values())
+    keep, dropped = [], []
+    for v in ov.get("vars") or []:
+        name = (v.get("name") if isinstance(v, dict) else None) or ""
+        if name and re.search(r"(?<![\w.])" + re.escape(name) + r"(?![\w])", corpus):
+            keep.append(v)
+        else:
+            dropped.append(name or "?")
+    if dropped:
+        print("剔除代码里不存在的变量:", ", ".join(dropped))
+        ov["vars"] = keep
     d["overview"] = ov
     tmp = Path(tempfile.mkstemp(suffix=".json", dir=str(cj.parent))[1])
     tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")

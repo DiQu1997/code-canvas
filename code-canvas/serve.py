@@ -546,9 +546,9 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         hh = ARGS.hub / (name + ".html")
         if overview:
             ovj = workdir / "overview.json"
-            return ('if [ "$rc" -eq 0 ] && [ -f {ov} ]; then '
-                    'python3 {merge} {hj} {ov} >> {log} 2>&1 && '
-                    'python3 {render} {hj} {hh} >> {log} 2>&1; fi; ').format(
+            # 补装的全部意义就是合并落地：合并被拒 → status 3，任务如实显示失败
+            return ('if [ "$rc" -eq 0 ]; then if [ -f {ov} ] && python3 {merge} {hj} {ov} >> {log} 2>&1; then '
+                    'python3 {render} {hj} {hh} >> {log} 2>&1; else rc=3; fi; fi; ').format(
                         merge=shlex.quote(str(SKILL_DIR / "merge_overview.py")),
                         render=shlex.quote(str(SKILL_DIR / "render.py")),
                         hj=shlex.quote(str(hj)), hh=shlex.quote(str(hh)),

@@ -250,3 +250,15 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   md() 子集（围栏代码/表格/列表/标题/段落 + 粗体/行内码/链接），先整体 HTML
   转义再转换（模型输出里的标签一律当文本）；表格/长代码横向滚动。interactions
   59 全绿（子集渲染 + 不吐原始 HTML 两断言），截图核验作者例子
+- **2026-09-26（二）**：**算法总览板 overview**（作者：要一个高层、不涉代码细节、
+  讲逻辑的 overview 让读者 know what to expect；且 demo 必须由零 history 的生产
+  agent 做）：schema/SKILL 4c 规格（problem/idea/flow 直达链接/vars 真实标识符+
+  谁写谁读/example 带数字/pitfalls）、validate 机械核对（链接指向真实卡块步、
+  变量名须在卡片代码∪引用文件里出现）、merge_overview 修剪+闸门、模板覆盖板
+  （首次自动展开、流程行直达、代码里变量悬停/点击回板）、serve 补装任务模式
+  （POST /c/<name>/overview；agent 只产 overview.json；合并被拒 status 3）。
+  **生产 agent 实测 vllm-sched**：claude opus-5.5、16 轮、132 秒、$0.78——
+  9 行机制级 flow 全部带直达、11 个变量各有谁写谁读、两步带数字例子、5 条
+  真陷阱；首版被闸门拦（is_prefill_chunk 不在画布快照里）→ 规则改为对
+  卡片∪files 核对 + 服务端修剪而非整份作废，剩 10 个变量合并上线。
+  测试：overview 18 / hub 91 全绿

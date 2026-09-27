@@ -344,14 +344,17 @@ def main():
         else:
             if not (4 <= len(vs) <= 12):
                 warn(f"overview.vars 有 {len(vs)} 个（建议 4-12）")
-            all_code = "\n".join(c.get("code") or "" for c in cards.values())
+            # 真实性对"卡片代码 ∪ 引用文件全文"核对：卡片没截到的行里的变量也算真
+            # （渲染器只在卡片里出现处做悬停标注）
+            all_code = "\n".join(c.get("code") or "" for c in cards.values()) + "\n" \
+                + "\n".join(str(t) for t in (d.get("files") or {}).values())
             for j, v in enumerate(vs):
                 vp = f"overview.vars[{j}]"
                 name = (v.get("name") if isinstance(v, dict) else None) or ""
                 if not name or not (v.get("meaning") or "").strip():
                     err(f"{vp}: 需要 name 与 meaning"); continue
                 if not re.search(r"(?<![\w.])" + re.escape(name) + r"(?![\w])", all_code):
-                    err(f"{vp}: 变量 {name} 在任何卡片代码里都没出现——不许编造")
+                    err(f"{vp}: 变量 {name} 在卡片代码与引用文件里都没出现——不许编造")
                 if not (v.get("rw") or "").strip():
                     warn(f"{vp}: {name} 缺 rw（谁写谁读）")
                 for k, lim in (("meaning", 80), ("rw", 60)):

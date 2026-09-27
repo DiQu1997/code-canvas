@@ -57,6 +57,12 @@ check('validate rejects var absent from code', validate(join(tmp, 'bad1.json')).
 const bad2 = JSON.parse(JSON.stringify(canvas)); bad2.overview.flow[1].block = '不存在的块';
 writeFileSync(join(tmp, 'bad2.json'), JSON.stringify(bad2));
 check('validate rejects flow link to missing block', validate(join(tmp, 'bad2.json')).stdout.includes('不存在的块'));
+// a var that lives only in the embedded file context (not on a card) is still real
+const inFiles = JSON.parse(JSON.stringify(canvas));
+inFiles.files = { 's.py': 'def schedule(self):\n    is_prefill_chunk = True\n' };
+inFiles.overview.vars.push({ name: 'is_prefill_chunk', meaning: '还在 prefill 中', rw: 'update 写' });
+writeFileSync(join(tmp, 'infiles.json'), JSON.stringify(inFiles));
+check('validate accepts var present only in files context', !validate(join(tmp, 'infiles.json')).stdout.includes('ERROR'));
 const noOv = JSON.parse(JSON.stringify(canvas)); delete noOv.overview;
 writeFileSync(join(tmp, 'noov.json'), JSON.stringify(noOv));
 check('validate warns deep canvas without overview', validate(join(tmp, 'noov.json')).stdout.includes('缺 overview'));
@@ -69,8 +75,14 @@ check('merge_overview merges a valid overview', m1.status === 0
 writeFileSync(join(tmp, 'noov2.json'), JSON.stringify(noOv));
 writeFileSync(join(tmp, 'bad-ov.json'), JSON.stringify(bad1.overview));
 const m2 = spawnSync('python3', [resolve(root, 'merge_overview.py'), join(tmp, 'noov2.json'), join(tmp, 'bad-ov.json')], { encoding: 'utf8' });
-check('merge_overview refuses an invalid overview', m2.status === 2
-  && !('overview' in JSON.parse(readFileSync(join(tmp, 'noov2.json'), 'utf8'))));
+check('merge_overview prunes fabricated vars and merges the rest', m2.status === 0
+  && m2.stdout.includes('ghost_var')
+  && JSON.parse(readFileSync(join(tmp, 'noov2.json'), 'utf8')).overview.vars.length === 3);
+writeFileSync(join(tmp, 'noov3.json'), JSON.stringify(noOv));
+writeFileSync(join(tmp, 'bad-link.json'), JSON.stringify(bad2.overview));
+const m3 = spawnSync('python3', [resolve(root, 'merge_overview.py'), join(tmp, 'noov3.json'), join(tmp, 'bad-link.json')], { encoding: 'utf8' });
+check('merge_overview refuses dangling flow links', m3.status === 2
+  && !('overview' in JSON.parse(readFileSync(join(tmp, 'noov3.json'), 'utf8'))));
 
 // render + browser behaviour
 const html = join(tmp, 'ov.html');

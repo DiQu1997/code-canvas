@@ -32,7 +32,7 @@ node tests/hub.mjs                                      # 82 PASS
 node tests/plan.mjs                                     # 18 PASS
 python3 tests/extract_test.py                           # 21 PASS（部分依赖 /tmp clone，缺则 SKIP）
 python3 tests/embed_test.py                             # 4 PASS（上下文嵌入契约）
-node tests/overview.mjs                                 # 16 PASS（算法总览板：校验/合并/交互）
+node tests/overview.mjs                                 # 18 PASS（算法总览板：校验/合并/交互）
 ```
 
 ## 工具链（code-canvas/）
