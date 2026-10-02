@@ -67,21 +67,30 @@ const noOv = JSON.parse(JSON.stringify(canvas)); delete noOv.overview;
 writeFileSync(join(tmp, 'noov.json'), JSON.stringify(noOv));
 check('validate warns deep canvas without overview', validate(join(tmp, 'noov.json')).stdout.includes('缺 overview'));
 
-// merge_overview.py: good merge lands, bad one leaves the canvas untouched
-writeFileSync(join(tmp, 'good-ov.json'), JSON.stringify(canvas.overview));
-const m1 = spawnSync('python3', [resolve(root, 'merge_overview.py'), join(tmp, 'noov.json'), join(tmp, 'good-ov.json')], { encoding: 'utf8' });
-check('merge_overview merges a valid overview', m1.status === 0
+// merge_upgrade.py: narrative upgrades land; fabricated vars pruned; fact-layer edits
+// and dangling links leave the library canvas untouched
+const merge = (hubFile, upObj) => {
+  writeFileSync(join(tmp, 'up.json'), JSON.stringify(upObj));
+  return spawnSync('python3', [resolve(root, 'merge_upgrade.py'), hubFile, join(tmp, 'up.json')], { encoding: 'utf8' });
+};
+const m1 = merge(join(tmp, 'noov.json'), canvas);
+check('merge_upgrade merges a narrative-only upgrade', m1.status === 0
   && JSON.parse(readFileSync(join(tmp, 'noov.json'), 'utf8')).overview.flow.length === 5);
 writeFileSync(join(tmp, 'noov2.json'), JSON.stringify(noOv));
-writeFileSync(join(tmp, 'bad-ov.json'), JSON.stringify(bad1.overview));
-const m2 = spawnSync('python3', [resolve(root, 'merge_overview.py'), join(tmp, 'noov2.json'), join(tmp, 'bad-ov.json')], { encoding: 'utf8' });
-check('merge_overview prunes fabricated vars and merges the rest', m2.status === 0
+const m2 = merge(join(tmp, 'noov2.json'), bad1);
+check('merge_upgrade prunes fabricated vars and merges the rest', m2.status === 0
   && m2.stdout.includes('ghost_var')
   && JSON.parse(readFileSync(join(tmp, 'noov2.json'), 'utf8')).overview.vars.length === 3);
 writeFileSync(join(tmp, 'noov3.json'), JSON.stringify(noOv));
-writeFileSync(join(tmp, 'bad-link.json'), JSON.stringify(bad2.overview));
-const m3 = spawnSync('python3', [resolve(root, 'merge_overview.py'), join(tmp, 'noov3.json'), join(tmp, 'bad-link.json')], { encoding: 'utf8' });
-check('merge_overview refuses dangling flow links', m3.status === 2
+const m3 = merge(join(tmp, 'noov3.json'), bad2);
+check('merge_upgrade refuses dangling flow links', m3.status === 2
+  && !('overview' in JSON.parse(readFileSync(join(tmp, 'noov3.json'), 'utf8'))));
+const tampered = JSON.parse(JSON.stringify(canvas));
+tampered.cards[0].code = tampered.cards[0].code.replace('token_budget -= n', 'token_budget -= 2 * n');
+tampered.steps[1].lines = [['sched', 3]];
+const m4 = merge(join(tmp, 'noov3.json'), tampered);
+check('merge_upgrade rejects fact-layer edits whole', m4.status === 2
+  && m4.stdout.includes('sched 的 code') && m4.stdout.includes('第 1 步的 lines')
   && !('overview' in JSON.parse(readFileSync(join(tmp, 'noov3.json'), 'utf8'))));
 
 // render + browser behaviour

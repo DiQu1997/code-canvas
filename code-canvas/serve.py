@@ -13,17 +13,26 @@ hub 路由：
                                （示例 = <hub>/examples/ 子目录，不冒充产物）
     GET  /c/<name>/            某画布页（库优先，其次示例；页面内
                                __alive/ask 相对解析到本画布）
-    POST /c/<name>/ask         块级问答（桥 CLI），历史存 <name>.html.qa.json
-    POST /generate             三选一喂代码，后台起 claude 按 SKILL.md 管线生成：
-                               {"git_url": "https://…"}   盒子上 shallow clone
+    GET  /c/<name>/download    下载离线版 HTML
+    GET  /c/<name>/src         画布的代码来源（git_url/repo，深潜点单用）
+    POST /c/<name>/ask         块级问答（桥 CLI，以仓库为 cwd 只读查证），
+                               历史存 <name>.html.qa.json；回答可带 canvas-patch
+    POST /c/<name>/unpatch     撤销一次问答补丁（单画布模式为 POST /unpatch）
+    POST /c/<name>/run         块沙盘真跑（单画布模式为 POST /run）：
+                               {"code": "…", "lang": "py"} → 隔离解释器 8s 超时
+    POST /c/<name>/upgrade     把已有画布升级到最新规程（agent 改副本，
+                               merge_upgrade.py 锁死事实层后写回）
+    POST /generate             三选一喂代码，后台起 claude/codex 按 SKILL.md 管线生成：
+                               {"git_url": "https://…"}   共享仓库缓存（同 URL 共用浅克隆）
                                {"repo": "/盒子上的路径"}
                                {"code": "粘贴的代码…"}     落到临时目录
                                + "ask": 主题/关注点（必填）, "name": 画布名（可选）
                                + "preview": true  → 研究型预览地图（preview-spec.md；
                                  仅 git/repo 源——粘贴片段没有"陌生仓库"可预览）
-    GET  /c/<name>/src         画布的代码来源（git_url/repo，深潜点单用）
-    POST /c/<name>/run         块沙盘真跑（单画布模式为 POST /run）：
-                               {"code": "…", "lang": "py"} → 隔离解释器 8s 超时
+                               + "engine"/"model"：claude（默认 opus-5.5）或 codex
+                               agent 只产出工作目录里的 canvas.json；服务端嵌上下文、
+                               核依据、过 validate 后才入库（done ⇔ 已入库）
+    DELETE /c/<name>           删除画布（连同 json/sidecar）
     GET  /jobs                 生成任务列表（JSON）
     GET  /jobs/<id>/monitor    任务监视：机械阶段进度（工作目录文件推断）+
                                agent 活动流（生成任务用 stream-json 落盘，
@@ -380,7 +389,9 @@ def canvas_repo(html_path: Path):
     if not url:
         return None
     cache = repo_cache_dir(url)
-    if (cache.parent / (cache.name + ".ready")).exists():
+    ready = cache.parent / (cache.name + ".ready")
+    if ready.exists():
+        ready.touch()   # 问答也算"使用"——否则只被问答用的缓存会被 30 天清扫误删
         return cache
     if not cache.exists() and not list(cache.parent.glob(cache.name + ".tmp-*")):
         threading.Thread(target=_bg_clone, args=(url, cache), daemon=True).start()
@@ -523,11 +534,31 @@ def job_monitor(job_id: str):
             "turns": turns, "actions": actions[-3:]}
 
 
+def upgrade_gaps(d: dict) -> list:
+    """一张已有画布离最新规程还差哪些层（升级任务的工作清单）。"""
+    preview = (d.get("meta") or {}).get("mode") == "preview"
+    miss = []
+    if not preview and not d.get("overview"):
+        miss.append("overview 算法总览板")
+    if not d.get("gaps"):
+        miss.append("gaps 待核实清单（值得注意的实际行为 / 尚未确认 / 文档与实现不一致）")
+    if preview and not d.get("objects"):
+        miss.append("objects 业务对象（存在哪、何时创建、谁读谁写、状态怎么变）")
+    steps = d.get("steps") or []
+    if any(not s.get("trace") for s in steps[1:] if (s.get("ask") if preview else s.get("focus"))):
+        miss.append("steps[].trace 步卡（触发 / 同步异步 / 数据增删改读 / 失败分支 / 依据）"
+                    + ("——每条路线步必写" if preview else "——信息量大的步写"))
+    miss.append("ev 证据分级：逐个审视分区卡/连线/note，推断的标 infer，没把握的标 unknown + need")
+    return miss
+
+
 def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
-                   engine: str = "claude", model: str = "", overview: bool = False) -> dict:
+                   engine: str = "claude", model: str = "", upgrade: bool = False) -> dict:
     """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。
-    overview=True：给已有画布补装算法总览板——agent 只产 overview.json，
-    服务端 merge_overview.py 合并（validate 闸门）+ 重渲染。"""
+    入库由服务端做：agent 只在工作目录产出 canvas.json，收尾时服务端嵌上下文、
+    核依据、过 validate，全过才写进画布库（任务 done ⇔ 画布已入库）。
+    upgrade=True：把已有画布升级到最新规程——agent 改工作目录里的副本，
+    merge_upgrade.py 机械锁死事实层再写回。"""
     # 毫秒后缀去重：同一秒下多单会共享 id，prompt/status/workdir 互相踩（实案）
     job_id = time.strftime("j%Y%m%d-%H%M%S") + "-{:03d}".format(int(time.time() * 1000) % 1000)
     jd = jobs_dir()
@@ -535,31 +566,38 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     meta_f = jd / (job_id + ".meta.json")
     workdir = jd / job_id
     workdir.mkdir(exist_ok=True)
+    wj = workdir / "canvas.json"
+    hj, hh = ARGS.hub / (name + ".json"), ARGS.hub / (name + ".html")
+    if upgrade:
+        shutil.copyfile(str(hj), str(wj))
 
     result_f = jd / (job_id + ".result.json")
     timing_f = jd / (job_id + ".timing.json")
+    tool = lambda f: "python3 " + shlex.quote(str(SKILL_DIR / f))
+    q = lambda p: shlex.quote(str(p))
 
     def post_pass(repo_dir) -> str:
-        """服务端兜底（不信任 agent 守规程）：任务成功后机械嵌入上下文并重渲染。
-        embed 幂等且自动定位仓库根；预览图等无代码卡的画布它自己会跳过。"""
-        hj = ARGS.hub / (name + ".json")
-        hh = ARGS.hub / (name + ".html")
-        if overview:
-            ovj = workdir / "overview.json"
-            # 补装的全部意义就是合并落地：合并被拒 → status 3，任务如实显示失败
-            return ('if [ "$rc" -eq 0 ]; then if [ -f {ov} ] && python3 {merge} {hj} {ov} >> {log} 2>&1; then '
-                    'python3 {render} {hj} {hh} >> {log} 2>&1; else rc=3; fi; fi; ').format(
-                        merge=shlex.quote(str(SKILL_DIR / "merge_overview.py")),
-                        render=shlex.quote(str(SKILL_DIR / "render.py")),
-                        hj=shlex.quote(str(hj)), hh=shlex.quote(str(hh)),
-                        ov=shlex.quote(str(ovj)), log=shlex.quote(str(log_f)))
-        return ('if [ "$rc" -eq 0 ] && [ -f {hj} ]; then '
-                'python3 {embed} {hj} {repo} >> {log} 2>&1 && '
-                'python3 {render} {hj} {hh} >> {log} 2>&1; fi; ').format(
-                    embed=shlex.quote(str(SKILL_DIR / "embed_context.py")),
-                    render=shlex.quote(str(SKILL_DIR / "render.py")),
-                    hj=shlex.quote(str(hj)), hh=shlex.quote(str(hh)),
-                    repo=shlex.quote(str(repo_dir)), log=shlex.quote(str(log_f)))
+        """服务端入库（不信任 agent 守规程）。rc：3 升级被拒 / 4 validate 未过 /
+        5 agent 没产出 canvas.json / 6 渲染失败。"""
+        lg = q(log_f)
+        refs = ("{chk} {w} {r} >> {lg} 2>&1; ".format(chk=tool("check_refs.py"), w=q(wj), r=q(repo_dir), lg=lg)
+                if repo_dir else "")
+        if upgrade:
+            return ('if [ "$rc" -eq 0 ]; then {refs}if {merge} {hj} {w} >> {lg} 2>&1; then '
+                    '{render} {hj} {hh} >> {lg} 2>&1 || rc=6; else rc=3; fi; fi; ').format(
+                        refs=refs, merge=tool("merge_upgrade.py"), render=tool("render.py"),
+                        hj=q(hj), hh=q(hh), w=q(wj), lg=lg)
+        embed = ("{emb} {w} {r} >> {lg} 2>&1; ".format(emb=tool("embed_context.py"), w=q(wj), r=q(repo_dir), lg=lg)
+                 if repo_dir else "")
+        rec = ({"git_url": src["git_url"]} if src["kind"] == "git"
+               else {"repo": src["repo"]} if src["kind"] == "path" else None)
+        sidecar = ("printf '%s' {j} > {sf}; ".format(j=q(json.dumps(rec, ensure_ascii=False)),
+                                                     sf=q(ARGS.hub / (name + ".src.json"))) if rec else "")
+        return ('if [ "$rc" -eq 0 ]; then if [ -f {w} ]; then {embed}{refs}'
+                'if {val} {w} >> {lg} 2>&1; then cp {w} {hj} && {render} {hj} {hh} >> {lg} 2>&1 && {{ {sidecar}:; }} || rc=6; '
+                'else rc=4; fi; else rc=5; fi; fi; ').format(
+                    w=q(wj), embed=embed, refs=refs, val=tool("validate.py"), render=tool("render.py"),
+                    hj=q(hj), hh=q(hh), sidecar=sidecar, lg=lg)
 
     # 引擎二选一，都走各自的订阅登录，不走 API：
     #   claude：stream-json 事件流（监视器读活动，尾行 result 事件=指标信封）
@@ -580,28 +618,35 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                res=shlex.quote(str(result_f)),
                log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)),
                post="{post}")
-    embed = ("2) python3 {skill}/embed_context.py {work}/canvas.json <仓库根>（必须执行，"
-             "上下文全文靠它）；\n" if src["kind"] != "code" else "")
-    tail = ("步骤：1) 产出 {work}/canvas.json；{embed}"
-            "接着 python3 {skill}/validate.py 清零 ERROR（warn 逐条自查）；\n"
-            "然后 python3 {skill}/render.py 渲染；最后把 html 复制为 {hub}/{name}.html，"
-            "json 复制为 {hub}/{name}.json。完成后打印 DONE。").format(
-                skill=SKILL_DIR, work=workdir, hub=ARGS.hub, name=name,
-                embed=embed.format(skill=SKILL_DIR, work=workdir) if embed else "")
+    has_repo = src["kind"] != "code"
+    tail = ("步骤：1) 产出 {w}；"
+            + ("2) python3 {skill}/embed_context.py {w} <仓库根>（上下文全文靠它）；"
+               "3) python3 {skill}/check_refs.py {w} <仓库根>（依据核不过的要修正，不要留给服务端剔除）；\n"
+               if has_repo else "")
+            + "接着 python3 {skill}/validate.py {w} 清零 ERROR（warn 逐条自查）；"
+            "python3 {skill}/render.py {w} {work}/canvas.html 渲染并截图自检。\n"
+            "**不要写入画布库**——入库由服务端完成：收尾时它会嵌上下文、核依据、过 validate，全过才入库。"
+            "完成后打印 DONE。").format(skill=SKILL_DIR, w=wj, work=workdir)
     head = "阅读 {skill}/SKILL.md 并严格按其管线执行（规模闸门、验证器、截图自检都算数）。\n".format(skill=SKILL_DIR)
-    if overview:
-        head = "阅读 {skill}/SKILL.md 的「4c. 算法总览板」与 {skill}/schema.md 的「算法总览板（overview）」一节。\n".format(skill=SKILL_DIR)
-        tail = ("产出物只有一个：{work}/overview.json（一个 overview 对象：problem / idea / flow / vars / "
-                "example / pitfalls）。不改画布 JSON、不渲染——合并、校验、渲染由服务端做。"
-                "flow 的直达链接只能指向画布里真实存在的卡 id / 块名 / 步序号；vars 的 name 必须是"
-                "卡片代码里真实出现的标识符；example 的数字必须按代码复算得出。完成后打印 DONE。").format(work=workdir)
+    if upgrade:
+        cur = json.loads(hj.read_text(encoding="utf-8"))
+        spec = "preview-spec.md" if (cur.get("meta") or {}).get("mode") == "preview" else "SKILL.md"
+        head = ("阅读 {skill}/{spec} 与 {skill}/schema.md（尤其「证据分级」「待核实清单」「业务对象」"
+                "「步卡 trace」「算法总览板」各节）。\n").format(skill=SKILL_DIR, spec=spec)
+        tail = ("要补齐的层：\n- " + "\n- ".join(upgrade_gaps(cur)) + "\n"
+                "直接在 {w} 上改。**事实层锁死**（服务端逐字段比对，动了整份拒收）：cards 的 id/code/"
+                "file/lang/kind/layout/blocks 行段、wires 的 id/kind/from/to/route、steps 的数量与 "
+                "focus/lines/wires/unfold/expand/storyline、files、regions 的 id。叙事层（文字、ev、"
+                "gaps、objects、trace、overview、note 文字）可改可补；已经准确的不要为改而改。\n"
+                "依据写 [文件, 行号, 符号]，跑 python3 {skill}/check_refs.py {w} <仓库根> 核到全过；"
+                "python3 {skill}/validate.py {w} 清零 ERROR。不要写入画布库，合并由服务端做。"
+                "完成后打印 DONE。").format(w=wj, skill=SKILL_DIR)
 
     def task_line(where: str) -> str:
-        if overview:
-            return ("任务：为已有画布 {hub}/{name}.json 补写算法总览板。先读画布 JSON（cards 的 id/name/"
-                    "code/blocks 名、steps 序号——这是链接的全部合法目标），再到仓库 {w} 里读代码核实"
-                    "机制（哪些状态变量贯穿全程、判据与循环怎么推进、边界在哪）。读者关注点：{a}\n").format(
-                        hub=ARGS.hub, name=name, w=where, a=ask)
+        if upgrade:
+            return ("任务：把已有画布「{name}」升级到最新规程。先读画布副本 {w}（它的卡/块/步就是你"
+                    "全部的合法引用目标），再到仓库 {r} 里读代码核实每一条新写的说法。读者关注点：{a}\n").format(
+                        name=name, w=wj, r=where, a=ask)
         if preview:
             return ("任务：为仓库 {w} 生成一张**研究型预览地图**（meta.mode:\"preview\"），"
                     "严格按 {skill}/preview-spec.md 执行：研究先行（读文档 + 每组抽查 2-3 个"
@@ -647,8 +692,8 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         gen = gen.replace("{post}", post_pass(src["repo"]))
         prompt = head + task_line(src["repo"]) + tail
         script, cwd, source_desc = "T0=$(date +%s); " + gen, src["repo"], src["repo"]
-    else:  # code：粘贴的代码片段（无仓库，无兜底后处理）
-        gen = gen.replace("{post}", "")
+    else:  # code：粘贴的代码片段（无仓库：不嵌上下文、不核依据，照样过 validate 才入库）
+        gen = gen.replace("{post}", post_pass(None))
         src_dir = workdir / "src"
         src_dir.mkdir(exist_ok=True)
         (src_dir / "pasted.txt").write_text(src["code"], encoding="utf-8")
@@ -658,14 +703,9 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         script, cwd, source_desc = "T0=$(date +%s); " + gen, str(src_dir), "粘贴代码 {} 字符".format(len(src["code"]))
 
     prompt_f.write_text(prompt, encoding="utf-8")
-    # 来源 sidecar：画布页的「→ 深潜这条」点单要能复用同一份代码来源
-    if src["kind"] in ("git", "path"):
-        rec = {"git_url": src["git_url"]} if src["kind"] == "git" else {"repo": src["repo"]}
-        (ARGS.hub / (name + ".src.json")).write_text(
-            json.dumps(rec, ensure_ascii=False), encoding="utf-8")
     proc = subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
     meta = {"id": job_id, "name": name, "ask": ask, "source": source_desc,
-            "mode": "overview" if overview else "preview" if preview else "deep", "pid": proc.pid,
+            "mode": "upgrade" if upgrade else "preview" if preview else "deep", "pid": proc.pid,
             "engine": engine, "model": model or "",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     if src["kind"] == "git":
@@ -845,7 +885,7 @@ async function poll(){
     if(el&&j.jobs.length){
       const sc=el.querySelector('.jobscroll'), keepTop=sc?sc.scrollTop:0;
       el.innerHTML='<h2>生成任务 <span class=costnote>*成本为 API 价折算参考（订阅不按量计费）· 点任务行看进度</span></h2><div class=jobscroll>'+j.jobs.map(x=>
-        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':x.mode==='overview'?'补总览 · ':''}${x.engine==='codex'?'codex'+(x.model?'('+x.model+')':'')+' · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('')+'</div>';
+        `<div class=job data-jid=${x.id}>${x.id} · ${x.mode==='preview'?'预览 · ':x.mode==='upgrade'?'升级 · ':''}${x.engine==='codex'?'codex'+(x.model?'('+x.model+')':'')+' · ':''}${x.name} · <span class="st-${x.status.split('(')[0]}">${x.status}</span> · ${(x.source||'')} · ${x.ask.slice(0,50)}${jobMetrics(x)}<div class=jobd id=jd-${x.id} hidden></div></div>`).join('')+'</div>';
       el.querySelector('.jobscroll').scrollTop=keepTop;
       for(const id of openJobs){
         const d=document.getElementById('jd-'+id);
@@ -988,11 +1028,11 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     return self._json(400, {"ok": False, "error": "bad request"})
                 return self._json(200, undo_patch(hit[0], pid))
-            if hit and hit[1].startswith("/overview"):
-                # 给已有画布补装算法总览板：来源沿用 sidecar，agent 只产 overview.json
+            if hit and hit[1].startswith("/upgrade"):
+                # 把已有画布升级到最新规程：来源沿用 sidecar，事实层由 merge_upgrade 锁死
                 html_path = hit[0]
                 if html_path.parent != ARGS.hub or not html_path.with_suffix(".json").exists():
-                    return self._json(400, {"ok": False, "error": "只有画布库里带 JSON 的画布能补装"})
+                    return self._json(400, {"ok": False, "error": "只有画布库里带 JSON 的画布能升级"})
                 sf = html_path.with_name(html_path.stem + ".src.json")
                 try:
                     rec = json.loads(sf.read_text(encoding="utf-8"))
@@ -1007,8 +1047,8 @@ class Handler(BaseHTTPRequestHandler):
                 if engine not in ("claude", "codex") or (model and not re.match(r"^[A-Za-z0-9._-]{1,64}$", model)):
                     return self._json(400, {"ok": False, "error": "engine/model 不合法"})
                 with SPAWN_LOCK:
-                    job = spawn_generate(src, (req.get("ask") or "补装算法总览板").strip(), html_path.stem,
-                                         False, engine, model, overview=True)
+                    job = spawn_generate(src, (req.get("ask") or "升级到最新规程").strip(), html_path.stem,
+                                         False, engine, model, upgrade=True)
                 return self._json(200, {"ok": True, "job": job})
             if self.path.startswith("/generate"):
                 try:

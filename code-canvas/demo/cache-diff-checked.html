@@ -367,6 +367,44 @@
   .ov-ex th { background: #f6f8fa; }
   .ov-pit { padding-left: 18px; font-size: 12.5px; line-height: 1.7; color: #24292f; }
   .ov-pit li { margin-bottom: 3px; }
+  /* 证据分级：推断=虚线/琥珀徽标，待核实=点线/红徽标（悬停看需要什么证据） */
+  .evb { font: 10px -apple-system, 'PingFang SC', sans-serif; padding: 0 7px; flex: none;
+    border-radius: 99px; border: 1px dashed; cursor: help; margin-left: 6px; vertical-align: 1px; }
+  .evb.infer { color: #9a6700; border-color: #bf8700; }
+  .evb.unknown { color: #cf222e; border-color: #cf222e; border-style: dotted; }
+  .card.ev-unknown { outline: 1.5px dotted #cf222e; outline-offset: 3px; }
+  svg path.wire.ev-infer { stroke-dasharray: 8 5; }
+  svg path.wire.ev-unknown { stroke-dasharray: 2 5; }
+  .ov-objs td:first-child { font-weight: 600; color: #1f2328; white-space: nowrap; }
+  .ov-gap { border: 1px solid #e4e8ec; border-left: 3px solid #8c959f; border-radius: 8px;
+    padding: 7px 11px; margin-bottom: 7px; font-size: 12.5px; line-height: 1.65; color: #24292f; }
+  .ov-gap.behavior { border-left-color: #bf8700; }
+  .ov-gap.unknown { border-left-color: #cf222e; }
+  .ov-gap.drift { border-left-color: #8250df; }
+  .ov-gap b { color: #1f2328; }
+  .ov-gap .need { color: #cf222e; font-size: 12px; }
+  .ov-refs { font: 11px ui-monospace, Menlo, Consolas, monospace; color: #57606a; margin-top: 3px;
+    word-break: break-all; }
+  .ov-gk { font-size: 11.5px; color: #57606a; margin: 10px 0 5px; font-weight: 600; }
+  #up-btn { position: fixed; top: 214px; right: 18px; z-index: 15; font-size: 11px;
+    padding: 4px 12px; border-radius: 99px; border: 1px dashed #8250df; background: #ffffff;
+    color: #8250df; cursor: pointer; }
+  #up-btn:hover { background: #fbefff; }
+  #up-btn[hidden] { display: none; }
+  body.reading #up-btn { display: none; }
+  /* 步卡：触发 / 同步异步 / 数据 / 失败分支 / 依据 */
+  #sbadges { display: inline-flex; gap: 5px; margin-left: 10px; vertical-align: 1px; }
+  #sbadges span { font-size: 10px; border-radius: 99px; padding: 0 7px; border: 1px solid #d0d7de; color: #57606a; }
+  #sbadges .m-async { color: #8250df; border-color: #c297ff; }
+  #sbadges .m-sync { color: #0969da; border-color: #79b8ff; }
+  #sbadges .e-infer { color: #9a6700; border-color: #bf8700; border-style: dashed; }
+  #sbadges .e-unknown { color: #cf222e; border-color: #cf222e; border-style: dotted; }
+  .trc { margin-top: 4px; white-space: normal; }
+  .trc div { margin: 2px 0; }
+  .trc b { color: #1f2328; font-weight: 600; margin-right: 6px; }
+  .trc .op { font-size: 10px; border-radius: 4px; padding: 0 5px; margin-right: 3px; color: #fff; }
+  .trc .op.create { background: #1a7f37; } .trc .op.read { background: #0969da; }
+  .trc .op.update { background: #9a6700; } .trc .op.delete { background: #cf222e; }
   /* 代码里的关键变量：悬停出含义，点击回总览板 */
   .vref { border-bottom: 1px dotted #0969da; cursor: help; }
   .vref:hover { background: #ddf4ff; }
@@ -434,9 +472,9 @@
     margin-top: 3px; margin-left: 12px; user-select: none; font-weight: 600; }
   #dive-btn:hover { text-decoration: underline; }
   #dive-btn[hidden] { display: none; }
-  #sdetail { font-size: 12px; color: #424a53; line-height: 1.65; max-width: 560px;
+  #sdetail { font-size: 12px; color: #424a53; line-height: 1.65; max-width: 620px;
     margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d8dee4;
-    max-height: 8.5em; overflow-y: auto; white-space: pre-wrap; }
+    max-height: 14em; overflow-y: auto; white-space: pre-wrap; }
   #sdetail[hidden] { display: none; }
 
   /* ---- 点单面板：深潜/子预览下单时选引擎与模型 ---- */
@@ -539,6 +577,7 @@
     #canvas-ask-btn { top: 88px; }
     #dl-btn { top: 120px; }
     #ov-btn { top: 152px; }
+    #up-btn { top: 184px; }
     #pp { width: calc(100vw - 36px); top: 96px; }
     #qa { width: 100vw; right: -110vw; }
     /* 步进条改两行：上排 ◀ 点 ▶，下排标题+caption 占满宽 */
@@ -592,6 +631,7 @@
 <button id="profile-btn">阅读画像</button>
 <button id="canvas-ask-btn">问画布</button>
 <button id="ov-btn" hidden>算法总览</button>
+<button id="up-btn" hidden title="让生产 agent 按最新规程补齐缺的层（事实层锁死，服务端校验后写回）">升级到最新规程</button>
 <div id="overview" hidden>
   <div id="ov-box">
     <div id="ov-head"><b>算法总览</b><span class="ov-sub"></span><span id="ov-close">✕ 关闭 · Esc</span></div>
@@ -613,7 +653,7 @@
   <button class="navbtn" id="next">▶</button>
   <div id="stext"><div id="spreview" hidden></div><div id="stitle"></div><div id="scap"></div>
     <div id="sdetail" hidden></div>
-    <span id="sdetail-btn" hidden>详解 ▾</span><span id="dive-btn" hidden>→ 深潜这条</span>
+    <span id="sdetail-btn" hidden>详解 ▾</span><span id="sbadges"></span><span id="dive-btn" hidden>→ 深潜这条</span>
   </div>
 </div>
 
@@ -650,6 +690,12 @@ const KW = {
   js: 'function return if else for while const let var new class import from export try catch finally throw await async of in typeof instanceof null undefined true false break continue switch case default do yield delete void this super extends static get set',
 };
 function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+/* 证据徽标：fact（缺省）不标；infer / unknown 显式标出，悬停看依据缺口 */
+function evBadge(x) {
+  if (x.ev === 'infer') return `<span class="evb infer" title="${esc(x.need || '有依据的推断：代码组合推出，或由规程/提示词驱动，代码本身不强制')}">推断</span>`;
+  if (x.ev === 'unknown') return `<span class="evb unknown" title="${esc('尚未确认。需要：' + (x.need || ''))}">待核实</span>`;
+  return '';
+}
 /* 问答回答的 markdown 子集：围栏代码/表格/列表/标题/段落 + 粗体/行内码/链接。
    自包含单文件不引库；先整体转义再转换，模型输出里的 HTML 一律当文本。 */
 function mdInline(t) {
@@ -789,10 +835,10 @@ for (const c of DATA.cards) {
   }
   if (c.kind === 'district') {   // 预览分区卡：地图语言，零代码排版
     const el = document.createElement('div');
-    el.className = 'card district size-' + (c.size || 'm');
+    el.className = 'card district size-' + (c.size || 'm') + (c.ev === 'unknown' ? ' ev-unknown' : '');
     el.id = 'card-' + c.id;
     const rc = c.role_color || '#57606a';
-    el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>`
+    el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>${evBadge(c)}`
       + `<span class="file">${esc(c.file || '')}</span></div>`
       + `<div class="body dbody">`
       + (c.role ? `<span class="drole" style="background:${rc}">${esc(c.role)}</span>` : '')
@@ -860,7 +906,7 @@ for (const c of DATA.cards) {
         + `<div class="ctxlines" data-side="bot"></div></div>`;
     }
   }
-  el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>${badge}`
+  el.innerHTML = `<div class="hdr"><span class="chev">▾</span><span class="fname">${esc(c.name)}</span>${badge}${evBadge(c)}`
     + `<span class="rd-btn" title="精读：原地放大连续阅读">⛶</span>`
     + `<span class="file">${esc(c.file || '')}</span></div>`
     + (c.about ? `<div class="about">${esc(c.about)}</div>` : '')
@@ -894,6 +940,11 @@ if (DATA.cards.some(c => c.plan) || (DATA.wires || []).some(w => w.plan)) {
       el.addEventListener('click', () => setStep(+el.dataset.step)));
   }
 }
+if ([...DATA.cards, ...(DATA.wires || []), ...(DATA.notes || [])].some(x => x.ev === 'infer' || x.ev === 'unknown')) {
+  document.querySelector('.legend').insertAdjacentHTML('beforeend',
+    `<span><span class="sw" style="border-color:#57606a;border-top-style:dashed"></span>推断</span>`
+    + `<span><span class="sw" style="border-color:#cf222e;border-top-style:dotted"></span>待核实</span>`);
+}
 if (DATA.cards.some(c => c.plan_delta)) {
   document.querySelector('.legend').insertAdjacentHTML('beforeend',
     `<span><span class="pbadge offplan">⚠ 计划外</span> 计划没说、实际动了</span>`
@@ -906,7 +957,7 @@ for (const n of DATA.notes || []) {
   el.className = 'note' + (n.flavor === 'bg' ? ' bg' : '') + (n.qa ? ' qaborn' : '');
   el.id = 'note-' + n.id;
   el.dataset.step = n.step ?? '';
-  el.innerHTML = `<div class="tag">${esc(n.tag || 'NOTE')}</div>${esc(n.text)}`;
+  el.innerHTML = `<div class="tag">${esc(n.tag || 'NOTE')}${evBadge(n)}</div>${esc(n.text)}`;
   world.appendChild(el);
 }
 
@@ -1193,7 +1244,7 @@ function drawWires() {
     const state = active === null ? '' : (active.includes(w.id) ? ' on' : ' off');
     const p = document.createElementNS(NS, 'path');
     p.setAttribute('d', `M ${a.x} ${a.y} Q ${m.x} ${m.y}, ${b.x} ${b.y}`);
-    p.setAttribute('class', `wire route route-${w.route || 0}${state}`);
+    p.setAttribute('class', `wire route route-${w.route || 0}${state}${w.ev && w.ev !== 'fact' ? ' ev-' + w.ev : ''}`);
     routesSvg.appendChild(p);
   }
   for (const w of DATA.wires || []) {
@@ -1207,7 +1258,7 @@ function drawWires() {
     const planCls = (w.plan ? ` plan-${w.plan}` : '') + (w.route !== undefined ? ` route-${w.route}` : '');
     const path = document.createElementNS(NS, 'path');
     path.setAttribute('d', `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`);
-    path.setAttribute('class', `wire ${w.kind}${planCls}${state}${w.qa ? ' qaborn' : ''}`);
+    path.setAttribute('class', `wire ${w.kind}${planCls}${state}${w.qa ? ' qaborn' : ''}${w.ev && w.ev !== 'fact' ? ' ev-' + w.ev : ''}`);
     if (state === ' on' && w.kind !== 'route')  // 点亮的线带方向箭头（地铁线路除外）
       path.setAttribute('marker-end', `url(#ah-${w.plan ? 'plan-' + w.plan : w.kind})`);
     svg.appendChild(path);
@@ -1340,6 +1391,28 @@ function focusRead(s, animate = true) {
   else centerOn(r.first.cx, r.first.cy, READ_FLOOR(), animate);
 }
 
+/* 步卡 trace：一步发生了什么——触发、同步/异步、数据增删改读、失败分支、依据 */
+const OPS = { create: '创建', read: '读', update: '改', delete: '删' };
+const MODES = { sync: '同步', async: '异步', mixed: '同步+异步' };
+function traceBadges(t) {
+  if (!t) return '';
+  const ev = t.ev === 'infer' ? '<span class="e-infer">推断</span>'
+    : t.ev === 'unknown' ? '<span class="e-unknown">待核实</span>' : '<span>已确认</span>';
+  return (t.mode ? `<span class="m-${t.mode === 'async' ? 'async' : 'sync'}">${MODES[t.mode] || t.mode}</span>` : '')
+    + ev + ((t.refs || []).length ? `<span>依据 ${t.refs.length} 处</span>` : '');
+}
+function traceHtml(t) {
+  if (!t) return '';
+  const data = (t.data || []).map(x => `<span class="op ${x.op}">${OPS[x.op] || x.op}</span>${esc(x.what || '')}`).join(' · ');
+  return `<div class="trc">`
+    + `<div><b>触发</b>${esc(t.trigger || '')}</div>`
+    + (data ? `<div><b>数据</b>${data}</div>` : '')
+    + (t.fail ? `<div><b>失败 / 分支</b>${esc(t.fail)}</div>` : '')
+    + (t.ev === 'unknown' && t.need ? `<div><b>待核实</b>${esc(t.need)}</div>` : '')
+    + ((t.refs || []).length ? `<div class="ov-refs"><b>依据</b>${t.refs.map(r => esc(r[0] + ':' + r[1] + (r[2] ? ' ' + r[2] : ''))).join(' · ')}</div>` : '')
+    + `</div>`;
+}
+
 /* ================= steps ================= */
 function setStep(i, animate = true) {
   step = Math.max(0, Math.min(STEPS.length - 1, i));
@@ -1390,10 +1463,11 @@ function setStep(i, animate = true) {
   // 步级详解：有 detail 才出「详解」按钮，换步自动收起
   const dbtn = document.getElementById('sdetail-btn');
   const dpanel = document.getElementById('sdetail');
-  dbtn.hidden = !s.detail;
+  dbtn.hidden = !(s.detail || s.trace);
   dpanel.hidden = true;
   dbtn.textContent = '详解 ▾';
-  dpanel.textContent = s.detail || '';
+  dpanel.innerHTML = esc(s.detail || '') + traceHtml(s.trace);
+  document.getElementById('sbadges').innerHTML = traceBadges(s.trace);
   updateDive(s);
   document.getElementById('prev').disabled = step === 0;
   document.getElementById('next').disabled = step === STEPS.length - 1;
@@ -2004,23 +2078,47 @@ function ovLinkLabel(f) {
   if (!c) return '';
   return '→ ' + c.name + (f.block ? ' · ' + f.block : '');
 }
+/* 总览板 = 算法总览（overview，深潜）+ 业务对象（objects）+ 待核实清单（gaps）。
+   有 overview 叫「算法总览」，预览地图只有后两节叫「架构总览」。 */
+const refsLine = refs => (refs || []).length
+  ? `<div class="ov-refs">${refs.map(r => esc(r[0] + ':' + r[1] + (r[2] ? ' ' + r[2] : ''))).join(' · ')}</div>` : '';
 function buildOverview() {
-  if (!OV) return;
+  const objs = DATA.objects || [], gaps = DATA.gaps || [];
+  if (!OV && !objs.length && !gaps.length) return;
+  const title = OV ? '算法总览' : '架构总览';
+  document.querySelector('#ov-head b').textContent = title;
+  document.getElementById('ov-btn').textContent = title + (gaps.length ? ` · 待核实 ${gaps.filter(g => g.kind === 'unknown').length}` : '');
   document.querySelector('#ov-head .ov-sub').textContent = (DATA.meta || {}).title || '';
   const sec = (t, html) => `<div class="ov-sec"><h2>${t}</h2>${html}</div>`;
-  const flow = (OV.flow || []).map((f, i) => {
-    const lab = ovLinkLabel(f);
-    return `<li><span class="ov-txt">${esc(f.text || '')}</span>${lab ? `<span class="ov-link" data-i="${i}">${esc(lab)}</span>` : ''}</li>`;
-  }).join('');
-  const vars = (OV.vars || []).map(v =>
-    `<tr id="ov-var-${esc(v.name)}"><td>${esc(v.name)}</td><td>${esc(v.meaning || '')}</td><td>${esc(v.rw || '')}</td></tr>`).join('');
-  document.getElementById('ov-body').innerHTML =
-    sec('问题：输入 · 输出 · 目标', `<p>${esc(OV.problem || '')}</p>`)
-    + sec('核心思想', `<div class="ov-idea">${esc(OV.idea || '')}</div>`)
-    + sec('流程骨架（点右侧直达代码）', `<ol class="ov-flow">${flow}</ol>`)
-    + sec('关键变量（代码里悬停同名标识符可查）', `<table class="ov-vars"><thead><tr><th>变量</th><th>装的是什么</th><th>谁写 · 谁读</th></tr></thead><tbody>${vars}</tbody></table>`)
-    + sec('例子跑一遍', `<div class="ov-ex">${md(OV.example || '')}</div>`)
-    + sec('边界与陷阱', `<ul class="ov-pit">${(OV.pitfalls || []).map(p => `<li>${esc(p)}</li>`).join('')}</ul>`);
+  let html = '';
+  if (OV) {
+    const flow = (OV.flow || []).map((f, i) => {
+      const lab = ovLinkLabel(f);
+      return `<li><span class="ov-txt">${esc(f.text || '')}</span>${lab ? `<span class="ov-link" data-i="${i}">${esc(lab)}</span>` : ''}</li>`;
+    }).join('');
+    const vars = (OV.vars || []).map(v =>
+      `<tr id="ov-var-${esc(v.name)}"><td>${esc(v.name)}</td><td>${esc(v.meaning || '')}</td><td>${esc(v.rw || '')}</td></tr>`).join('');
+    html += sec('问题：输入 · 输出 · 目标', `<p>${esc(OV.problem || '')}</p>`)
+      + sec('核心思想', `<div class="ov-idea">${esc(OV.idea || '')}</div>`)
+      + sec('流程骨架（点右侧直达代码）', `<ol class="ov-flow">${flow}</ol>`)
+      + sec('关键变量（代码里悬停同名标识符可查）', `<table class="ov-vars"><thead><tr><th>变量</th><th>装的是什么</th><th>谁写 · 谁读</th></tr></thead><tbody>${vars}</tbody></table>`)
+      + sec('例子跑一遍', `<div class="ov-ex">${md(OV.example || '')}</div>`)
+      + sec('边界与陷阱', `<ul class="ov-pit">${(OV.pitfalls || []).map(p => `<li>${esc(p)}</li>`).join('')}</ul>`);
+  }
+  if (objs.length) {
+    html += sec('业务对象：存在哪 · 何时创建 · 谁读谁写 · 状态怎么变', `<table class="ov-vars ov-objs"><thead><tr><th>对象</th><th>存在哪</th><th>何时创建</th><th>谁读 · 谁写</th><th>状态变化</th></tr></thead><tbody>`
+      + objs.map(o => `<tr><td>${esc(o.name)}</td><td>${esc(o.where || '')}</td><td>${esc(o.created || '')}</td><td>${esc(o.rw || '')}</td><td>${esc(o.states || '')}${refsLine(o.refs)}</td></tr>`).join('')
+      + `</tbody></table>`);
+  }
+  if (gaps.length) {
+    const kinds = [['behavior', '值得注意的实际行为'], ['unknown', '尚未确认（需要证据）'], ['drift', '文档与实现不一致（以实现为准）']];
+    html += sec('待核实与注意', kinds.map(([k, t]) => {
+      const gs = gaps.filter(g => g.kind === k);
+      return gs.length ? `<div class="ov-gk">${t}</div>` + gs.map(g => `<div class="ov-gap ${k}"><b>${esc(g.title)}</b>　${esc(g.text)}`
+        + (g.need ? `<div class="need">需要：${esc(g.need)}</div>` : '') + refsLine(g.refs) + `</div>`).join('') : '';
+    }).join(''));
+  }
+  document.getElementById('ov-body').innerHTML = html;
   document.getElementById('ov-btn').hidden = false;
 }
 function openOverview(varName) {
@@ -2082,14 +2180,23 @@ function markVars() {
 }
 buildOverview();
 markVars();
-document.getElementById('ov-btn').addEventListener('click', () => {
-  const b = document.getElementById('ov-btn');
-  if (b.dataset.order) {
-    orderDialog({ kind: 'overview', btn: b, name: location.pathname.split('/')[2] || '',
-      ask: '为本画布补写算法总览板：problem / idea / flow（行行直达卡·块·步）/ vars（真实标识符 + 谁写谁读）/ example（带数字跑一遍）/ pitfalls。agent 只产 overview.json，服务端合并、校验、渲染。' });
-    return;
-  }
-  openOverview();
+document.getElementById('ov-btn').addEventListener('click', () => openOverview());
+/* 升级到最新规程：缺哪层补哪层（深潜：总览/待核实/步卡；预览：待核实/业务对象/步卡），
+   事实层由服务端 merge_upgrade 锁死 */
+function upgradeMissing() {
+  const pv = (DATA.meta || {}).mode === 'preview';
+  const miss = [];
+  if (!pv && !DATA.overview) miss.push('算法总览板');
+  if (!DATA.gaps) miss.push('待核实清单');
+  if (pv && !DATA.objects) miss.push('业务对象');
+  if (STEPS.slice(1).some(s => (pv ? s.ask : s.focus) && !s.trace)) miss.push('步卡');
+  return miss;
+}
+document.getElementById('up-btn').addEventListener('click', () => {
+  const b = document.getElementById('up-btn');
+  orderDialog({ kind: 'upgrade', btn: b, name: location.pathname.split('/')[2] || '',
+    ask: '把本画布升级到最新规程，补齐：' + upgradeMissing().join('、') + '，并给分区/连线/note 标证据级别。'
+      + 'agent 只改工作目录里的副本，事实层（代码/行号/卡/线/步骤结构）锁死；依据逐条机械核对，服务端校验通过才写回。' });
 });
 document.getElementById('ov-close').addEventListener('click', closeOverview);
 document.getElementById('overview').addEventListener('click', e => {
@@ -2143,10 +2250,8 @@ if (location.pathname.startsWith('/c/')) {
         HUB_SRC = j;
         updateDive(STEPS[step]);
         document.querySelectorAll('.dact').forEach(e => { e.hidden = false; });
-        if (!DATA.overview && (DATA.meta || {}).mode !== 'preview') {   // 老画布：可点单补装
-          const ob = document.getElementById('ov-btn');
-          ob.hidden = false; ob.textContent = '补装算法总览'; ob.dataset.order = '1';
-        }
+        if (upgradeMissing().length && !['plan', 'diff'].includes((DATA.meta || {}).mode))
+          document.getElementById('up-btn').hidden = false;   // 老画布：可点单升级
       }
     })
     .catch(() => {});
@@ -2194,8 +2299,8 @@ document.getElementById('ob-go').addEventListener('click', async () => {
   const btn = o.btn, orig = btn.textContent;
   btn.textContent = '点单中…';
   try {
-    // 补装总览：对本画布的服务端任务（agent 只产 overview.json，服务端合并+校验+渲染）
-    const r = await fetch(o.kind === 'overview' ? 'overview' : '/generate', { method: 'POST',
+    // 升级：对本画布的服务端任务（agent 改副本，服务端锁事实层+核依据+校验后写回）
+    const r = await fetch(o.kind === 'upgrade' ? 'upgrade' : '/generate', { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json();
     btn.textContent = j.ok ? `✓ 已点单「${o.name}」· 回画布库看进度` : '点单失败：' + (j.error || '');

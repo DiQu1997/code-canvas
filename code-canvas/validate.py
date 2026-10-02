@@ -366,8 +366,97 @@ def main():
         elif not (2 <= len(pf) <= 5):
             warn(f"overview.pitfalls 有 {len(pf)} 条（建议 2-5）")
 
+    # 证据分级：fact（缺省）/ infer 有依据的推断 / unknown 尚未确认（必须写 need）
+    def check_ev(where, x):
+        ev = x.get("ev")
+        if ev is None:
+            return
+        if ev not in ("fact", "infer", "unknown"):
+            err(f"{where}: ev 只能是 fact | infer | unknown")
+        elif ev == "unknown" and not (x.get("need") or "").strip():
+            err(f"{where}: ev=unknown 必须写 need（确认它需要什么证据）")
+        if len(x.get("need") or "") > 120:
+            warn(f"{where}: need 超 100 字（{len(x['need'])}）")
+    for c in cards.values():
+        check_ev(f"卡 {c.get('id')}", c)
+    for w in d.get("wires", []):
+        check_ev(f"线 {w.get('id')}", w)
+    for nt in d.get("notes", []):
+        check_ev(f"note {nt.get('id')}", nt)
+
+    def check_refs_shape(where, refs):
+        if refs is None:
+            return
+        if not isinstance(refs, list):
+            err(f"{where}.refs 必须是列表"); return
+        for r in refs:
+            if not (isinstance(r, list) and len(r) in (2, 3) and isinstance(r[0], str)
+                    and isinstance(r[1], int) and r[1] > 0):
+                err(f"{where}.refs: {json.dumps(r, ensure_ascii=False)} 应为 [文件, 行号, 符号]")
+
+    # 待核实清单：值得注意的实际行为 / 尚未确认 / 文档与实现不一致
+    gaps = d.get("gaps")
+    if gaps is None:
+        if mode == "preview":
+            warn("缺 gaps 待核实清单——读者分不清哪些是确认的事实、哪些还没核实（见 schema.md）")
+    elif not isinstance(gaps, list):
+        err("gaps 必须是列表")
+    else:
+        if not (2 <= len(gaps) <= 10):
+            warn(f"gaps 有 {len(gaps)} 条（建议 3-10）")
+        for j, g in enumerate(gaps):
+            gp = f"gaps[{j}]"
+            if not isinstance(g, dict) or not (g.get("title") or "").strip() or not (g.get("text") or "").strip():
+                err(f"{gp}: 需要 title 与 text"); continue
+            if g.get("kind") not in ("behavior", "unknown", "drift"):
+                err(f"{gp}: kind 只能是 behavior | unknown | drift")
+            if g.get("kind") == "unknown" and not (g.get("need") or "").strip():
+                err(f"{gp}: kind=unknown 必须写 need（确认它需要什么证据）")
+            if len(g["title"]) > 40:
+                warn(f"{gp}: title 超 40 字")
+            if len(g["text"]) > 220:
+                warn(f"{gp}: text 超 200 字（{len(g['text'])}）")
+            check_refs_shape(gp, g.get("refs"))
+
+    # 业务对象：存在哪、何时创建、谁读谁写、状态怎么变
+    objs = d.get("objects")
+    if objs is None:
+        if mode == "preview":
+            warn("缺 objects 业务对象——读者不知道系统里流转的是什么（见 schema.md）")
+    elif not isinstance(objs, list):
+        err("objects 必须是列表")
+    else:
+        for j, o in enumerate(objs):
+            op = f"objects[{j}]"
+            if not isinstance(o, dict) or not (o.get("name") or "").strip():
+                err(f"{op}: 需要 name"); continue
+            for k in ("where", "created", "rw"):
+                if not (o.get(k) or "").strip():
+                    warn(f"{op} {o['name']}: 缺 {k}")
+                elif len(o[k]) > 110:
+                    warn(f"{op} {o['name']}: {k} 超 100 字")
+            check_refs_shape(op, o.get("refs"))
+
     for i, s in enumerate(steps):
         sp = f"step[{i}] {s.get('title','')}"
+        tr = s.get("trace")
+        if tr is not None:
+            if not isinstance(tr, dict) or not (tr.get("trigger") or "").strip():
+                err(f"{sp}: trace 需要 trigger（什么触发了这一步）")
+            else:
+                if tr.get("mode") not in ("sync", "async", "mixed"):
+                    err(f"{sp}: trace.mode 只能是 sync | async | mixed")
+                for x in tr.get("data") or []:
+                    if not isinstance(x, dict) or x.get("op") not in ("create", "read", "update", "delete") \
+                            or not (x.get("what") or "").strip():
+                        err(f"{sp}: trace.data 每项要 {{op: create|read|update|delete, what}}")
+                check_ev(f"{sp} trace", tr)
+                check_refs_shape(f"{sp} trace", tr.get("refs"))
+                for k, lim in (("trigger", 90), ("fail", 160)):
+                    if len(tr.get(k) or "") > lim + 10:
+                        warn(f"{sp}: trace.{k} 超 {lim} 字")
+        elif mode == "preview" and i > 0 and s.get("ask"):
+            warn(f"{sp}: 路线步缺 trace 步卡（触发/同步异步/数据/失败分支/依据）")
         if s.get("storyline") and s["storyline"] not in regions:
             err(f"{sp}: storyline {s['storyline']} 不存在")
         for wid in s.get("wires") or []:

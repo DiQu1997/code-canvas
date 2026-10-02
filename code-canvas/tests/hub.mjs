@@ -159,9 +159,11 @@ check('waiter has no status while cache not ready',
 mkdirSync(join(hub, '.repos', basename(g4.job.cache)), { recursive: true });
 writeFileSync(g4.job.cache + '.ready', '');
 await new Promise(r => setTimeout(r, 3500));
+// proceeds past the wait and runs the (stub) agent: 5 = ran but produced no canvas
+// (a wait timeout would land 1 before the agent ever starts)
 check('waiter proceeds once cache turns ready',
   existsSync(join(hub, '.jobs', `${g4.job.id}.status`))
-  && readFileSync(join(hub, '.jobs', `${g4.job.id}.status`), 'utf8').trim() === '0');
+  && readFileSync(join(hub, '.jobs', `${g4.job.id}.status`), 'utf8').trim() === '5');
 // clone failure still lands a failed status
 const gf = await (await fetch(`${base}/generate`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -249,17 +251,7 @@ const drawerText = await page.textContent('#qa-log');
 check('canvas ask answers via stub', drawerText.includes('这个 PR 治什么病'));
 // QA runs as a coding agent: canvas with a repo sidecar gets the research mandate
 check('QA with repo gets research mandate', drawerText.includes('可查仓库'));
-// overview backfill: canvas without overview offers「补装算法总览」→ order dialog → overview job
-check('canvas without overview offers backfill button', await page.isVisible('#ov-btn')
-  && (await page.textContent('#ov-btn')) === '补装算法总览');
-await page.$eval('#ov-btn', el => el.click()); await page.waitForTimeout(300);   // QA drawer overlaps the HUD
-check('backfill opens the order dialog', await page.isVisible('#ordbox')
-  && (await page.textContent('#ob-ask')).includes('overview.json'));
-await page.click('#ob-go'); await page.waitForTimeout(900);
-const ovJob = (await (await fetch(`${base}/jobs`)).json()).jobs.find(j => j.mode === 'overview' && j.name === 'cache-diff');
-check('overview job spawned with its own mode and prompt', !!ovJob
-  && readFileSync(join(hub, '.jobs', `${ovJob.id}.prompt`), 'utf8').includes('overview.json')
-  && !readFileSync(join(hub, '.jobs', `${ovJob.id}.prompt`), 'utf8').includes('canvas.json'));
+check('diff canvas offers no upgrade button', await page.isHidden('#up-btn'));
 const noRepoAsk = await (await fetch(`${base}/c/nano-vllm/ask`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ prompt: 'q', card: 'allocate', block: '-', question: 'q' }),
@@ -323,6 +315,20 @@ await page.waitForTimeout(300);
 check('engine choice remembered across orders', await page.$eval(
   '#ordbox input[value="codex"]', el => el.checked));
 await page.click('#ob-cancel');
+// 4e. upgrade: preview map missing the trust layers offers「升级到最新规程」→ upgrade job
+check('outdated canvas offers upgrade button', await page.isVisible('#up-btn'));
+await page.$eval('#up-btn', el => el.click()); await page.waitForTimeout(300);
+check('upgrade order lists the missing layers', await page.isVisible('#ordbox')
+  && (await page.textContent('#ob-ask')).includes('待核实清单')
+  && (await page.textContent('#ob-ask')).includes('业务对象'));
+await page.check('#ordbox input[value="claude"]');
+await page.click('#ob-go'); await page.waitForTimeout(900);
+const upJob = (await (await fetch(`${base}/jobs`)).json()).jobs.find(j => j.mode === 'upgrade' && j.name === 'pv-fix');
+const upPrompt = upJob ? readFileSync(join(hub, '.jobs', `${upJob.id}.prompt`), 'utf8') : '';
+check('upgrade job works on a workdir copy with facts locked', !!upJob
+  && upPrompt.includes('事实层锁死') && upPrompt.includes('preview-spec.md')
+  && upPrompt.includes('gaps 待核实清单') && upPrompt.includes('objects 业务对象')
+  && existsSync(join(hub, '.jobs', upJob.id, 'canvas.json')));
 
 // 5. generate: three sources. code mode runs to done (stub exits instantly)
 const gen = await (await fetch(`${base}/generate`, {
@@ -330,14 +336,16 @@ const gen = await (await fetch(`${base}/generate`, {
   body: JSON.stringify({ ask: '测试生成', name: 'gen-test', code: 'def f():\n    return 1' }),
 })).json();
 check('generate accepts pasted code', gen.ok === true && gen.job.name === 'gen-test');
-let done = false;
+// the echo stub produces no canvas.json → the job must be failed(5), never "done"
+let genStatus = '';
 for (let i = 0; i < 25; i++) {
   const js = await (await fetch(`${base}/jobs`)).json();
   const j = js.jobs.find(j => j.id === gen.job.id);
-  if (j && j.status !== 'running') { done = j.status === 'done'; break; }
+  if (j && j.status !== 'running') { genStatus = j.status; break; }
   await new Promise(r => setTimeout(r, 200));
 }
-check('job completes with status done', done);
+check('job without canvas output is failed(5), not done',
+  genStatus === 'failed(5)' && !existsSync(join(hub, 'gen-test.json')));
 const zombie = (await (await fetch(`${base}/jobs`)).json()).jobs.find(j => j.name === 'zombie');
 check('dead-pid job reported interrupted, not running', !!zombie && zombie.status === 'failed(中断)');
 check('metrics parsed from NDJSON tail result event',
@@ -403,8 +411,7 @@ check('preview job named -map with mode', pv.ok === true &&
   pv.job.name === 'prevrepo-map' && pv.job.mode === 'preview');
 check('preview prompt follows preview-spec',
   readFileSync(join(hub, '.jobs', `${pv.job.id}.prompt`), 'utf8').includes('preview-spec.md'));
-check('generate records src sidecar',
-  JSON.parse(readFileSync(join(hub, 'prevrepo-map.src.json'), 'utf8')).git_url.includes('prevrepo'));
+check('no src sidecar before the canvas is ingested', !existsSync(join(hub, 'prevrepo-map.src.json')));
 const pvCode = await (await fetch(`${base}/generate`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ ask: 'x', code: 'y = 1', preview: true }),
@@ -420,14 +427,14 @@ const cx = await (await fetch(`${base}/generate`, {
 })).json();
 check('codex job accepted with engine+model recorded', cx.ok === true
   && cx.job.engine === 'codex' && cx.job.model === 'gpt-5.6-sol');
-let cxDone = false;
+let cxEnded = false;
 for (let i = 0; i < 40; i++) {
   const js = await (await fetch(`${base}/jobs`)).json();
   const j = js.jobs.find(x => x.id === cx.job.id);
-  if (j && j.status !== 'running') { cxDone = j.status === 'done'; break; }
+  if (j && j.status !== 'running') { cxEnded = true; break; }
   await new Promise(r => setTimeout(r, 250));
 }
-check('codex job completes via codex binary', cxDone
+check('codex job runs the codex binary', cxEnded
   && readFileSync(join(hub, '.jobs', `${cx.job.id}.result.json`), 'utf8').includes('exec'));
 const badEng = await (await fetch(`${base}/generate`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -493,16 +500,38 @@ const ppCanvas = JSON.stringify({
             code: 'def f():\n    return 1', layout: { col: 0, band: 0 } }],
   wires: [], notes: [], steps: [{ title: 't', fit: true }],
 });
+// fake production agent: writes ONLY its workdir canvas.json (the path is in its prompt)
+const spLine = readFileSync(join(root, 'serve.py'), 'utf8').split('\n')
+  .findIndex(l => l.startsWith('def spawn_generate')) + 1;
+writeFileSync(join(hub, 'fakeagent.py'), `import json, sys
+mode, p = sys.argv[1], sys.argv[2]
+if mode == 'pp':
+    open(p, 'w').write(${JSON.stringify(ppCanvas)}); sys.exit(0)
+if mode == 'ppbad':
+    open(p, 'w').write('{"meta": {}, "cards": [], "wires": [], "steps": []}'); sys.exit(0)
+d = json.load(open(p))
+d['gaps'] = [
+  {'kind': 'behavior', 'title': '任务派发即返回', 'text': 't', 'refs': [['serve.py', ${spLine}, 'def spawn_generate']]},
+  {'kind': 'unknown', 'title': '部署参数', 'text': 't', 'need': '在盒子上看 systemd 单元'}]
+d['objects'] = [{'name': 'Job', 'where': '.jobs/', 'created': '/generate', 'rw': 'serve 写', 'states': 'running→done'}]
+d['steps'][1]['trace'] = {'trigger': '读者点线路', 'mode': 'async', 'data': [{'op': 'create', 'what': 'job'}],
+  'fail': '无', 'refs': [['serve.py', ${spLine}, 'def spawn_generate'], ['serve.py', 1, 'no_such_symbol_zz']]}
+for c in d['cards']:
+    if c['id'] == 'sched': c['ev'] = 'infer'
+if mode == 'tamper':
+    d['cards'][0]['code'] = 'def hacked(): pass'
+json.dump(d, open(p, 'w'), ensure_ascii=False)
+`);
 writeFileSync(join(hub, 'fakepatch.sh'),
   `#!/bin/bash
+cp=$(printf '%s' "$*" | grep -o '/[^ ]*/canvas\\.json' | head -1)
+fa="python3 ${join(hub, 'fakeagent.py')}"
 case "$*" in
-  *pp-test*) printf '%s' ${shq(ppCanvas)} > ${shq(join(hub, 'pp-test.json'))}; echo dummy > ${shq(join(hub, 'pp-test.html'))}; echo done;;
+  *pp-bad-repo*) $fa ppbad "$cp"; echo done;;
+  *pp-repo*) $fa pp "$cp"; echo done;;
+  *TAMPER*) $fa tamper "$cp"; echo done;;
+  *升级到最新规程*) $fa upgrade "$cp"; echo done;;
   *BADPATCH*) printf '%s' ${shq(badEnv)};;
-  *overview.json*) p=$(printf '%s' "$*" | grep -o '/[^ ]*/overview\\.json' | head -1); printf '%s' ${shq(JSON.stringify({
-    problem: 'p', idea: 'i',
-    flow: [{ text: 'a', card: 'a' }, { text: 'b', card: 'sched' }, { text: 'c', step: 1 }, { text: 'd', card: 'a' }, { text: 'e', card: 'a' }],
-    vars: [{ name: 'f', meaning: 'm', rw: 'r' }, { name: 'f', meaning: 'm', rw: 'r' }, { name: 'f', meaning: 'm', rw: 'r' }, { name: 'f', meaning: 'm', rw: 'r' }],
-    example: 'x', pitfalls: ['1', '2'] }))} > "$p"; echo done;;
   *) printf '%s' ${shq(goodEnv)};;
 esac\n`,
   { mode: 0o755 });
@@ -541,21 +570,36 @@ const dj2 = pj();
 check('undo removes qa elements and restores layout', un.ok === true
   && !dj2.notes.some(n => n.qa === pa.patched.patch_id)
   && dj2.cards.find(c => c.id === 'a').layout.col === 0);
-// 7b. overview backfill end-to-end: agent writes overview.json → server merges
-// behind validate and re-renders (pv-fix has a path sidecar)
-const ovGen = await (await fetch(`${base2}/c/pv-fix/overview`, {
+// 7b. upgrade end-to-end: agent edits its workdir copy → server checks refs, locks the
+// fact layer, validates, then writes back (pv-fix has a path sidecar)
+const waitStatus = async id => {
+  for (let i = 0; i < 60 && !existsSync(join(hub, '.jobs', `${id}.status`)); i++)
+    await new Promise(r => setTimeout(r, 250));
+  return existsSync(join(hub, '.jobs', `${id}.status`))
+    ? readFileSync(join(hub, '.jobs', `${id}.status`), 'utf8').trim() : 'timeout';
+};
+const upGen = await (await fetch(`${base2}/c/pv-fix/upgrade`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
 })).json();
-for (let i = 0; i < 40 && !existsSync(join(hub, '.jobs', `${ovGen.job.id}.status`)); i++)
-  await new Promise(r => setTimeout(r, 250));
-check('overview backfill merged into canvas JSON', ovGen.ok
-  && readFileSync(join(hub, '.jobs', `${ovGen.job.id}.status`), 'utf8').trim() === '0'
-  && (pj().overview || {}).flow?.length === 5);
-check('overview backfill re-rendered html', readFileSync(join(hub, 'pv-fix.html'), 'utf8').includes('"overview"'));
-check('overview backfill rejected for pasted-code canvas',
-  (await (await fetch(`${base2}/c/nano-vllm/overview`, { method: 'POST', body: '{}' })).json()).ok === false);
-// 8. service post-pass: agent "forgets" to embed context → server does it
-// mechanically after the job (embed_context + re-render), before status lands.
+const upSt = await waitStatus(upGen.job.id);
+const up = pj();
+check('upgrade merged the trust layers', upGen.ok && upSt === '0'
+  && up.gaps.length === 2 && up.objects.length === 1 && up.cards.find(c => c.id === 'sched').ev === 'infer');
+check('server pruned the unverifiable ref, kept the real one',
+  up.steps[1].trace.refs.length === 1 && up.steps[1].trace.refs[0][2] === 'def spawn_generate'
+  && readFileSync(join(hub, '.jobs', `${upGen.job.id}.log`), 'utf8').includes('no_such_symbol_zz'));
+check('upgrade re-rendered html', readFileSync(join(hub, 'pv-fix.html'), 'utf8').includes('"gaps"'));
+const codeBefore = up.cards[0].code;
+const tmGen = await (await fetch(`${base2}/c/pv-fix/upgrade`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ask: 'TAMPER' }),
+})).json();
+check('upgrade that touches the fact layer is rejected whole (status 3)',
+  await waitStatus(tmGen.job.id) === '3' && pj().cards[0].code === codeBefore
+  && readFileSync(join(hub, '.jobs', `${tmGen.job.id}.log`), 'utf8').includes('事实层被改动'));
+check('upgrade rejected for pasted-code canvas',
+  (await (await fetch(`${base2}/c/nano-vllm/upgrade`, { method: 'POST', body: '{}' })).json()).ok === false);
+// 8. server-side ingest: the agent only writes its workdir canvas.json (and "forgets"
+// to embed context) → server embeds, validates, ingests, renders, writes the sidecar.
 mkdirSync(join(hub, 'pp-repo'));
 writeFileSync(join(hub, 'pp-repo', 'x.py'), 'x=0\ndef f():\n    return 1\n');
 const ppGen = await (await fetch(`${base2}/generate`, {
@@ -576,6 +620,16 @@ check('server embedded context mechanically (agent skipped it)',
   ppd.files && (ppd.files['x.py'] || '').includes('def f()'));
 check('server re-rendered html after embed',
   readFileSync(join(hub, 'pp-test.html'), 'utf8').includes('ctx-bar'));
+check('src sidecar written at ingest time',
+  JSON.parse(readFileSync(join(hub, 'pp-test.src.json'), 'utf8')).repo === join(hub, 'pp-repo'));
+mkdirSync(join(hub, 'pp-bad-repo'));
+const bdGen = await (await fetch(`${base2}/generate`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ ask: 'x', repo: join(hub, 'pp-bad-repo'), name: 'pp-bad' }),
+})).json();
+check('canvas failing validate is not ingested (status 4)',
+  await waitStatus(bdGen.job.id) === '4' && !existsSync(join(hub, 'pp-bad.json'))
+  && !existsSync(join(hub, 'pp-bad.src.json')));
 server2.kill();
 
 await browser.close();

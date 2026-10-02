@@ -216,6 +216,50 @@
 与代码一致（可被复算），不是示意；预览地图（`meta.mode:"preview"`）不写
 overview——它本身就是总览。
 
+## 事实可信层：证据分级 / 待核实清单 / 业务对象 / 步卡
+
+读者要分得清"代码里看得见的事实"和"作者的推断"。四个字段，预览地图必写
+（gaps / objects / 路线步 trace），深潜画布推荐（gaps、信息量大的步写 trace）。
+
+```jsonc
+// 证据分级：分区卡 / 代码卡 / 连线 / note / trace 都可带，缺省 = fact（已确认）
+"ev": "infer",                       // infer 有依据的推断 | unknown 尚未确认
+"need": "≤100 字：确认它需要什么证据（ev=unknown 必写）",
+// 渲染：推断 = 虚线 + 琥珀「推断」徽标；待核实 = 点线 + 红「待核实」徽标（悬停看 need）
+
+"gaps": [                            // 画布级待核实清单，3-10 条；在总览板里分三组展示
+  { "kind": "behavior",              // behavior 值得注意的实际行为 | unknown 尚未确认 | drift 文档与实现不一致
+    "title": "≤40 字",
+    "text": "≤200 字：现象 + 为什么值得注意（drift：文档怎么说、实现怎么做）",
+    "need": "kind=unknown 必写：需要什么证据",
+    "refs": [["serve.py", 556, "post_pass"]] }     // [文件（相对仓库根）, 行号, 符号]
+],
+
+"objects": [                         // 业务对象 4-10 个（系统里流转的核心数据）
+  { "name": "生成任务 Job",
+    "where": "≤100 字：存在哪（表/文件/内存/队列）",
+    "created": "≤100 字：何时由谁创建",
+    "rw": "≤100 字：谁读、谁写",
+    "states": "≤100 字：状态怎么变（running → done / failed…）",
+    "refs": [["serve.py", 312, "def list_jobs"]] }
+],
+
+// 步卡：挂在 step 上，「详解」点开显示；HUD 常驻 同步/异步 · 证据 · 依据数 徽标
+"trace": {
+  "trigger": "≤90 字：什么触发了这一步",
+  "mode": "async",                   // sync | async | mixed
+  "data": [ { "op": "create", "what": ".jobs/<id>.meta.json" },   // op: create | read | update | delete
+            { "op": "read", "what": "共享仓库缓存" } ],
+  "fail": "≤160 字：代码里已有的失败处理 / 重试 / 分支（没有就写没有）",
+  "ev": "fact",
+  "refs": [["serve.py", 666, "subprocess.Popen"]]
+}
+```
+
+**依据机械核对**：`check_refs.py <canvas.json> <仓库根>` 逐条验证 refs（文件
+存在、行号不越界、符号在该行 ±3 行内），核不过的剔除并报告；ev=fact 的
+trace 若依据被剔光，自动降级 infer。agent 产出后自跑修正；服务端入库前再跑兜底。
+
 ## 渲染器行为（约定）
 
 - **布局**：列 x 由该列最宽卡片决定（列间距固定）；带 y = 带号 × 带高，

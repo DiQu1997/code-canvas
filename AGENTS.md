@@ -26,13 +26,15 @@ cd code-canvas
 python3 validate.py demo/nano-vllm.json                 # 0 errors
 python3 render.py demo/nano-vllm.json /tmp/t.html
 node tests/interactions.mjs demo/nano-vllm.html         # 59 PASS
+node tests/mobile.mjs demo/nano-vllm.html               # 18 PASS（手机卡片流）
 node tests/note-follow.mjs                              # 4 PASS
 node tests/personalize.mjs demo/nano-vllm.html          # 6 PASS
-node tests/hub.mjs                                      # 82 PASS
+node tests/hub.mjs                                      # 96 PASS
 node tests/plan.mjs                                     # 18 PASS
-python3 tests/extract_test.py                           # 21 PASS（部分依赖 /tmp clone，缺则 SKIP）
+python3 tests/extract_test.py                           # 19 PASS + 2 SKIP（部分依赖 /tmp clone，缺则 SKIP）
 python3 tests/embed_test.py                             # 4 PASS（上下文嵌入契约）
-node tests/overview.mjs                                 # 18 PASS（算法总览板：校验/合并/交互）
+node tests/overview.mjs                                 # 19 PASS（算法总览板：校验/升级合并/交互）
+node tests/evidence.mjs                                 # 15 PASS（事实可信层：证据分级/待核实/业务对象/步卡/依据核对）
 ```
 
 ## 工具链（code-canvas/）
@@ -42,7 +44,8 @@ node tests/overview.mjs                                 # 18 PASS（算法总览
 | extract.py | 结构层机械提取（函数卡/call 线/diff 映射/布局，零 LLM 毫秒级；--merge 增量保留叙事） |
 | preview.py | 目录级机械摘要（研究材料，不是产物；--recommend 一次轻 LLM） |
 | embed_context.py | 画布上下文全文嵌入（溯源核对/行漂移修正/子目录根定位；serve 生成收尾自动跑） |
-| merge_overview.py | 补装算法总览板：agent 产 overview.json → validate 闸门 → 合并进画布（serve 补装任务收尾用） |
+| check_refs.py | 依据机械核对：[文件, 行, 符号] 须在仓库里成立，核不过的剔除，依据剔光的步卡降级推断（agent 自查 + 服务端入库前兜底） |
+| merge_upgrade.py | 升级合并：事实层（代码/行号/卡/线/步骤结构）逐字段锁死 → 修剪编造变量 → validate → 写回（serve 升级任务收尾用） |
 | preview-spec.md | 研究型预览地图规程（逻辑分组，agent 研究产物） |
 | validate.py | 渲染前强制关卡（ERROR=结构坏必须清零；warn=预算提示逐条自查） |
 | render.py | JSON → 自包含 HTML |

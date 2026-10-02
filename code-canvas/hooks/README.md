@@ -8,7 +8,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "ExitPlanMode",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [{ "type": "command",
                     "command": "bash /path/to/code-canvas/hooks/plan-gate.sh" }]
       }
@@ -25,9 +25,11 @@
 
 工作方式（两道闸门 + 一次对照）：
 
-1. **plan-gate**（ExitPlanMode 前）：`.canvas/plan.json` 不存在或超过
-   30 分钟 → 阻断退出计划模式，指令 agent 先按 SKILL.md plan 模式产出
-   计划画布并请作者审批。
+1. **plan-gate**（第一次改码前，PreToolUse:Edit|Write|MultiEdit）：
+   `.canvas/plan.json` 不存在或超过 30 分钟 → 阻断这次改文件，指令 agent
+   先按 SKILL.md plan 模式产出计划画布并请作者审批；写 `.canvas/` 本身放行。
+   不要挂 ExitPlanMode：plan 模式禁写文件，闸门要的 plan.json 永远写不出来（死锁，
+   北极星测试实测）。
 2. **diff-gate**（Stop 前）：有计划画布、工作树有改动、但没有更新的
    `.canvas/diff.json` → 阻断收工，指令 agent 产出同底图 diff 画布并跑
    `compare.py --annotate`，把「计划内 / ⚠ 计划外 / ○ 计划未动」如实汇报。
