@@ -298,7 +298,7 @@ def render(v, canvas, out_path, quality):
                 code.scale_to_fit_height(5.2)
             head = T(c.get("name", ""), 26, M.BLUE_B).to_edge(M.UP, buff=0.35)
             code.next_to(head, M.DOWN, buff=0.3)
-            fname = T((c.get("file") or "").split(":")[0], 18, M.GREY_C).next_to(code, M.UP, buff=0.08).align_to(code, M.RIGHT)
+            fname = T((c.get("file") or "").split(":")[0], 18, M.GREY_C).next_to(code, M.DOWN, buff=0.12).align_to(code, M.RIGHT)
             self.play(M.FadeIn(head), M.FadeIn(code), M.FadeIn(fname), run_time=0.6)
             lines = code.code_lines
             box = None
@@ -329,8 +329,11 @@ def render(v, canvas, out_path, quality):
                 r = M.RoundedRectangle(corner_radius=0.12, width=1.3, height=0.85, color=STATE_COLOR["none"],
                                        fill_color=STATE_COLOR["none"], fill_opacity=0.18)
                 name = T(it["id"], 22).move_to(r.get_center() + M.UP * 0.16)
-                lab = T(it.get("label", ""), 16, M.GREY_A).move_to(r.get_center() + M.DOWN * 0.2)
+                lab = fit(T(it.get("label", ""), 16, M.GREY_A)).move_to(r.get_center() + M.DOWN * 0.2)
                 return M.VGroup(r, name, lab)
+
+            def fit(m, w=1.16):   # 标签放不下方块就缩小，不许溢出边框
+                return m.scale_to_fit_width(w) if m.width > w else m
 
             def spot(ln, k):
                 return M.np.array([-3.7 + k * 1.6, ys[ln], 0])
@@ -365,7 +368,7 @@ def render(v, canvas, out_path, quality):
                     return [M.Transform(fill, nf), M.Transform(blab, nl)]
                 if op == "label":
                     old = boxes[it][2]
-                    return [M.Transform(old, T(o.get("text", ""), 16, ACC).move_to(old))]
+                    return [M.Transform(old, fit(T(o.get("text", ""), 16, ACC)).move_to(old))]
                 if op == "mark":
                     col = STATE_COLOR[o["state"]]
                     return [boxes[it][0].animate.set_stroke(col).set_fill(col, opacity=0.25)]

@@ -1,0 +1,697 @@
+{
+  "title": "vLLM 调度器：没有阶段，只有追赶",
+  "canvas": "vllm-sched",
+  "voice": "Tingting",
+  "scenes": [
+    {
+      "kind": "title",
+      "text": "vLLM 调度器：没有阶段，只有追赶",
+      "sub": "Scheduler.schedule() 每一步怎么组批",
+      "beats": [
+        {
+          "say": "GPU 每跑一拍，调度器就要回答：这一拍，每个请求算几个 token？"
+        },
+        {
+          "say": "先不看代码。四个请求、16 个 token 的预算，跑三步。"
+        }
+      ]
+    },
+    {
+      "kind": "sim",
+      "lanes": [
+        "running",
+        "waiting",
+        "空闲 KV 块"
+      ],
+      "budget": {
+        "name": "token_budget",
+        "total": 16
+      },
+      "items": [
+        {
+          "id": "A",
+          "lane": "running",
+          "label": "A 22/23"
+        },
+        {
+          "id": "B",
+          "lane": "running",
+          "label": "B 12/30"
+        },
+        {
+          "id": "C",
+          "lane": "waiting",
+          "label": "C 0/10"
+        },
+        {
+          "id": "D",
+          "lane": "waiting",
+          "label": "D 0/8"
+        },
+        {
+          "id": "F",
+          "lane": "空闲 KV 块",
+          "label": "7 块"
+        }
+      ],
+      "beats": [
+        {
+          "say": "A 在解码，B 的长 prompt 才算了 12 个，C、D 在排队，每块装 4 个 token。预算 16，谁先上？",
+          "ops": [
+            {
+              "op": "focus",
+              "item": "A"
+            },
+            {
+              "op": "focus",
+              "item": "B"
+            }
+          ]
+        },
+        {
+          "say": "先排 running。A 只差 1 个，排 1；23 个 token 原来的 6 块就装得下。",
+          "ops": [
+            {
+              "op": "focus",
+              "item": "A"
+            },
+            {
+              "op": "consume",
+              "n": 1
+            },
+            {
+              "op": "label",
+              "item": "A",
+              "text": "A 22/23 排1"
+            },
+            {
+              "op": "mark",
+              "item": "A",
+              "state": "good"
+            }
+          ]
+        },
+        {
+          "say": "B 还差 18，可预算只剩 15，那就只给 15。27 个 token 要 7 块，新拿 4 块。",
+          "ops": [
+            {
+              "op": "focus",
+              "item": "B"
+            },
+            {
+              "op": "consume",
+              "n": 15
+            },
+            {
+              "op": "label",
+              "item": "B",
+              "text": "B 12/30 排15"
+            },
+            {
+              "op": "label",
+              "item": "F",
+              "text": "3 块"
+            },
+            {
+              "op": "mark",
+              "item": "B",
+              "state": "good"
+            }
+          ]
+        },
+        {
+          "say": "预算归零。等待队列的循环要求预算大于零，C 和 D 这一步根本没被看。",
+          "ops": [
+            {
+              "op": "mark",
+              "item": "C",
+              "state": "bad"
+            },
+            {
+              "op": "mark",
+              "item": "D",
+              "state": "bad"
+            }
+          ]
+        },
+        {
+          "say": "出批时进度立刻推进：A 到 23，B 到 27。A 采出新 token，目标变 24。",
+          "ops": [
+            {
+              "op": "label",
+              "item": "A",
+              "text": "A 23/24"
+            },
+            {
+              "op": "label",
+              "item": "B",
+              "text": "B 27/30"
+            },
+            {
+              "op": "mark",
+              "item": "A",
+              "state": "none"
+            },
+            {
+              "op": "mark",
+              "item": "B",
+              "state": "none"
+            },
+            {
+              "op": "mark",
+              "item": "C",
+              "state": "none"
+            },
+            {
+              "op": "mark",
+              "item": "D",
+              "state": "none"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "idea",
+      "text": "没有 prefill 阶段，也没有 decode 阶段：每个请求只追“目标减已算”的差额",
+      "emph": [
+        "没有 prefill 阶段",
+        "目标减已算"
+      ],
+      "beats": [
+        {
+          "say": "注意刚才那一批：A 在解码，B 在做 prefill，却挤在同一批里。"
+        },
+        {
+          "say": "因为调度器根本不分阶段。每个请求只有两个数：已算多少，目标多少。"
+        },
+        {
+          "say": "解码的差额是 1，prefill 的差额是剩余 prompt，切片只是差额被预算截断。"
+        }
+      ]
+    },
+    {
+      "kind": "code",
+      "card": "run-tokens",
+      "lines": [
+        47,
+        56
+      ],
+      "beats": [
+        {
+          "say": "这就是给 B 算 15 的地方。先求差额：30 减 12，得 18。",
+          "hl": [
+            47,
+            51
+          ]
+        },
+        {
+          "say": "长 prefill 阈值本可以再截一刀，默认是 0，也就是不限。",
+          "hl": [
+            52,
+            53
+          ]
+        },
+        {
+          "say": "再和剩余预算取小，18 和 15 取 15。切片就发生在这一行。",
+          "hl": [
+            54,
+            56
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "flow",
+      "items": [
+        "① 开账：token_budget 等于上限",
+        "② running 逐个：差额截断后要块",
+        "③ 要不到块：抢占 running 队尾",
+        "④ 本步没抢占：用剩余预算收 waiting",
+        "⑤ 出批，并在执行前推进已算数"
+      ],
+      "beats": [
+        {
+          "say": "一步的骨架只有五段。第一段开账，预算等于本步上限。",
+          "item": 0
+        },
+        {
+          "say": "第二段，老请求优先：按 running 顺序算差额、截断、要块。",
+          "item": 1
+        },
+        {
+          "say": "第三段，块不够时，从 running 队尾挑一个请求让路。",
+          "item": 2
+        },
+        {
+          "say": "第四段，只有本步没人被抢占，剩下的预算才轮到等待队列。",
+          "item": 3
+        },
+        {
+          "say": "第五段，装进 SchedulerOutput，顺手推进进度。再跑一步。",
+          "item": 4
+        }
+      ]
+    },
+    {
+      "kind": "sim",
+      "lanes": [
+        "running",
+        "waiting",
+        "空闲 KV 块"
+      ],
+      "budget": {
+        "name": "token_budget",
+        "total": 16
+      },
+      "items": [
+        {
+          "id": "A",
+          "lane": "running",
+          "label": "A 23/24"
+        },
+        {
+          "id": "B",
+          "lane": "running",
+          "label": "B 27/30"
+        },
+        {
+          "id": "C",
+          "lane": "waiting",
+          "label": "C 0/10"
+        },
+        {
+          "id": "D",
+          "lane": "waiting",
+          "label": "D 0/8"
+        },
+        {
+          "id": "F",
+          "lane": "空闲 KV 块",
+          "label": "3 块"
+        }
+      ],
+      "beats": [
+        {
+          "say": "第二步，预算又是 16。A 排 1，B 剩 3 个全排上，多要 1 块。",
+          "ops": [
+            {
+              "op": "consume",
+              "n": 1
+            },
+            {
+              "op": "consume",
+              "n": 3
+            },
+            {
+              "op": "label",
+              "item": "B",
+              "text": "B 27/30 排3"
+            },
+            {
+              "op": "label",
+              "item": "F",
+              "text": "2 块"
+            }
+          ]
+        },
+        {
+          "say": "还剩 12，轮到 C。它的首块和 A 一样，前缀缓存命中 4 个。",
+          "ops": [
+            {
+              "op": "focus",
+              "item": "C"
+            },
+            {
+              "op": "label",
+              "item": "C",
+              "text": "C 4/10"
+            }
+          ]
+        },
+        {
+          "say": "C 只需算 6 个，再拿 2 块，空闲块用光，C 进 running 队尾。",
+          "ops": [
+            {
+              "op": "consume",
+              "n": 6
+            },
+            {
+              "op": "label",
+              "item": "F",
+              "text": "0 块"
+            },
+            {
+              "op": "move",
+              "item": "C",
+              "lane": "running"
+            },
+            {
+              "op": "label",
+              "item": "C",
+              "text": "C 4/10 排6"
+            },
+            {
+              "op": "mark",
+              "item": "C",
+              "state": "good"
+            }
+          ]
+        },
+        {
+          "say": "D 只要 2 块，可已经没块了。等待队列分不到块就停，不抢别人。",
+          "ops": [
+            {
+              "op": "focus",
+              "item": "D"
+            },
+            {
+              "op": "mark",
+              "item": "D",
+              "state": "bad"
+            }
+          ]
+        },
+        {
+          "say": "6 个预算就这么空着。这一批是 A 1、B 3、C 6。",
+          "ops": [
+            {
+              "op": "mark",
+              "item": "C",
+              "state": "none"
+            },
+            {
+              "op": "focus",
+              "item": "F"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "code",
+      "card": "wait-tokens",
+      "lines": [
+        20,
+        31
+      ],
+      "beats": [
+        {
+          "say": "新请求的预算是剩下的那点：本例 16 减 4，等于 12。",
+          "hl": [
+            20,
+            20
+          ]
+        },
+        {
+          "say": "要算的是全部 token 减已算，已算的起点就是命中数：10 减 4。",
+          "hl": [
+            28,
+            31
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "sim",
+      "lanes": [
+        "running",
+        "waiting",
+        "空闲 KV 块"
+      ],
+      "budget": {
+        "name": "token_budget",
+        "total": 16
+      },
+      "items": [
+        {
+          "id": "A",
+          "lane": "running",
+          "label": "A 24/25"
+        },
+        {
+          "id": "B",
+          "lane": "running",
+          "label": "B 30/31"
+        },
+        {
+          "id": "C",
+          "lane": "running",
+          "label": "C 10/11"
+        },
+        {
+          "id": "D",
+          "lane": "waiting",
+          "label": "D 0/8"
+        },
+        {
+          "id": "F",
+          "lane": "空闲 KV 块",
+          "label": "0 块"
+        }
+      ],
+      "beats": [
+        {
+          "say": "第三步。A 的第 25 个 token 需要第 7 块，空闲却是 0。谁让路？",
+          "ops": [
+            {
+              "op": "focus",
+              "item": "A"
+            },
+            {
+              "op": "mark",
+              "item": "A",
+              "state": "bad"
+            }
+          ]
+        },
+        {
+          "say": "running 的队尾，最后进来的 C。后来者先让路。",
+          "ops": [
+            {
+              "op": "mark",
+              "item": "C",
+              "state": "bad"
+            },
+            {
+              "op": "move",
+              "item": "C",
+              "lane": "waiting",
+              "at": 0
+            }
+          ]
+        },
+        {
+          "say": "C 进度清零，回等待队首。它的首块与 A 共享只减引用，只还回 2 块。",
+          "ops": [
+            {
+              "op": "label",
+              "item": "C",
+              "text": "C 0/11"
+            },
+            {
+              "op": "label",
+              "item": "F",
+              "text": "2 块"
+            }
+          ]
+        },
+        {
+          "say": "A 重试拿到 1 块，排 1。B 差 1 个，旧块够用，也排 1。",
+          "ops": [
+            {
+              "op": "mark",
+              "item": "A",
+              "state": "good"
+            },
+            {
+              "op": "consume",
+              "n": 1
+            },
+            {
+              "op": "label",
+              "item": "F",
+              "text": "1 块"
+            },
+            {
+              "op": "consume",
+              "n": 1
+            },
+            {
+              "op": "focus",
+              "item": "B"
+            }
+          ]
+        },
+        {
+          "say": "还剩 14 个预算、1 块空闲，可本步发生过抢占，等待队列整轮跳过。",
+          "ops": [
+            {
+              "op": "focus",
+              "item": "C"
+            },
+            {
+              "op": "focus",
+              "item": "D"
+            },
+            {
+              "op": "mark",
+              "item": "D",
+              "state": "bad"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "code",
+      "card": "run-alloc",
+      "lines": [
+        60,
+        74
+      ],
+      "beats": [
+        {
+          "say": "抢占在代码里就是一个 pop：先进先出策略下，弹出 running 的最后一个。",
+          "hl": [
+            60,
+            60
+          ]
+        },
+        {
+          "say": "然后还块、清零进度、塞回等待队首，记进 preempted_reqs。",
+          "hl": [
+            62,
+            67
+          ]
+        },
+        {
+          "say": "如果抢到了自己头上，说明真没救，放弃这个请求。",
+          "hl": [
+            68,
+            70
+          ]
+        },
+        {
+          "say": "否则回到循环开头重试，A 就是这样第二次拿到块的。",
+          "hl": [
+            72,
+            74
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "code",
+      "card": "wait-gates",
+      "lines": [
+        1,
+        14
+      ],
+      "beats": [
+        {
+          "say": "等待队列有两道锁。第一道：本步没有抢占过任何请求。",
+          "hl": [
+            2,
+            2
+          ]
+        },
+        {
+          "say": "第二道：预算还大于零。第一步的 C 和 D，就卡在这里。",
+          "hl": [
+            14,
+            14
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "table",
+      "cols": [
+        "步",
+        "running 排",
+        "waiting 排",
+        "剩预算",
+        "空闲块",
+        "事件"
+      ],
+      "beats": [
+        {
+          "say": "记成一本账。第一步，B 的长 prefill 吃光预算。",
+          "row": [
+            "t",
+            "A1 B15",
+            "无",
+            "0",
+            "7→3",
+            "不进 waiting"
+          ],
+          "hl": [
+            3
+          ]
+        },
+        {
+          "say": "第二步，C 靠缓存命中挤进来，D 没块被挡在门外。",
+          "row": [
+            "t+1",
+            "A1 B3",
+            "C6，D 停",
+            "6",
+            "3→0",
+            "D 等待"
+          ],
+          "hl": [
+            2,
+            4
+          ]
+        },
+        {
+          "say": "第三步，A 缺块，抢占队尾的 C，新请求一个不收。",
+          "row": [
+            "t+2",
+            "A1 B1",
+            "跳过",
+            "14",
+            "0→1",
+            "抢占 C"
+          ],
+          "hl": [
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "recap",
+      "items": [
+        "不分阶段：每个请求只追“目标减已算”",
+        "running 先排，预算不足就切片",
+        "缺块抢占 running 队尾，后来者先让路",
+        "waiting 只用剩余，分不到块就停",
+        "本步有抢占，新请求一个不收"
+      ],
+      "beats": [
+        {
+          "say": "回顾。调度器没有阶段只有差额，解码、prefill、切片同一个公式。",
+          "item": 0
+        },
+        {
+          "say": "老请求先排，预算不够就切一片，下一步接着追。",
+          "item": 1
+        },
+        {
+          "say": "显存不够时 running 队尾让路，进度清零，回等待队首重算。",
+          "item": 2
+        },
+        {
+          "say": "新请求只拿剩下的预算，队头分不到块就整队停下。",
+          "item": 3
+        },
+        {
+          "say": "只要这一步有人被抢占，新请求一个不收。这就是 vLLM 的每一步。",
+          "item": 4
+        }
+      ]
+    }
+  ]
+}
