@@ -60,12 +60,15 @@ description: Turns code reading, change planning, or diff review into an interac
    最终输出——数字要能被复算，不是示意）、`pitfalls`（2-5 条边界/陷阱）。
    写法上先写它再写 steps：总览板写不顺，说明你还没真正读懂这段逻辑。
    预览地图不写（它本身就是总览）
-4d. **事实可信层（见 schema.md）**：读者要分得清事实和推断。推断出来的
-   卡/线/note 标 `ev:"infer"`，静态代码确认不了的标 `ev:"unknown"` + `need`；
-   画布级 `gaps` 待核实清单（值得注意的实际行为 / 尚未确认 / 文档与实现
-   不一致）；信息量大的步写 `trace` 步卡（触发、同步异步、数据增删改读、
+4d. **事实可信层（见 schema.md，必写）**：读者要分得清事实和推断。推断出来的
+   卡/线/note 标 `ev:"infer"`，静态代码确认不了的标 `ev:"unknown"` + `need`
+   （代码里查得到的就去查，不许拿 unknown 偷懒）；画布级 `gaps` 待核实清单
+   3-10 条（值得注意的实际行为 / 尚未确认 / 文档与实现不一致）；`objects`
+   列出这段逻辑里流转的核心数据结构（存在哪、何时创建、谁读谁写、状态
+   怎么变）；**至少一半的步**写 `trace` 步卡（触发、同步异步、数据增删改读、
    失败分支、依据）。依据一律 `[文件, 行号, 符号]`，产出后跑
-   `python3 check_refs.py canvas.json <仓库根>` 核到全过
+   `python3 check_refs.py canvas.json <仓库根>` 核到全过。validate 会对缺
+   gaps、步卡不足一半报 warn——逐条补齐
 5. **背景三层**：画布级 bg note（corner nw，step 0 点亮）、region blurb、
    概念级 bg note（锚到行，在相关 step 点亮）。字数硬上限见 schema.md
 5b. **数据结构四件套**（算法讲"怎么动"，结构讲"动的是什么"，缺一半图就瘸）：

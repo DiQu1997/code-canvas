@@ -542,12 +542,14 @@ def upgrade_gaps(d: dict) -> list:
         miss.append("overview 算法总览板")
     if not d.get("gaps"):
         miss.append("gaps 待核实清单（值得注意的实际行为 / 尚未确认 / 文档与实现不一致）")
-    if preview and not d.get("objects"):
-        miss.append("objects 业务对象（存在哪、何时创建、谁读谁写、状态怎么变）")
+    if not d.get("objects"):
+        miss.append("objects 业务对象 / 核心数据结构（存在哪、何时创建、谁读谁写、状态怎么变）")
     steps = d.get("steps") or []
-    if any(not s.get("trace") for s in steps[1:] if (s.get("ask") if preview else s.get("focus"))):
+    story = [s for s in steps[1:] if (s.get("ask") if preview else s.get("focus"))]
+    have = sum(1 for s in story if s.get("trace"))
+    if (preview and have < len(story)) or (not preview and have * 2 < len(story)):
         miss.append("steps[].trace 步卡（触发 / 同步异步 / 数据增删改读 / 失败分支 / 依据）"
-                    + ("——每条路线步必写" if preview else "——信息量大的步写"))
+                    + ("——每条路线步必写" if preview else "——至少一半的步写，信息量大的优先"))
     miss.append("ev 证据分级：逐个审视分区卡/连线/note，推断的标 infer，没把握的标 unknown + need")
     return miss
 
@@ -623,7 +625,9 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             + ("2) python3 {skill}/embed_context.py {w} <仓库根>（上下文全文靠它）；"
                "3) python3 {skill}/check_refs.py {w} <仓库根>（依据核不过的要修正，不要留给服务端剔除）；\n"
                if has_repo else "")
-            + "接着 python3 {skill}/validate.py {w} 清零 ERROR（warn 逐条自查）；"
+            + "事实可信层必写（SKILL 4d / preview-spec）：gaps 待核实清单、objects、ev 证据分级、"
+            "trace 步卡（深潜至少一半的步，预览每条路线步）——它们和代码卡一样是交付物。\n"
+            "接着 python3 {skill}/validate.py {w} 清零 ERROR（warn 逐条自查）；"
             "python3 {skill}/render.py {w} {work}/canvas.html 渲染并截图自检。\n"
             "**不要写入画布库**——入库由服务端完成：收尾时它会嵌上下文、核依据、过 validate，全过才入库。"
             "完成后打印 DONE。").format(skill=SKILL_DIR, w=wj, work=workdir)

@@ -2188,8 +2188,10 @@ function upgradeMissing() {
   const miss = [];
   if (!pv && !DATA.overview) miss.push('算法总览板');
   if (!DATA.gaps) miss.push('待核实清单');
-  if (pv && !DATA.objects) miss.push('业务对象');
-  if (STEPS.slice(1).some(s => (pv ? s.ask : s.focus) && !s.trace)) miss.push('步卡');
+  if (!DATA.objects) miss.push('业务对象');
+  const story = STEPS.slice(1).filter(s => pv ? s.ask : s.focus);
+  const have = story.filter(s => s.trace).length;
+  if (pv ? have < story.length : have * 2 < story.length) miss.push('步卡');
   return miss;
 }
 document.getElementById('up-btn').addEventListener('click', () => {

@@ -397,7 +397,7 @@ def main():
     # 待核实清单：值得注意的实际行为 / 尚未确认 / 文档与实现不一致
     gaps = d.get("gaps")
     if gaps is None:
-        if mode == "preview":
+        if mode not in ("plan", "diff"):
             warn("缺 gaps 待核实清单——读者分不清哪些是确认的事实、哪些还没核实（见 schema.md）")
     elif not isinstance(gaps, list):
         err("gaps 必须是列表")
@@ -457,6 +457,11 @@ def main():
                         warn(f"{sp}: trace.{k} 超 {lim} 字")
         elif mode == "preview" and i > 0 and s.get("ask"):
             warn(f"{sp}: 路线步缺 trace 步卡（触发/同步异步/数据/失败分支/依据）")
+    if mode not in ("preview", "plan", "diff"):
+        story = [s for s in steps[1:] if s.get("focus")]
+        if story and sum(1 for s in story if s.get("trace")) * 2 < len(story):
+            warn(f"只有 {sum(1 for s in story if s.get('trace'))}/{len(story)} 步写了 trace 步卡"
+                 "——深潜图至少一半的步要写（触发/同步异步/数据/失败分支/依据）")
         if s.get("storyline") and s["storyline"] not in regions:
             err(f"{sp}: storyline {s['storyline']} 不存在")
         for wid in s.get("wires") or []:

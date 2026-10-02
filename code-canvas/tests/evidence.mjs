@@ -59,6 +59,13 @@ check('bad trace mode / data op are ERRORs', (() => {
   const out = variant('v3', c => { c.steps[1].trace.mode = 'later'; c.steps[1].trace.data[0].op = 'touch'; });
   return out.includes('trace.mode') && out.includes('trace.data');
 })());
+check('deep canvas without gaps / with too few traces warns', (() => {
+  const out = variant('v5', c => {
+    c.meta.mode = undefined; delete c.gaps;
+    c.steps.push({ title: '② x', focus: ['api'] }, { title: '③ y', focus: ['worker'] });
+  });
+  return out.includes('缺 gaps') && out.includes('1/3 步写了 trace');
+})());
 check('preview without gaps/objects/trace warns', (() => {
   const out = variant('v4', c => { delete c.gaps; delete c.objects; delete c.steps[1].trace; });
   return out.includes('缺 gaps') && out.includes('缺 objects') && out.includes('路线步缺 trace');

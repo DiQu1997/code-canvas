@@ -34,7 +34,7 @@ node tests/plan.mjs                                     # 18 PASS
 python3 tests/extract_test.py                           # 19 PASS + 2 SKIP（部分依赖 /tmp clone，缺则 SKIP）
 python3 tests/embed_test.py                             # 4 PASS（上下文嵌入契约）
 node tests/overview.mjs                                 # 19 PASS（算法总览板：校验/升级合并/交互）
-node tests/evidence.mjs                                 # 15 PASS（事实可信层：证据分级/待核实/业务对象/步卡/依据核对）
+node tests/evidence.mjs                                 # 16 PASS（事实可信层：证据分级/待核实/业务对象/步卡/依据核对）
 ```
 
 ## 工具链（code-canvas/）
