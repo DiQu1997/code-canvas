@@ -262,3 +262,21 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   真陷阱；首版被闸门拦（is_prefill_chunk 不在画布快照里）→ 规则改为对
   卡片∪files 核对 + 服务端修剪而非整份作废，剩 10 个变量合并上线。
   测试：overview 18 / hub 91 全绿
+- **2026-10-01**：**对标试验：架构地图提示词（linearuncle gist）vs 我们的预览地图**——
+  同仓库（Code Canvas 自身 79cbff8）、同模型 opus-5.5、零 history 盒子 agent 各跑
+  一遍：A（提示词，agent 现场自建可视化）19 分钟 $4.92，46 节点/82 关系/10 业务
+  对象/5 场景 33 步，自建 check.py 核 351 引用；B（我们）4 分钟 $2.01，8 分区/
+  5 路线。准确性：A 抽 15 步语义全对；B highlights 38/38 存在、1 处过度概括。
+  A 强在证据分级、每步讲透、业务对象；我们强在快/省/稳定渲染/手机/可续接。
+  A 顺带挖出我们 7 个真问题（全部核实）
+  → **吸收落地**：schema「事实可信层」（ev 证据分级+need / gaps 三类待核实 /
+  objects 业务对象 / steps[].trace 步卡），preview-spec v0.2 必写，validate 闸门，
+  check_refs.py 依据机械核对（剔假出处、剔光则降级推断），模板徽标/虚点线/总览
+  板扩为算法·架构总览/HUD 步卡；补装总览泛化为「升级到最新规程」通道
+  （merge_upgrade 事实层逐字段锁死）；生成改服务端入库（done⇔已入库，rc 4/5/6）；
+  问答取缓存 touch；hooks README/docstring/AGENTS 计数对齐
+  → **生产 agent 升级三张 vllm 画布**（opus-5.5，各约 5 分钟，合计 $6.59）：
+  vllm-map（10 待核实/8 业务对象/5 步卡）、vllm-sched（9/5/11）、vllm-kv（补出
+  算法总览 + 10/5/8）；依据 224 条两道核对全过；抽 5 条语义核验全对（含发现
+  vllm 自身 hash_block_tokens 文档声称 LRU 实无装饰器）。agent 还如实标出两张
+  深潜画布的卡片是旧版 vllm 快照（drift + 线标待核实）——重生成待作者定
