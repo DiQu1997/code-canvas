@@ -35,6 +35,7 @@ python3 tests/extract_test.py                           # 19 PASS + 2 SKIP（部
 python3 tests/embed_test.py                             # 4 PASS（上下文嵌入契约）
 node tests/overview.mjs                                 # 19 PASS（算法总览板：校验/升级合并/交互）
 node tests/evidence.mjs                                 # 16 PASS（事实可信层：证据分级/待核实/业务对象/步卡/依据核对）
+python3 tests/video_test.py                             # 12 PASS（视频脚本校验契约；渲染需本机 manim venv）
 ```
 
 ## 工具链（code-canvas/）
@@ -45,6 +46,7 @@ node tests/evidence.mjs                                 # 16 PASS（事实可信
 | preview.py | 目录级机械摘要（研究材料，不是产物；--recommend 一次轻 LLM） |
 | embed_context.py | 画布上下文全文嵌入（溯源核对/行漂移修正/子目录根定位；serve 生成收尾自动跑） |
 | check_refs.py | 依据机械核对：[文件, 行, 符号] 须在仓库里成立，核不过的剔除，依据剔光的步卡降级推断（agent 自查 + 服务端入库前兜底） |
+| video.py / video-spec.md | 精读带读视频：agent 写 video.json（幕+旁白），video.py 校验（py3.8）/ 渲染（Manim + macOS say 配音，本机） |
 | merge_upgrade.py | 升级合并：事实层（代码/行号/卡/线/步骤结构）逐字段锁死 → 修剪编造变量 → validate → 写回（serve 升级任务收尾用） |
 | preview-spec.md | 研究型预览地图规程（逻辑分组，agent 研究产物） |
 | validate.py | 渲染前强制关卡（ERROR=结构坏必须清零；warn=预算提示逐条自查） |
