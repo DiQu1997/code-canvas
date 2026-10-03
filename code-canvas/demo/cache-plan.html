@@ -572,6 +572,11 @@
     background: #f6f8fa; z-index: 5; padding: 104px 10px 160px; }
   #mstream[hidden] { display: none; }
   body.mstream #vp { display: none; }
+  /* 卡片流里右侧浮动按钮会竖着叠住代码：只留问画布 + 总览，横排在顶栏下 */
+  body.mstream #profile-btn, body.mstream #dl-btn, body.mstream #up-btn { display: none; }
+  body.mstream #canvas-ask-btn, body.mstream #ov-btn { top: 64px; }
+  body.mstream #canvas-ask-btn { right: 12px; }
+  body.mstream #ov-btn { right: 84px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #mstream .card { position: static !important; width: auto !important; max-width: 100%;
     margin: 0 0 12px; }
   #mstream .card .body { overflow-x: auto; }
