@@ -405,6 +405,31 @@
   .trc .op { font-size: 10px; border-radius: 4px; padding: 0 5px; margin-right: 3px; color: #fff; }
   .trc .op.create { background: #1a7f37; } .trc .op.read { background: #0969da; }
   .trc .op.update { background: #9a6700; } .trc .op.delete { background: #cf222e; }
+  /* 逐段带读（step.read）：范围外变暗、当前段高亮、讲解卡贴在这段代码右侧 */
+  .ln.rd-out { opacity: .22; }
+  .ln.rd-cur { background: rgba(212,167,44,.16); box-shadow: inset 3px 0 #d4a72c; }
+  #walk { position: absolute; z-index: 9; width: 400px; background: #ffffff; border: 1px solid #d0d7de;
+    border-left: 3px solid #d4a72c; border-radius: 10px; box-shadow: 0 6px 24px rgba(31,35,40,.14);
+    padding: 11px 14px 9px; font-size: 13.5px; line-height: 1.8; color: #1f2328; user-select: text; }
+  #walk[hidden] { display: none; }
+  body.reading #walk { display: none; }
+  #walk .wk-h { font-size: 11px; color: #8c959f; margin-bottom: 3px; letter-spacing: .02em; }
+  #walk .wk-q, #walk .wk-a, #walk .wk-k { border-radius: 7px; padding: 6px 10px; margin-bottom: 8px; font-size: 13px; }
+  #walk .wk-q { background: #fff8c5; } #walk .wk-a { background: #dafbe1; margin: 8px 0 6px; }
+  #walk .wk-k { background: #f6f8fa; margin-bottom: 6px; }
+  #walk .wk-q b, #walk .wk-a b, #walk .wk-k b { display: block; font-size: 11px; color: #57606a; margin-bottom: 1px; }
+  #walk code, .ms-walk code { font: 12px ui-monospace, Menlo, Consolas, monospace; background: #eef1f4;
+    border-radius: 4px; padding: 0 4px; }
+  #walk .wk-nav { font-size: 10.5px; color: #8c959f; text-align: right; margin-top: 4px; }
+  #sbadges .m-seg { color: #9a6700; border-color: #d4a72c; font-weight: 600; }
+  .ms-code { font: 11.5px/1.6 ui-monospace, Menlo, Consolas, monospace; background: #f6f8fa; border: 1px solid #e4e8ec;
+    border-radius: 8px 8px 0 0; padding: 6px 0; margin: 10px 0 0; overflow-x: auto; white-space: pre; }
+  .ms-code .no { display: inline-block; width: 30px; text-align: right; color: #8c959f; margin-right: 10px; }
+  .ms-walk { font-size: 13.5px; line-height: 1.8; color: #1f2328; background: #fff; border: 1px solid #e4e8ec;
+    border-top: 0; border-left: 3px solid #d4a72c; border-radius: 0 0 8px 8px; padding: 7px 11px; margin-bottom: 4px; }
+  .ms-gap { font-size: 11.5px; color: #8c959f; margin: 8px 0 0 4px; }
+  .ms-q, .ms-a { font-size: 13px; line-height: 1.7; border-radius: 8px; padding: 7px 11px; margin: 8px 0; }
+  .ms-q { background: #fff8c5; } .ms-a { background: #dafbe1; }
   /* 代码里的关键变量：悬停出含义，点击回总览板 */
   .vref { border-bottom: 1px dotted #0969da; cursor: help; }
   .vref:hover { background: #ddf4ff; }
@@ -1413,10 +1438,85 @@ function traceHtml(t) {
     + `</div>`;
 }
 
+/* ================= 逐段带读（step.read） =================
+   一步 = 一张卡里一段连续代码（≤60 行），讲解按段首尾相接覆盖每一行。
+   ←→ 先在段间推进：当前段高亮、讲解卡贴在旁边、镜头跟着；段读完才进下一步。 */
+let seg = 0;
+const walkEl = document.createElement('div');
+walkEl.id = 'walk'; walkEl.hidden = true;
+world.appendChild(walkEl);
+const hasRead = s => !!(s && s.read && cardById[s.read.card] && (s.read.walk || []).length);
+const lineOf = el => +(/-L(\d+)$/.exec(el.id) || [])[1];
+function clearRead() {
+  document.querySelectorAll('.ln.rd-out, .ln.rd-cur').forEach(e => e.classList.remove('rd-out', 'rd-cur'));
+  walkEl.hidden = true;
+}
+function prepRead(r) {
+  const card = document.getElementById('card-' + r.card);
+  card.classList.remove('collapsed', 'dim');
+  const ch = card.querySelector('.chev'); if (ch) ch.textContent = '▾';
+  const hit = b => r.ranges.some(([a, z]) => a <= b.lines[1] && b.lines[0] <= z);
+  (function unfold(bs) {
+    for (const b of bs || []) {
+      if (!hit(b)) continue;
+      const el = [...card.querySelectorAll('.blk')].find(e => e.querySelector('.bname').textContent === b.name);
+      if (el && el.classList.contains('folded')) { el.classList.remove('folded'); el.querySelector('.bchev').textContent = '▾'; }
+      unfold(b.children);
+    }
+  })(cardById[r.card].blocks);
+  const keep = n => r.ranges.some(([a, z]) => a <= n && n <= z);
+  card.querySelectorAll('.ln[id^="' + r.card + '-L"]').forEach(e => e.classList.toggle('rd-out', !keep(lineOf(e))));
+}
+function showSeg(r, k, animate = true) {
+  seg = Math.max(0, Math.min(r.walk.length - 1, k));
+  const last = r.walk.length - 1, w = r.walk[seg];
+  const txt = t => mdInline(esc(t || ''));
+  document.querySelectorAll('.ln.rd-cur').forEach(e => e.classList.remove('rd-cur'));
+  const lines = [];
+  for (let n = w.lines[0]; n <= w.lines[1]; n++) {
+    const e = document.getElementById(r.card + '-L' + n);
+    if (e) { e.classList.add('rd-cur'); lines.push(e); }
+  }
+  walkEl.innerHTML = (seg === 0 && r.focus ? `<div class="wk-q"><b>带着问题读</b>${txt(r.focus)}</div>` : '')
+    + `<div class="wk-h">第 ${seg + 1} / ${r.walk.length} 段 · 第 ${w.lines[0]}–${w.lines[1]} 行</div>`
+    + `<div class="wk-t">${txt(w.text)}</div>`
+    + (seg === last && r.answer ? `<div class="wk-a"><b>回到问题</b>${txt(r.answer)}</div>` : '')
+    + (seg === last && r.takeaway ? `<div class="wk-k"><b>设计点</b>${txt(r.takeaway)}</div>` : '')
+    + `<div class="wk-nav">← → ${seg < last ? '下一段' : step < STEPS.length - 1 ? '下一步' : '读完了'}</div>`;
+  walkEl.hidden = false;
+  const pc = wpos(document.getElementById('card-' + r.card));
+  const p0 = lines.length ? wpos(lines[0]) : pc;
+  const p1 = lines.length ? wpos(lines[lines.length - 1]) : pc;
+  walkEl.style.left = (pc.x + pc.w + 26) + 'px';
+  walkEl.style.top = Math.max(pc.y, p0.y - 10) + 'px';
+  const bw = walkEl.offsetWidth, bh = walkEl.offsetHeight, bx = pc.x + pc.w + 26, by = Math.max(pc.y, p0.y - 10);
+  const x0 = pc.x, x1 = bx + bw, y0 = Math.min(p0.y, by), y1 = Math.max(p1.y + p1.h, by + bh);
+  const sc = Math.min(innerWidth / (x1 - x0 + 100), (innerHeight - 200) / (y1 - y0 + 100), 1.15);
+  if (sc >= READ_FLOOR()) centerOn((x0 + x1) / 2, (y0 + y1) / 2, sc, animate);
+  else centerOn((x0 + x1) / 2, y0 + Math.min(y1 - y0, 420) / 2, READ_FLOOR(), animate);
+  document.getElementById('sbadges').innerHTML = traceBadges(STEPS[step].trace)
+    + `<span class="m-seg">带读 ${seg + 1}/${r.walk.length}</span>`;
+  document.getElementById('prev').disabled = step === 0 && seg === 0;
+  document.getElementById('next').disabled = step === STEPS.length - 1 && seg === last;
+  drawWires();
+}
+/* ←→：带读步先在段间走，走到头才换步；倒退进上一步时落在它的最后一段 */
+function go(dir) {
+  const s = STEPS[step];
+  if (hasRead(s) && !streamOn()) {
+    const k = seg + dir;
+    if (k >= 0 && k < s.read.walk.length) { showSeg(s.read, k); return; }
+  }
+  if (step + dir < 0 || step + dir >= STEPS.length) return;
+  setStep(step + dir, true, dir < 0 ? 'last' : 0);
+}
+
 /* ================= steps ================= */
-function setStep(i, animate = true) {
+function setStep(i, animate = true, seg0 = 0) {
   step = Math.max(0, Math.min(STEPS.length - 1, i));
   const s = STEPS[step];
+  clearRead();
+  seg = 0;
   (s.expand || []).forEach(id => {
     const el = document.getElementById('card-' + id);
     el.classList.remove('collapsed');
@@ -1444,7 +1544,9 @@ function setStep(i, animate = true) {
     n.classList.toggle('dim', step > 0 && !mine);
   });
   renderStateCards();
+  if (hasRead(s) && !streamOn()) prepRead(s.read);
   if (document.body.classList.contains('mstream')) buildStream();
+  else if (hasRead(s)) { /* 镜头与讲解由 showSeg 负责（放在 HUD 更新之后） */ }
   else if (s.fit || !s.focus) fitAll(animate); else focusRead(s, animate);
   drawWires();
   const reg = (DATA.regions || []).find(r => r.id === s.storyline);
@@ -1478,6 +1580,7 @@ function setStep(i, animate = true) {
     d.style.background = h2 ? (j === step ? h2.lb : rgba(h2.lb, .35))
                             : (j === step ? '#79a8ff' : '#3c4653');
   });
+  if (hasRead(s) && !streamOn()) showSeg(s.read, seg0 === 'last' ? s.read.walk.length - 1 : seg0, animate);
 }
 const dots = document.getElementById('dots');
 STEPS.forEach((_, i) => {
@@ -1485,8 +1588,8 @@ STEPS.forEach((_, i) => {
   d.className = 'dot'; d.onclick = () => setStep(i);
   dots.appendChild(d);
 });
-document.getElementById('prev').onclick = () => setStep(step - 1);
-document.getElementById('next').onclick = () => setStep(step + 1);
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
 document.getElementById('sdetail-btn').onclick = () => {
   const p = document.getElementById('sdetail');
   p.hidden = !p.hidden;
@@ -1510,8 +1613,8 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape' && !document.getElementById('overview').hidden) { closeOverview(); return; }
   if (e.key === 'Escape' && readingOn()) { exitReader(); return; }
   if (readingOn()) return;   // 精读期间步进导航停摆
-  if (e.key === 'ArrowLeft') setStep(step - 1);
-  if (e.key === 'ArrowRight') setStep(step + 1);
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === 'ArrowRight') go(1);
 });
 
 /* ================= per-block Q&A ================= */
@@ -1824,6 +1927,22 @@ function buildStream() {
   head.className = 'ms-head';
   head.textContent = s.caption || '';
   mstreamEl.appendChild(head);
+  if (hasRead(s)) {   // 手机上的带读：一段代码 + 一段讲解，交替往下读
+    const r = s.read, c = cardById[r.card], L = c.code.split('\n');
+    const add = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; mstreamEl.appendChild(d); };
+    msSect('带读 · ' + esc(c.name));
+    if (r.focus) add('ms-q', '<b>带着问题读</b><br>' + mdInline(esc(r.focus)));
+    r.walk.forEach((w, k) => {
+      const gi = r.ranges.findIndex(([a]) => a === w.lines[0]);
+      if (gi > 0 && (r.gaps || [])[gi - 1]) add('ms-gap', '⋯ ' + esc(r.gaps[gi - 1]));
+      add('ms-code', L.slice(w.lines[0] - 1, w.lines[1]).map((t, j) =>
+        `<span class="no">${w.lines[0] + j}</span>${highlight(t, c.lang)}`).join('\n'));
+      add('ms-walk', mdInline(esc(w.text)));
+    });
+    if (r.answer) add('ms-a', '<b>回到问题</b><br>' + mdInline(esc(r.answer)));
+    if (r.takeaway) add('ms-q', '<b>设计点</b><br>' + mdInline(esc(r.takeaway)));
+    msSect('完整代码');
+  }
   const focusCards = (s.order || s.focus || []).filter(id => cardById[id]);
   if (!focusCards.length) {
     // 总览/无 focus 步：画布级 bg note + 按故事线分节的目录
@@ -2192,6 +2311,7 @@ function upgradeMissing() {
   const story = STEPS.slice(1).filter(s => pv ? s.ask : s.focus);
   const have = story.filter(s => s.trace).length;
   if (pv ? have < story.length : have * 2 < story.length) miss.push('步卡');
+  if (!pv && story.some(s => !s.read)) miss.push('逐段带读');
   return miss;
 }
 document.getElementById('up-btn').addEventListener('click', () => {

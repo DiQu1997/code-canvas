@@ -437,6 +437,55 @@ def main():
                     warn(f"{op} {o['name']}: {k} 超 100 字")
             check_refs_shape(op, o.get("refs"))
 
+    # 逐段带读：一步一段连续代码（≤60 行），讲解按阅读顺序首尾相接覆盖每一行
+    def check_read(sp, rd, s):
+        c = cards.get(rd.get("card")) if isinstance(rd, dict) else None
+        if not c or not c.get("code"):
+            err(f"{sp}: read.card {rd.get('card') if isinstance(rd, dict) else rd} 不存在或没有代码"); return
+        n = len(c["code"].split("\n"))
+        rs = rd.get("ranges")
+        if not isinstance(rs, list) or not rs or not all(
+                isinstance(r, list) and len(r) == 2 and all(isinstance(x, int) for x in r) for r in rs):
+            err(f"{sp}: read.ranges 应为 [[起, 止], …]（卡内行号）"); return
+        total = 0
+        for k, (a, z) in enumerate(rs):
+            if not (1 <= a <= z <= n):
+                err(f"{sp}: read.ranges [{a},{z}] 越界（卡 {c['id']} 共 {n} 行）"); return
+            if any(j != k and a <= z2 and a2 <= z for j, (a2, z2) in enumerate(rs)):
+                err(f"{sp}: read.ranges [{a},{z}] 与其他段重叠"); return
+            total += z - a + 1
+        if total > 60:
+            err(f"{sp}: read 共 {total} 行代码（≤60）——一步只读一段，拆成两步")
+        if len(rd.get("gaps") or []) != len(rs) - 1:
+            err(f"{sp}: read.gaps 应有 {len(rs) - 1} 条（说明段与段之间省略了什么）")
+        wk = rd.get("walk") or []
+        if not wk:
+            err(f"{sp}: read.walk 必写（逐段讲解）"); return
+        k = 0
+        for a, z in rs:
+            nxt = a
+            while nxt <= z and k < len(wk):
+                ln = wk[k].get("lines") if isinstance(wk[k], dict) else None
+                if not (isinstance(ln, list) and len(ln) == 2 and ln[0] == nxt and nxt <= ln[1] <= z):
+                    err(f"{sp}: read.walk[{k}] {ln} 应从第 {nxt} 行开始、止于 [{a},{z}] 内"); return
+                if not (wk[k].get("text") or "").strip():
+                    err(f"{sp}: read.walk[{k}] 缺 text")
+                nxt = ln[1] + 1
+                k += 1
+            if nxt <= z:
+                err(f"{sp}: read.walk 漏讲了第 {nxt}-{z} 行"); return
+        if k < len(wk):
+            err(f"{sp}: read.walk 多出 {len(wk) - k} 段超出 ranges")
+        chars = sum(len(w.get("text") or "") for w in wk)
+        if chars < total * 8:
+            warn(f"{sp}: 讲解 {chars} 字对 {total} 行代码偏薄（参考：每行 ≥8 字，读者要能不离开页面读懂）")
+        if not (rd.get("focus") or "").strip():
+            warn(f"{sp}: read 缺 focus（带着读的问题）")
+        elif not (rd.get("answer") or "").strip():
+            warn(f"{sp}: read 有 focus 却没有 answer（读完要回到问题）")
+        if rd["card"] not in (s.get("focus") or []):
+            warn(f"{sp}: read.card {rd['card']} 不在本步 focus 里")
+
     for i, s in enumerate(steps):
         sp = f"step[{i}] {s.get('title','')}"
         tr = s.get("trace")
@@ -457,6 +506,12 @@ def main():
                         warn(f"{sp}: trace.{k} 超 {lim} 字")
         elif mode == "preview" and i > 0 and s.get("ask"):
             warn(f"{sp}: 路线步缺 trace 步卡（触发/同步异步/数据/失败分支/依据）")
+        rd = s.get("read")
+        if rd is not None:
+            check_read(sp, rd, s)
+        elif mode not in ("preview", "plan", "diff") and i > 0 and s.get("focus") \
+                and any(f in cards and cards[f].get("code") for f in s["focus"]):
+            warn(f"{sp}: 故事步缺 read 逐段带读——读者面对整张卡不知从何读起（见 schema.md）")
     if mode not in ("preview", "plan", "diff"):
         story = [s for s in steps[1:] if s.get("focus")]
         if story and sum(1 for s in story if s.get("trace")) * 2 < len(story):

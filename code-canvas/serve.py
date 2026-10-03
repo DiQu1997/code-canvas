@@ -550,6 +550,10 @@ def upgrade_gaps(d: dict) -> list:
     if (preview and have < len(story)) or (not preview and have * 2 < len(story)):
         miss.append("steps[].trace 步卡（触发 / 同步异步 / 数据增删改读 / 失败分支 / 依据）"
                     + ("——每条路线步必写" if preview else "——至少一半的步写，信息量大的优先"))
+    if not preview and any(not s.get("read") for s in story):
+        miss.append("steps[].read 逐段带读（最重要）——每个故事步：一张卡里一段连续代码（≤60 行），"
+                    "带着读的问题、按段首尾相接覆盖每一行的讲解（具体到变量和条件，讲做了什么也讲为什么）、"
+                    "回到问题；一步要读两张卡就把讲解放在主卡上。read 属于叙事层，可以补")
     miss.append("ev 证据分级：逐个审视分区卡/连线/note，推断的标 infer，没把握的标 unknown + need")
     return miss
 
@@ -626,7 +630,8 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                "3) python3 {skill}/check_refs.py {w} <仓库根>（依据核不过的要修正，不要留给服务端剔除）；\n"
                if has_repo else "")
             + "事实可信层必写（SKILL 4d / preview-spec）：gaps 待核实清单、objects、ev 证据分级、"
-            "trace 步卡（深潜至少一半的步，预览每条路线步）——它们和代码卡一样是交付物。\n"
+            "trace 步卡（深潜至少一半的步，预览每条路线步）——它们和代码卡一样是交付物。"
+            "深潜画布每个故事步必写 read 逐段带读（SKILL 第 6 步）。\n"
             "接着 python3 {skill}/validate.py {w} 清零 ERROR（warn 逐条自查）；"
             "python3 {skill}/render.py {w} {work}/canvas.html 渲染并截图自检。\n"
             "**不要写入画布库**——入库由服务端完成：收尾时它会嵌上下文、核依据、过 validate，全过才入库。"
