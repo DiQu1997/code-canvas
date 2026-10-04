@@ -73,12 +73,15 @@ check('explanation card sits right of the card, near the segment', await page.ev
   const w = document.getElementById('walk'), c = document.getElementById('card-sched');
   return w.offsetLeft > c.offsetLeft + c.offsetWidth && Math.abs(w.offsetTop - (c.offsetTop + document.getElementById('sched-L3').offsetTop)) < 120;
 }));
-check('explanation card stays clear of the floating HUD buttons', await page.evaluate(() => {
+await page.setViewportSize({ width: 1000, height: 760 }); await page.evaluate(() => setStep(1, false)); await page.waitForTimeout(300);
+const hudClear = await page.evaluate(() => {
   const w = document.getElementById('walk').getBoundingClientRect();
-  return ['hint', 'canvas-ask-btn', 'profile-btn', 'dl-btn', 'ov-btn', 'up-btn'].map(id => document.getElementById(id))
-    .filter(e => e && e.offsetParent).every(e => { const r = e.getBoundingClientRect();
-      return r.right < w.left || r.left > w.right || r.bottom < w.top || r.top > w.bottom; });
-}));
+  const hud = ['hint', 'canvas-ask-btn', 'profile-btn', 'dl-btn', 'ov-btn', 'up-btn'].map(id => document.getElementById(id))
+    .filter(e => e && e.getClientRects().length);
+  return hud.length >= 2 && hud.every(e => e.getBoundingClientRect().left > w.right);   // 不伸进按钮列
+});
+await page.setViewportSize({ width: 1400, height: 900 }); await page.evaluate(() => setStep(1, false)); await page.waitForTimeout(300);
+check('explanation card stays clear of the floating HUD buttons', hudClear);
 check('camera frames the segment legibly', await page.evaluate(() => cam.s) >= 0.85);
 await page.keyboard.press('ArrowRight'); await page.waitForTimeout(400);
 check('→ advances to the next segment inside the same step',
