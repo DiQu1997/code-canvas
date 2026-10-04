@@ -418,6 +418,7 @@
   #walk .wk-q { background: #fff8c5; } #walk .wk-a { background: #dafbe1; margin: 8px 0 6px; }
   #walk .wk-k { background: #f6f8fa; margin-bottom: 6px; }
   #walk .wk-q b, #walk .wk-a b, #walk .wk-k b { display: block; font-size: 11px; color: #57606a; margin-bottom: 1px; }
+  #walk .wk-q .wk-crux { margin-top: 6px; }
   #walk code, .ms-walk code { font: 12px ui-monospace, Menlo, Consolas, monospace; background: #eef1f4;
     border-radius: 4px; padding: 0 4px; }
   #walk .wk-nav { font-size: 10.5px; color: #8c959f; text-align: right; margin-top: 4px; }
@@ -1482,10 +1483,11 @@ function showSeg(r, k, animate = true) {
     const e = document.getElementById(r.card + '-L' + n);
     if (e) { e.classList.add('rd-cur'); lines.push(e); }
   }
-  walkEl.innerHTML = (seg === 0 && r.focus ? `<div class="wk-q"><b>带着问题读</b>${txt(r.focus)}</div>` : '')
+  walkEl.innerHTML = (seg === 0 && r.problem ? `<div class="wk-q"><b>要解决的问题</b>${txt(r.problem)}`
+      + (r.crux ? `<b class="wk-crux">难点</b>${txt(r.crux)}` : '') + '</div>' : '')
     + `<div class="wk-h">第 ${seg + 1} / ${r.walk.length} 段 · 第 ${w.lines[0]}–${w.lines[1]} 行</div>`
     + `<div class="wk-t">${txt(w.text)}</div>`
-    + (seg === last && r.answer ? `<div class="wk-a"><b>回到问题</b>${txt(r.answer)}</div>` : '')
+    + (seg === last && r.solution ? `<div class="wk-a"><b>怎么解决的</b>${txt(r.solution)}</div>` : '')
     + (seg === last && r.takeaway ? `<div class="wk-k"><b>设计点</b>${txt(r.takeaway)}</div>` : '')
     + `<div class="wk-nav">← → ${seg < last ? '下一段' : step < STEPS.length - 1 ? '下一步' : '读完了'}</div>`;
   walkEl.hidden = false;
@@ -1496,9 +1498,14 @@ function showSeg(r, k, animate = true) {
   walkEl.style.top = Math.max(pc.y, p0.y - 10) + 'px';
   const bw = walkEl.offsetWidth, bh = walkEl.offsetHeight, bx = pc.x + pc.w + 26, by = Math.max(pc.y, p0.y - 10);
   const x0 = pc.x, x1 = bx + bw, y0 = Math.min(p0.y, by), y1 = Math.max(p1.y + p1.h, by + bh);
-  const sc = Math.min(innerWidth / (x1 - x0 + 100), (innerHeight - 200) / (y1 - y0 + 100), 1.15);
-  if (sc >= READ_FLOOR()) centerOn((x0 + x1) / 2, (y0 + y1) / 2, sc, animate);
-  else centerOn((x0 + x1) / 2, y0 + Math.min(y1 - y0, 420) / 2, READ_FLOOR(), animate);
+  // 右上角的浮动按钮列不能压在讲解卡上：取景只用按钮列左侧的宽度
+  const hud = ['hint', 'canvas-ask-btn', 'profile-btn', 'dl-btn', 'ov-btn', 'up-btn']
+    .map(id => document.getElementById(id)).filter(e => e && e.offsetParent)
+    .reduce((m, e) => Math.min(m, e.getBoundingClientRect().left), innerWidth);
+  const inset = innerWidth - hud + 12, W = innerWidth - inset;
+  const sc = Math.min(W / (x1 - x0 + 100), (innerHeight - 200) / (y1 - y0 + 100), 1.15);
+  const s1 = sc >= READ_FLOOR() ? sc : READ_FLOOR();
+  centerOn((x0 + x1) / 2 + inset / 2 / s1, sc >= READ_FLOOR() ? (y0 + y1) / 2 : y0 + Math.min(y1 - y0, 420) / 2, s1, animate);
   document.getElementById('sbadges').innerHTML = traceBadges(STEPS[step].trace)
     + `<span class="m-seg">带读 ${seg + 1}/${r.walk.length}</span>`;
   document.getElementById('prev').disabled = step === 0 && seg === 0;
@@ -1936,7 +1943,8 @@ function buildStream() {
     const r = s.read, c = cardById[r.card], L = c.code.split('\n');
     const add = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; mstreamEl.appendChild(d); };
     msSect('带读 · ' + esc(c.name));
-    if (r.focus) add('ms-q', '<b>带着问题读</b><br>' + mdInline(esc(r.focus)));
+    if (r.problem) add('ms-q', '<b>要解决的问题</b><br>' + mdInline(esc(r.problem))
+      + (r.crux ? '<br><b>难点</b><br>' + mdInline(esc(r.crux)) : ''));
     r.walk.forEach((w, k) => {
       const gi = r.ranges.findIndex(([a]) => a === w.lines[0]);
       if (gi > 0 && (r.gaps || [])[gi - 1]) add('ms-gap', '⋯ ' + esc(r.gaps[gi - 1]));
@@ -1944,7 +1952,7 @@ function buildStream() {
         `<span class="no">${w.lines[0] + j}</span>${highlight(t, c.lang)}`).join('\n'));
       add('ms-walk', mdInline(esc(w.text)));
     });
-    if (r.answer) add('ms-a', '<b>回到问题</b><br>' + mdInline(esc(r.answer)));
+    if (r.solution) add('ms-a', '<b>怎么解决的</b><br>' + mdInline(esc(r.solution)));
     if (r.takeaway) add('ms-q', '<b>设计点</b><br>' + mdInline(esc(r.takeaway)));
     msSect('完整代码');
   }
@@ -2316,7 +2324,9 @@ function upgradeMissing() {
   const story = STEPS.slice(1).filter(s => pv ? s.ask : s.focus);
   const have = story.filter(s => s.trace).length;
   if (pv ? have < story.length : have * 2 < story.length) miss.push('步卡');
-  if (!pv && story.some(s => !s.read)) miss.push('逐段带读');
+  // 带读只要求读代码的步（与 validate 一致）：focus 里有带代码的卡
+  const reads = story.filter(s => (s.focus || []).some(f => cardById[f] && cardById[f].code));
+  if (!pv && reads.some(s => !(s.read && s.read.problem))) miss.push('逐段带读');
   return miss;
 }
 document.getElementById('up-btn').addEventListener('click', () => {

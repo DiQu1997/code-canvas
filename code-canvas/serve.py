@@ -550,7 +550,9 @@ def upgrade_gaps(d: dict) -> list:
     if (preview and have < len(story)) or (not preview and have * 2 < len(story)):
         miss.append("steps[].trace 步卡（触发 / 同步异步 / 数据增删改读 / 失败分支 / 依据）"
                     + ("——每条路线步必写" if preview else "——至少一半的步写，信息量大的优先"))
-    if not preview and any(not (s.get("read") or {}).get("problem") for s in story):
+    coded = {c.get("id") for c in d.get("cards") or [] if c.get("code")}
+    if not preview and any(not (s.get("read") or {}).get("problem") for s in story
+                           if any(f in coded for f in s.get("focus") or [])):
         miss.append("steps[].read 逐段带读（最重要）——每个故事步：一张卡里一段连续代码（≤60 行），"
                     "先写这段代码要解决的问题 problem 与难点 crux（不是考题式提问，见 schema.md）、"
                     "按段首尾相接覆盖每一行的讲解（具体到变量和条件，讲做了什么也讲为什么）、"

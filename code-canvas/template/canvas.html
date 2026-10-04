@@ -1498,9 +1498,14 @@ function showSeg(r, k, animate = true) {
   walkEl.style.top = Math.max(pc.y, p0.y - 10) + 'px';
   const bw = walkEl.offsetWidth, bh = walkEl.offsetHeight, bx = pc.x + pc.w + 26, by = Math.max(pc.y, p0.y - 10);
   const x0 = pc.x, x1 = bx + bw, y0 = Math.min(p0.y, by), y1 = Math.max(p1.y + p1.h, by + bh);
-  const sc = Math.min(innerWidth / (x1 - x0 + 100), (innerHeight - 200) / (y1 - y0 + 100), 1.15);
-  if (sc >= READ_FLOOR()) centerOn((x0 + x1) / 2, (y0 + y1) / 2, sc, animate);
-  else centerOn((x0 + x1) / 2, y0 + Math.min(y1 - y0, 420) / 2, READ_FLOOR(), animate);
+  // 右上角的浮动按钮列不能压在讲解卡上：取景只用按钮列左侧的宽度
+  const hud = ['hint', 'canvas-ask-btn', 'profile-btn', 'dl-btn', 'ov-btn', 'up-btn']
+    .map(id => document.getElementById(id)).filter(e => e && e.offsetParent)
+    .reduce((m, e) => Math.min(m, e.getBoundingClientRect().left), innerWidth);
+  const inset = innerWidth - hud + 12, W = innerWidth - inset;
+  const sc = Math.min(W / (x1 - x0 + 100), (innerHeight - 200) / (y1 - y0 + 100), 1.15);
+  const s1 = sc >= READ_FLOOR() ? sc : READ_FLOOR();
+  centerOn((x0 + x1) / 2 + inset / 2 / s1, sc >= READ_FLOOR() ? (y0 + y1) / 2 : y0 + Math.min(y1 - y0, 420) / 2, s1, animate);
   document.getElementById('sbadges').innerHTML = traceBadges(STEPS[step].trace)
     + `<span class="m-seg">带读 ${seg + 1}/${r.walk.length}</span>`;
   document.getElementById('prev').disabled = step === 0 && seg === 0;
@@ -2319,7 +2324,9 @@ function upgradeMissing() {
   const story = STEPS.slice(1).filter(s => pv ? s.ask : s.focus);
   const have = story.filter(s => s.trace).length;
   if (pv ? have < story.length : have * 2 < story.length) miss.push('步卡');
-  if (!pv && story.some(s => !s.read)) miss.push('逐段带读');
+  // 带读只要求读代码的步（与 validate 一致）：focus 里有带代码的卡
+  const reads = story.filter(s => (s.focus || []).some(f => cardById[f] && cardById[f].code));
+  if (!pv && reads.some(s => !(s.read && s.read.problem))) miss.push('逐段带读');
   return miss;
 }
 document.getElementById('up-btn').addEventListener('click', () => {
