@@ -479,10 +479,10 @@ def main():
         chars = sum(len(w.get("text") or "") for w in wk)
         if chars < total * 8:
             warn(f"{sp}: 讲解 {chars} 字对 {total} 行代码偏薄（参考：每行 ≥8 字，读者要能不离开页面读懂）")
-        if not (rd.get("focus") or "").strip():
-            warn(f"{sp}: read 缺 focus（带着读的问题）")
-        elif not (rd.get("answer") or "").strip():
-            warn(f"{sp}: read 有 focus 却没有 answer（读完要回到问题）")
+        if not (rd.get("problem") or "").strip():
+            warn(f"{sp}: read 缺 problem（这段代码要解决的问题）")
+        elif not (rd.get("solution") or "").strip():
+            warn(f"{sp}: read 有 problem 却没有 solution（读完要说清怎么解决的）")
         if rd["card"] not in (s.get("focus") or []):
             warn(f"{sp}: read.card {rd['card']} 不在本步 focus 里")
 

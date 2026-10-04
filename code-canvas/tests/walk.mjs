@@ -25,12 +25,12 @@ const canvas = {
   steps: [
     { title: '总览', fit: true },
     { title: '① 开账', focus: ['sched'], caption: 'c1',
-      read: { card: 'sched', ranges: [[3, 10], [20, 24]], gaps: ['省略：统计字段'], focus: '预算从哪来？',
+      read: { card: 'sched', ranges: [[3, 10], [20, 24]], gaps: ['省略：统计字段'], problem: '每一步要把有限的预算分给排队的请求。', crux: '预算不够时谁先谁后。',
               walk: [{ lines: [3, 6], text: longText('第一段') }, { lines: [7, 10], text: longText('第二段') },
                      { lines: [20, 24], text: longText('第三段') }],
-              answer: '预算来自本步上限。', takeaway: '贪心分配。' } },
+              solution: '按顺序贪心扣预算。', takeaway: '贪心分配。' } },
     { title: '② 另一步', focus: ['sched'], caption: 'c2',
-      read: { card: 'sched', ranges: [[11, 14]], focus: 'q2', walk: [{ lines: [11, 14], text: longText('唯一一段') }], answer: 'a2' } },
+      read: { card: 'sched', ranges: [[11, 14]], problem: 'q2', walk: [{ lines: [11, 14], text: longText('唯一一段') }], solution: 'a2' } },
   ],
 };
 const cj = join(tmp, 'walk.json');
@@ -66,9 +66,9 @@ await page.click('#next'); await page.waitForTimeout(500);
 check('entering a read step dims lines outside the ranges',
   await page.$eval('#sched-L15', e => e.classList.contains('rd-out'))
   && !(await page.$eval('#sched-L4', e => e.classList.contains('rd-out'))));
-check('first segment highlighted with the question and its explanation',
-  JSON.stringify(await cur()) === '[3,4,5,6]' && (await walkTxt()).includes('带着问题读')
-  && (await walkTxt()).includes('预算从哪来') && (await walkTxt()).includes('第 1 / 3 段'));
+check('first segment shows the problem, the crux and its explanation',
+  JSON.stringify(await cur()) === '[3,4,5,6]' && (await walkTxt()).includes('要解决的问题') && (await walkTxt()).includes('难点')
+  && (await walkTxt()).includes('有限的预算') && (await walkTxt()).includes('第 1 / 3 段'));
 check('explanation card sits right of the card, near the segment', await page.evaluate(() => {
   const w = document.getElementById('walk'), c = document.getElementById('card-sched');
   return w.offsetLeft > c.offsetLeft + c.offsetWidth && Math.abs(w.offsetTop - (c.offsetTop + document.getElementById('sched-L3').offsetTop)) < 120;
@@ -77,10 +77,10 @@ check('camera frames the segment legibly', await page.evaluate(() => cam.s) >= 0
 await page.keyboard.press('ArrowRight'); await page.waitForTimeout(400);
 check('→ advances to the next segment inside the same step',
   await page.evaluate(() => step) === 1 && JSON.stringify(await cur()) === '[7,8,9,10]'
-  && !(await walkTxt()).includes('带着问题读'));
+  && !(await walkTxt()).includes('要解决的问题'));
 await page.keyboard.press('ArrowRight'); await page.waitForTimeout(400);
-check('last segment shows the answer and the takeaway',
-  JSON.stringify(await cur()) === '[20,21,22,23,24]' && (await walkTxt()).includes('回到问题')
+check('last segment shows the solution and the takeaway',
+  JSON.stringify(await cur()) === '[20,21,22,23,24]' && (await walkTxt()).includes('怎么解决的')
   && (await walkTxt()).includes('设计点') && (await page.textContent('#sbadges')).includes('带读 3/3'));
 await page.keyboard.press('ArrowRight'); await page.waitForTimeout(400);
 check('→ after the last segment moves to the next step, first segment',
@@ -98,7 +98,7 @@ await page.evaluate(() => setStep(1)); await page.waitForTimeout(400);
 check('phone stream alternates code segments and explanations',
   (await page.$$('#mstream .ms-code')).length === 3 && (await page.$$('#mstream .ms-walk')).length === 3
   && (await page.textContent('#mstream .ms-gap')).includes('省略：统计字段')
-  && (await page.textContent('#mstream')).includes('回到问题'));
+  && (await page.textContent('#mstream')).includes('怎么解决的'));
 await browser.close();
 console.log(results.join('\n'));
 process.exit(results.some(r => r.startsWith('FAIL')) ? 1 : 0);

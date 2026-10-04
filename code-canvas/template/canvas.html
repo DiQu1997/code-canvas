@@ -418,6 +418,7 @@
   #walk .wk-q { background: #fff8c5; } #walk .wk-a { background: #dafbe1; margin: 8px 0 6px; }
   #walk .wk-k { background: #f6f8fa; margin-bottom: 6px; }
   #walk .wk-q b, #walk .wk-a b, #walk .wk-k b { display: block; font-size: 11px; color: #57606a; margin-bottom: 1px; }
+  #walk .wk-q .wk-crux { margin-top: 6px; }
   #walk code, .ms-walk code { font: 12px ui-monospace, Menlo, Consolas, monospace; background: #eef1f4;
     border-radius: 4px; padding: 0 4px; }
   #walk .wk-nav { font-size: 10.5px; color: #8c959f; text-align: right; margin-top: 4px; }
@@ -1482,10 +1483,11 @@ function showSeg(r, k, animate = true) {
     const e = document.getElementById(r.card + '-L' + n);
     if (e) { e.classList.add('rd-cur'); lines.push(e); }
   }
-  walkEl.innerHTML = (seg === 0 && r.focus ? `<div class="wk-q"><b>带着问题读</b>${txt(r.focus)}</div>` : '')
+  walkEl.innerHTML = (seg === 0 && r.problem ? `<div class="wk-q"><b>要解决的问题</b>${txt(r.problem)}`
+      + (r.crux ? `<b class="wk-crux">难点</b>${txt(r.crux)}` : '') + '</div>' : '')
     + `<div class="wk-h">第 ${seg + 1} / ${r.walk.length} 段 · 第 ${w.lines[0]}–${w.lines[1]} 行</div>`
     + `<div class="wk-t">${txt(w.text)}</div>`
-    + (seg === last && r.answer ? `<div class="wk-a"><b>回到问题</b>${txt(r.answer)}</div>` : '')
+    + (seg === last && r.solution ? `<div class="wk-a"><b>怎么解决的</b>${txt(r.solution)}</div>` : '')
     + (seg === last && r.takeaway ? `<div class="wk-k"><b>设计点</b>${txt(r.takeaway)}</div>` : '')
     + `<div class="wk-nav">← → ${seg < last ? '下一段' : step < STEPS.length - 1 ? '下一步' : '读完了'}</div>`;
   walkEl.hidden = false;
@@ -1936,7 +1938,8 @@ function buildStream() {
     const r = s.read, c = cardById[r.card], L = c.code.split('\n');
     const add = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; mstreamEl.appendChild(d); };
     msSect('带读 · ' + esc(c.name));
-    if (r.focus) add('ms-q', '<b>带着问题读</b><br>' + mdInline(esc(r.focus)));
+    if (r.problem) add('ms-q', '<b>要解决的问题</b><br>' + mdInline(esc(r.problem))
+      + (r.crux ? '<br><b>难点</b><br>' + mdInline(esc(r.crux)) : ''));
     r.walk.forEach((w, k) => {
       const gi = r.ranges.findIndex(([a]) => a === w.lines[0]);
       if (gi > 0 && (r.gaps || [])[gi - 1]) add('ms-gap', '⋯ ' + esc(r.gaps[gi - 1]));
@@ -1944,7 +1947,7 @@ function buildStream() {
         `<span class="no">${w.lines[0] + j}</span>${highlight(t, c.lang)}`).join('\n'));
       add('ms-walk', mdInline(esc(w.text)));
     });
-    if (r.answer) add('ms-a', '<b>回到问题</b><br>' + mdInline(esc(r.answer)));
+    if (r.solution) add('ms-a', '<b>怎么解决的</b><br>' + mdInline(esc(r.solution)));
     if (r.takeaway) add('ms-q', '<b>设计点</b><br>' + mdInline(esc(r.takeaway)));
     msSect('完整代码');
   }

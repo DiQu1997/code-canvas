@@ -550,10 +550,11 @@ def upgrade_gaps(d: dict) -> list:
     if (preview and have < len(story)) or (not preview and have * 2 < len(story)):
         miss.append("steps[].trace 步卡（触发 / 同步异步 / 数据增删改读 / 失败分支 / 依据）"
                     + ("——每条路线步必写" if preview else "——至少一半的步写，信息量大的优先"))
-    if not preview and any(not s.get("read") for s in story):
+    if not preview and any(not (s.get("read") or {}).get("problem") for s in story):
         miss.append("steps[].read 逐段带读（最重要）——每个故事步：一张卡里一段连续代码（≤60 行），"
-                    "带着读的问题、按段首尾相接覆盖每一行的讲解（具体到变量和条件，讲做了什么也讲为什么）、"
-                    "回到问题；一步要读两张卡就把讲解放在主卡上。read 属于叙事层，可以补")
+                    "先写这段代码要解决的问题 problem 与难点 crux（不是考题式提问，见 schema.md）、"
+                    "按段首尾相接覆盖每一行的讲解（具体到变量和条件，讲做了什么也讲为什么）、"
+                    "最后 solution 说清怎么解决的；一步要读两张卡就把讲解放在主卡上。read 属于叙事层，可以补")
     miss.append("ev 证据分级：逐个审视分区卡/连线/note，推断的标 infer，没把握的标 unknown + need")
     return miss
 
