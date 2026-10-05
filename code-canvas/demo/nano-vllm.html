@@ -569,8 +569,14 @@
   }
 
   /* ---- 移动端卡片流：同一份数据的另一种投影——步进驱动的垂直流 ---- */
-  #mstream { position: fixed; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
-    background: #f6f8fa; z-index: 5; padding: 104px 10px 160px; }
+  /* 滚动区夹在顶栏与底栏之间：内容不从浮动件后面穿过 */
+  #mstream { position: fixed; top: 100px; left: 0; right: 0; bottom: 80px; overflow-y: auto;
+    -webkit-overflow-scrolling: touch; background: #f6f8fa; z-index: 5; padding: 2px 10px 16px; }
+  #spos { display: none; }
+  /* 卡片流底栏只剩一行导航：◀ 进度 ▶ 2D——点点在手机上又小又挤，换成「k / n」 */
+  body.mstream #bar { flex-wrap: nowrap; }
+  body.mstream #dots { display: none; }
+  body.mstream #spos { display: block; flex: 1; text-align: center; font-size: 13px; color: #57606a; }
   #mstream[hidden] { display: none; }
   body.mstream #vp { display: none; }
   /* 卡片流里右侧浮动按钮会竖着叠住代码：只留问画布 + 总览，横排在顶栏下 */
@@ -583,7 +589,6 @@
   #mstream .card .body { overflow-x: auto; }
   #mstream .note { position: static !important; width: auto !important; max-width: none;
     display: block; margin: -6px 0 12px; }
-  #mstream .ms-head { font-size: 13px; color: #57606a; line-height: 1.65; margin: 2px 2px 12px; }
   #mstream .ms-sect { font-size: 13px; font-weight: 600; color: #1f2328; margin: 14px 2px 8px;
     padding-left: 8px; border-left: 3px solid var(--sc, #8c959f); }
   #mstream .ms-sect .ms-ord { display: inline-block; min-width: 18px; height: 18px;
@@ -593,7 +598,12 @@
     border: 1px solid #d0d7de; border-radius: 8px; padding: 7px 10px; margin: 0 0 8px;
     cursor: pointer; }
   #mstream .ms-wire b { color: #1f2328; font-weight: 600; }
-  #mode-btn { position: fixed; right: 12px; bottom: 108px; z-index: 30; font-size: 11px;
+  body.mstream #mode-btn { position: static; flex: none; }
+  #mstream #stext { margin: 0 0 12px; padding: 10px 12px; background: #fff; border: 1px solid #d0d7de;
+    border-radius: 10px; }
+  #mstream #stitle { white-space: normal; font-size: 14px; }
+  #mstream #scap { max-height: none; font-size: 13px; }
+  #mode-btn { position: fixed; right: 12px; top: 18px; z-index: 30; font-size: 11px;
     color: #57606a; background: rgba(255,255,255,.92); border: 1px solid #d0d7de;
     border-radius: 999px; padding: 5px 12px; }
   #mode-btn[hidden] { display: none; }
@@ -680,7 +690,7 @@
 
 <div id="bar">
   <button class="navbtn" id="prev">◀</button>
-  <div id="dots"></div>
+  <div id="dots"></div><span id="spos"></span>
   <button class="navbtn" id="next">▶</button>
   <div id="stext"><div id="spreview" hidden></div><div id="stitle"></div><div id="scap"></div>
     <div id="sdetail" hidden></div>
@@ -1500,7 +1510,7 @@ function showSeg(r, k, animate = true) {
   const x0 = pc.x, x1 = bx + bw, y0 = Math.min(p0.y, by), y1 = Math.max(p1.y + p1.h, by + bh);
   // 右上角的浮动按钮列不能压在讲解卡上：取景只用按钮列左侧的宽度
   const hud = ['hint', 'canvas-ask-btn', 'profile-btn', 'dl-btn', 'ov-btn', 'up-btn']
-    .map(id => document.getElementById(id)).filter(e => e && e.offsetParent)
+    .map(id => document.getElementById(id)).filter(e => e && e.getClientRects().length)
     .reduce((m, e) => Math.min(m, e.getBoundingClientRect().left), innerWidth);
   const inset = innerWidth - hud + 12, W = innerWidth - inset;
   const sc = Math.min(W / (x1 - x0 + 100), (innerHeight - 200) / (y1 - y0 + 100), 1.15);
@@ -1567,6 +1577,7 @@ function setStep(i, animate = true, seg0 = 0) {
     (reg ? `<span class="schip" style="color:${hue.lb}; border-color:${hue.lb}">${esc(reg.title.replace(/^故事线\s*/, ''))}</span>` : '')
     + esc(s.title || '');
   document.getElementById('scap').textContent = s.caption || '';
+  document.getElementById('spos').textContent = step ? `${step} / ${STEPS.length - 1}` : '总览';
   // 故事线预告：这条线的第一步自动亮出 region.preview（What to expect）
   const pv = document.getElementById('spreview');
   if (reg && reg.preview && firstStepOf[reg.id] === step) {
@@ -1908,10 +1919,13 @@ async function sendQA() {
    竖排铺开（块/沙盘/问答/上下文全部可用），行级 note 内联在卡下，点亮的线
    变成可点的关系条；总览步 = 故事线目录。「2D 画布」按钮可切回。 */
 const mstreamEl = document.getElementById('mstream');
+const barEl = document.getElementById('bar');
 let forceCanvas = false;
 function streamOn() { return document.body.classList.contains('mstream'); }
 function restoreFromStream() {
   for (const el of [...mstreamEl.querySelectorAll('.card, .note')]) world.appendChild(el);
+  const st = document.getElementById('stext');
+  if (st.parentNode !== barEl) barEl.appendChild(st);
   mstreamEl.innerHTML = '';
 }
 function msSect(html, color) {
@@ -1935,10 +1949,8 @@ function msMoveCard(id) {
 function buildStream() {
   restoreFromStream();
   const s = STEPS[step];
-  const head = document.createElement('div');
-  head.className = 'ms-head';
-  head.textContent = s.caption || '';
-  mstreamEl.appendChild(head);
+  // 步文字（标题/说明/预告/步卡/详解）是流的开头，跟内容一起滚，底栏只留导航
+  mstreamEl.appendChild(document.getElementById('stext'));
   if (hasRead(s)) {   // 手机上的带读：一段代码 + 一段讲解，交替往下读
     const r = s.read, c = cardById[r.card], L = c.code.split('\n');
     const add = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; mstreamEl.appendChild(d); };
@@ -2009,6 +2021,7 @@ function syncStreamMode() {
   const btn = document.getElementById('mode-btn');
   btn.hidden = innerWidth >= 700;
   btn.textContent = want ? '2D 画布' : '卡片流';
+  if (want) barEl.appendChild(btn); else document.body.appendChild(btn);   // 卡片流里进底栏导航行，不再浮着盖内容
   if (want === streamOn()) { if (want) buildStream(); return; }
   document.body.classList.toggle('mstream', want);
   mstreamEl.hidden = !want;

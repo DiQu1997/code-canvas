@@ -74,6 +74,28 @@ check('exit restores stream', await page.evaluate(() =>
   document.body.classList.contains('mstream'))
   && (await page.$$('#mstream .card')).length >= 1);
 
+// 3b. phone chrome: nav buttons really tappable, bar is just the nav row, step text scrolls with the stream
+const tappable = id => page.evaluate(id => {
+  const r = document.getElementById(id).getBoundingClientRect();
+  const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  return !!e && (e.id === id || document.getElementById(id).contains(e));
+}, id);
+for (const k of [0, 1]) {
+  await page.evaluate(k => setStep(k, false), k); await page.waitForTimeout(250);
+  check(`step ${k}: ◀ ▶ and 2D button are not covered`,
+    await tappable('next') && await tappable('prev') && await tappable('mode-btn'));
+}
+check('bottom bar is one nav row (◀ k/n ▶ 2D, ≤ 64px)', await page.evaluate(() => document.getElementById('bar').offsetHeight <= 64)
+  && (await page.textContent('#spos')) === `1 / ${nSteps - 1}`);
+check('stream scrolls between the header and the bar, not under them', await page.evaluate(() => {
+  const m = document.getElementById('mstream').getBoundingClientRect();
+  const t = document.getElementById('topbar').getBoundingClientRect(), b = document.getElementById('bar').getBoundingClientRect();
+  return m.top >= t.bottom && m.bottom <= b.top;
+}));
+check('step text heads the stream instead of the bar', await page.evaluate(() =>
+  document.getElementById('mstream').firstElementChild.id === 'stext'
+  && document.getElementById('scap').textContent === (DATA.steps[1].caption || '')));
+
 // 4. mode toggle escapes to 2D canvas and back
 check('mode button visible on phone', await page.isVisible('#mode-btn'));
 await page.click('#mode-btn');
@@ -81,6 +103,9 @@ await page.waitForTimeout(400);
 check('toggle switches to 2D canvas',
   !(await page.evaluate(() => document.body.classList.contains('mstream')))
   && await page.isVisible('#vp') && (await page.$$('#vp .card')).length > 3);
+check('2D on phone: step text back in the bar, toggle button uncovered', await page.evaluate(() =>
+  document.getElementById('stext').parentNode.id === 'bar') && await tappable('mode-btn') && await tappable('next')
+  && await tappable('profile-btn') && await tappable('canvas-ask-btn'));
 await page.click('#mode-btn');
 await page.waitForTimeout(400);
 check('toggle returns to stream',

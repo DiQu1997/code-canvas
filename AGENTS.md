@@ -26,7 +26,7 @@ cd code-canvas
 python3 validate.py demo/nano-vllm.json                 # 0 errors
 python3 render.py demo/nano-vllm.json /tmp/t.html
 node tests/interactions.mjs demo/nano-vllm.html         # 59 PASS
-node tests/mobile.mjs demo/nano-vllm.html               # 18 PASS（手机卡片流）
+node tests/mobile.mjs demo/nano-vllm.html               # 24 PASS（手机卡片流）
 node tests/note-follow.mjs                              # 4 PASS
 node tests/personalize.mjs demo/nano-vllm.html          # 6 PASS
 node tests/hub.mjs                                      # 96 PASS
