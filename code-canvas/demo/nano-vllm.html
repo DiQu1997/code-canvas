@@ -408,6 +408,30 @@
   /* 逐段带读（step.read）：范围外变暗、当前段高亮、讲解卡贴在这段代码右侧 */
   .ln.rd-out { opacity: .22; }
   .ln.rd-cur { background: rgba(212,167,44,.16); box-shadow: inset 3px 0 #d4a72c; }
+  /* 情境推演：执行中的行 + 指针 ▶ + 行尾内联值 */
+  .ln.sc-cur { background: rgba(130,80,223,.10); box-shadow: inset 3px 0 #8250df; }
+  .ln.sc-ptr .no { color: #8250df; font-weight: 700; }
+  .ln.sc-ptr .no::before { content: '▶'; font-size: 9px; margin-right: 2px; }
+  .sc-val { margin-left: 18px; font-size: 11px; color: #8250df; background: #fbefff; border-radius: 4px; padding: 1px 6px; }
+  #walk.scn { border-left-color: #8250df; }
+  #walk .wk-br { font-size: 12.5px; background: #fbefff; border-radius: 7px; padding: 5px 10px; margin: 6px 0; }
+  #walk .wk-br b { display: block; font-size: 11px; color: #8250df; }
+  .sc-vars { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0 4px; }
+  .sc-vars td { border-top: 1px solid #eaeef2; padding: 3px 6px; vertical-align: top; }
+  .sc-vars td:first-child { font-family: ui-monospace, Menlo, monospace; color: #57606a; white-space: nowrap; }
+  .sc-vars tr.hot td { background: #fbefff; color: #1f2328; font-weight: 600; }
+  #scn-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 7px; }
+  .scn-tab { font-size: 11px; border: 1px solid #d0d7de; border-radius: 999px; padding: 2px 9px; cursor: pointer; color: #57606a; background: #fff; }
+  .scn-tab.on { background: #8250df; border-color: #8250df; color: #fff; }
+  .schip.sc-chip { color: #8250df; border-color: #8250df; }
+  .ms-tick { border-radius: 10px; margin: 0 0 12px; }
+  .ms-tick.cur { box-shadow: 0 0 0 2px #8250df; }
+  .ms-th { font-size: 12px; color: #8250df; font-weight: 600; margin: 0 2px 4px; }
+  .ms-vals { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+  .ms-vals span { font: 11.5px ui-monospace, Menlo, monospace; color: #8250df; background: #fbefff; border-radius: 4px; padding: 1px 6px; }
+  .ms-br { margin-top: 6px; font-size: 12.5px; color: #57606a; }
+  .ms-br b { color: #8250df; }
+  .vref.box { border-bottom-style: dashed; border-bottom-color: #8c959f; }
   #walk { position: absolute; z-index: 9; width: 400px; background: #ffffff; border: 1px solid #d0d7de;
     border-left: 3px solid #d4a72c; border-radius: 10px; box-shadow: 0 6px 24px rgba(31,35,40,.14);
     padding: 11px 14px 9px; font-size: 13.5px; line-height: 1.8; color: #1f2328; user-select: text; }
@@ -692,7 +716,7 @@
   <button class="navbtn" id="prev">◀</button>
   <div id="dots"></div><span id="spos"></span>
   <button class="navbtn" id="next">▶</button>
-  <div id="stext"><div id="spreview" hidden></div><div id="stitle"></div><div id="scap"></div>
+  <div id="stext"><div id="scn-tabs" hidden></div><div id="spreview" hidden></div><div id="stitle"></div><div id="scap"></div>
     <div id="sdetail" hidden></div>
     <span id="sdetail-btn" hidden>详解 ▾</span><span id="sbadges"></span><span id="dive-btn" hidden>→ 深潜这条</span>
   </div>
@@ -1467,11 +1491,12 @@ function clearRead() {
   document.querySelectorAll('.ln.rd-out, .ln.rd-cur').forEach(e => e.classList.remove('rd-out', 'rd-cur'));
   walkEl.hidden = true;
 }
-function prepRead(r) {
-  const card = document.getElementById('card-' + r.card);
+/* 打开卡片并展开与这些行段重叠的块（带读与情境推演共用） */
+function openCardTo(cid, ranges) {
+  const card = document.getElementById('card-' + cid);
   card.classList.remove('collapsed', 'dim');
   const ch = card.querySelector('.chev'); if (ch) ch.textContent = '▾';
-  const hit = b => r.ranges.some(([a, z]) => a <= b.lines[1] && b.lines[0] <= z);
+  const hit = b => ranges.some(([a, z]) => a <= b.lines[1] && b.lines[0] <= z);
   (function unfold(bs) {
     for (const b of bs || []) {
       if (!hit(b)) continue;
@@ -1479,7 +1504,11 @@ function prepRead(r) {
       if (el && el.classList.contains('folded')) { el.classList.remove('folded'); el.querySelector('.bchev').textContent = '▾'; }
       unfold(b.children);
     }
-  })(cardById[r.card].blocks);
+  })(cardById[cid].blocks);
+  return card;
+}
+function prepRead(r) {
+  const card = openCardTo(r.card, r.ranges);
   const keep = n => r.ranges.some(([a, z]) => a <= n && n <= z);
   card.querySelectorAll('.ln[id^="' + r.card + '-L"]').forEach(e => e.classList.toggle('rd-out', !keep(lineOf(e))));
 }
@@ -1501,7 +1530,16 @@ function showSeg(r, k, animate = true) {
     + (seg === last && r.takeaway ? `<div class="wk-k"><b>设计点</b>${txt(r.takeaway)}</div>` : '')
     + `<div class="wk-nav">← → ${seg < last ? '下一段' : step < STEPS.length - 1 ? '下一步' : '读完了'}</div>`;
   walkEl.hidden = false;
-  const pc = wpos(document.getElementById('card-' + r.card));
+  placeBeside(r.card, lines, animate);
+  document.getElementById('sbadges').innerHTML = traceBadges(STEPS[step].trace)
+    + `<span class="m-seg">带读 ${seg + 1}/${r.walk.length}</span>`;
+  document.getElementById('prev').disabled = step === 0 && seg === 0;
+  document.getElementById('next').disabled = step === STEPS.length - 1 && seg === last;
+  drawWires();
+}
+/* 讲解卡贴在卡片右侧、对齐当前行；镜头框住"这几行 + 讲解卡" */
+function placeBeside(cid, lines, animate) {
+  const pc = wpos(document.getElementById('card-' + cid));
   const p0 = lines.length ? wpos(lines[0]) : pc;
   const p1 = lines.length ? wpos(lines[lines.length - 1]) : pc;
   walkEl.style.left = (pc.x + pc.w + 26) + 'px';
@@ -1516,14 +1554,10 @@ function showSeg(r, k, animate = true) {
   const sc = Math.min(W / (x1 - x0 + 100), (innerHeight - 200) / (y1 - y0 + 100), 1.15);
   const s1 = sc >= READ_FLOOR() ? sc : READ_FLOOR();
   centerOn((x0 + x1) / 2 + inset / 2 / s1, sc >= READ_FLOOR() ? (y0 + y1) / 2 : y0 + Math.min(y1 - y0, 420) / 2, s1, animate);
-  document.getElementById('sbadges').innerHTML = traceBadges(STEPS[step].trace)
-    + `<span class="m-seg">带读 ${seg + 1}/${r.walk.length}</span>`;
-  document.getElementById('prev').disabled = step === 0 && seg === 0;
-  document.getElementById('next').disabled = step === STEPS.length - 1 && seg === last;
-  drawWires();
 }
 /* ←→：带读步先在段间走，走到头才换步；倒退进上一步时落在它的最后一段 */
 function go(dir) {
+  if (scn !== null) { showTick(tick + dir); return; }
   const s = STEPS[step];
   if (hasRead(s) && !streamOn()) {
     const k = seg + dir;
@@ -1533,10 +1567,123 @@ function go(dir) {
   setStep(step + dir, true, dir < 0 ? 'last' : 0);
 }
 
+/* ================= 情境推演：拿一组具体数字沿 code path 单步走 =================
+   每一跳停在几行代码上：执行指针 ▶、行尾内联值、变量面板（本跳改动的高亮）、
+   走了哪个分支。LLM 按代码逻辑推演（非实测），统一标明；跨卡时镜头跟着跳。 */
+const SCN = DATA.scenarios || [];
+let scn = null, tick = 0;
+function scnVals(sc, k) {   // 截至第 k 跳的变量值，按首次出现排序；本跳写过的标记出来
+  const val = {}, order = [];
+  const put = (n, v) => { if (!(n in val)) order.push(n); val[n] = v; };
+  Object.entries(sc.init || {}).forEach(([n, v]) => put(n, v));
+  for (let j = 0; j <= k; j++) Object.entries(sc.ticks[j].vals || {}).forEach(([n, v]) => put(n, v));
+  const now = sc.ticks[k].vals || {};
+  return order.map(n => [n, val[n], n in now]);
+}
+function clearTick() {
+  document.querySelectorAll('.ln.sc-cur').forEach(e => e.classList.remove('sc-cur', 'sc-ptr'));
+  document.querySelectorAll('.sc-val').forEach(e => e.remove());
+  walkEl.classList.remove('scn');
+}
+function renderScnTabs() {
+  const el = document.getElementById('scn-tabs');
+  el.hidden = !SCN.length;
+  el.innerHTML = `<span class="scn-tab${scn === null ? ' on' : ''}" data-i="-1">导读</span>`
+    + SCN.map((c, i) => `<span class="scn-tab${scn === i ? ' on' : ''}" data-i="${i}">情境 · ${esc(c.title)}</span>`).join('');
+}
+document.getElementById('scn-tabs').addEventListener('click', e => {
+  const t = e.target.closest('.scn-tab');
+  if (!t) return;
+  const i = +t.dataset.i;
+  if (i < 0) { if (scn !== null) setStep(step); } else enterScn(i);
+});
+function enterScn(i) {
+  scn = i; tick = 0;
+  clearRead();
+  showTick(0);
+}
+const valsHtml = (sc, k) => {
+  const rows = scnVals(sc, k);
+  return rows.length ? `<table class="sc-vars">${rows.map(([n, v, hot]) =>
+    `<tr${hot ? ' class="hot"' : ''}><td>${esc(n)}</td><td>${esc(String(v))}</td></tr>`).join('')}</table>` : '';
+};
+function showTick(k, animate = true) {
+  const sc = SCN[scn];
+  if (k < 0 || k >= sc.ticks.length) return;
+  tick = k;
+  const t = sc.ticks[k], last = sc.ticks.length - 1, c = cardById[t.card];
+  const txt = x => mdInline(esc(x || ''));
+  clearTick();
+  document.getElementById('stitle').innerHTML = `<span class="schip sc-chip">情境推演</span>${esc(sc.title)}`;
+  document.getElementById('scap').textContent = sc.goal || '';
+  document.getElementById('spos').textContent = `第 ${k + 1} / ${sc.ticks.length} 跳`;
+  document.getElementById('spreview').hidden = true;
+  document.getElementById('sdetail').hidden = true;
+  document.getElementById('sdetail-btn').hidden = true;
+  document.getElementById('dive-btn').hidden = true;
+  document.getElementById('sbadges').innerHTML = `<span class="m-seg">推演 · 非实测</span><span class="m-seg">第 ${k + 1}/${sc.ticks.length} 跳</span>`;
+  document.getElementById('prev').disabled = k === 0;
+  document.getElementById('next').disabled = k === last;
+  renderScnTabs();
+  if (streamOn()) {   // 手机：整条情境排成一串，←→ 滚到对应那一跳
+    buildStream();
+    const el = document.getElementById('mst-' + k);
+    mstreamEl.querySelectorAll('.ms-tick.cur').forEach(e => e.classList.remove('cur'));
+    if (el) { el.classList.add('cur'); if (k > 0) mstreamEl.scrollTop = el.offsetTop - 8; }
+    return;
+  }
+  document.querySelectorAll('.card').forEach(e => e.classList.toggle('dim', e.id !== 'card-' + t.card));
+  openCardTo(t.card, [t.lines]);
+  const lines = [];
+  for (let n = t.lines[0]; n <= t.lines[1]; n++) {
+    const e = document.getElementById(t.card + '-L' + n);
+    if (e) { e.classList.add('sc-cur'); lines.push(e); }
+  }
+  if (lines.length) {
+    lines[0].classList.add('sc-ptr');
+    const now = Object.entries(t.vals || {});
+    if (now.length) {
+      const v = document.createElement('span');
+      v.className = 'sc-val';
+      v.textContent = now.map(([n, x]) => `${n} = ${x}`).join('   ');
+      lines[lines.length - 1].appendChild(v);
+    }
+  }
+  walkEl.classList.add('scn');
+  walkEl.innerHTML = (k === 0 ? `<div class="wk-q"><b>情境 · ${esc(sc.title)}</b>${txt(sc.goal)}<b class="wk-crux">初始条件</b>${md(sc.setup || '')}</div>` : '')
+    + `<div class="wk-h">第 ${k + 1} / ${sc.ticks.length} 跳 · ${esc(c.name)} 第 ${t.lines[0]}–${t.lines[1]} 行 · 推演</div>`
+    + `<div class="wk-t">${txt(t.text)}</div>`
+    + (t.branch ? `<div class="wk-br"><b>分支</b>${txt(t.branch)}</div>` : '')
+    + valsHtml(sc, k)
+    + (k === last && sc.result ? `<div class="wk-a"><b>结局</b>${txt(sc.result)}</div>` : '')
+    + `<div class="wk-nav">← → ${k < last ? '下一跳' : '走完了 · 点「导读」回到故事线'}</div>`;
+  walkEl.hidden = false;
+  placeBeside(t.card, lines, animate);
+  drawWires();
+}
+function buildScnStream() {
+  const sc = SCN[scn];
+  const add = (cls, html, id) => { const d = document.createElement('div'); d.className = cls; if (id) d.id = id; d.innerHTML = html; mstreamEl.appendChild(d); return d; };
+  add('ms-q', `<b>要走的路</b><br>${mdInline(esc(sc.goal || ''))}<br><b>初始条件</b>${md(sc.setup || '')}`);
+  sc.ticks.forEach((t, k) => {
+    const c = cardById[t.card], L = c.code.split('\n');
+    const box = add('ms-tick', '', 'mst-' + k);
+    const piece = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; box.appendChild(d); };
+    piece('ms-th', `第 ${k + 1} 跳 · ${esc(c.name)} 第 ${t.lines[0]}–${t.lines[1]} 行`);
+    piece('ms-code', L.slice(t.lines[0] - 1, t.lines[1]).map((x, j) =>
+      `<span class="no">${t.lines[0] + j}</span>${highlight(x, c.lang)}`).join('\n'));
+    const now = Object.entries(t.vals || {});
+    if (now.length) piece('ms-vals', now.map(([n, v]) => `<span>${esc(n)} = ${esc(String(v))}</span>`).join(''));
+    piece('ms-walk', mdInline(esc(t.text || '')) + (t.branch ? `<div class="ms-br"><b>分支</b> ${mdInline(esc(t.branch))}</div>` : ''));
+  });
+  if (sc.result) add('ms-a', '<b>结局</b><br>' + mdInline(esc(sc.result)));
+}
+
 /* ================= steps ================= */
 function setStep(i, animate = true, seg0 = 0) {
   step = Math.max(0, Math.min(STEPS.length - 1, i));
   const s = STEPS[step];
+  if (scn !== null) { scn = null; clearTick(); }
   clearRead();
   seg = 0;
   (s.expand || []).forEach(id => {
@@ -1603,6 +1750,7 @@ function setStep(i, animate = true, seg0 = 0) {
     d.style.background = h2 ? (j === step ? h2.lb : rgba(h2.lb, .35))
                             : (j === step ? '#79a8ff' : '#3c4653');
   });
+  renderScnTabs();
   if (hasRead(s) && !streamOn()) showSeg(s.read, seg0 === 'last' ? s.read.walk.length - 1 : seg0, animate);
 }
 const dots = document.getElementById('dots');
@@ -1951,6 +2099,7 @@ function buildStream() {
   const s = STEPS[step];
   // 步文字（标题/说明/预告/步卡/详解）是流的开头，跟内容一起滚，底栏只留导航
   mstreamEl.appendChild(document.getElementById('stext'));
+  if (scn !== null) { buildScnStream(); mstreamEl.scrollTop = 0; return; }
   if (hasRead(s)) {   // 手机上的带读：一段代码 + 一段讲解，交替往下读
     const r = s.read, c = cardById[r.card], L = c.code.split('\n');
     const add = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; mstreamEl.appendChild(d); };
@@ -2228,8 +2377,8 @@ function ovLinkLabel(f) {
 const refsLine = refs => (refs || []).length
   ? `<div class="ov-refs">${refs.map(r => esc(r[0] + ':' + r[1] + (r[2] ? ' ' + r[2] : ''))).join(' · ')}</div>` : '';
 function buildOverview() {
-  const objs = DATA.objects || [], gaps = DATA.gaps || [];
-  if (!OV && !objs.length && !gaps.length) return;
+  const objs = DATA.objects || [], gaps = DATA.gaps || [], boxes = DATA.boxes || [];
+  if (!OV && !objs.length && !gaps.length && !boxes.length && !SCN.length) return;
   const title = OV ? '算法总览' : '架构总览';
   document.querySelector('#ov-head b').textContent = title;
   document.getElementById('ov-btn').textContent = title + (gaps.length ? ` · 待核实 ${gaps.filter(g => g.kind === 'unknown').length}` : '');
@@ -2250,6 +2399,15 @@ function buildOverview() {
       + sec('例子跑一遍', `<div class="ov-ex">${md(OV.example || '')}</div>`)
       + sec('边界与陷阱', `<ul class="ov-pit">${(OV.pitfalls || []).map(p => `<li>${esc(p)}</li>`).join('')}</ul>`);
   }
+  if (SCN.length) {
+    html += sec('情境推演（拿具体数字沿代码单步走一遍 · 推演非实测）', `<ul class="ov-scn">${SCN.map((c, i) =>
+      `<li><span class="ov-link" data-scn="${i}">▶ ${esc(c.title)}</span>　${esc(c.goal || '')}</li>`).join('')}</ul>`);
+  }
+  if (boxes.length) {
+    html += sec('黑盒：主线上调用、本画布刻意不展开（代码里悬停同名函数可查）', `<table class="ov-vars ov-boxes"><thead><tr><th>函数</th><th>输入 → 输出</th><th>作用</th><th>为什么不展开</th></tr></thead><tbody>`
+      + boxes.map(b => `<tr id="ov-box-${esc(b.name)}"><td>${esc(b.name)}()</td><td>${esc(b.in || '')} → ${esc(b.out || '')}</td><td>${esc(b.effect || '')}${refsLine(b.refs)}</td><td>${esc(b.why || '')}</td></tr>`).join('')
+      + `</tbody></table>`);
+  }
   if (objs.length) {
     html += sec('业务对象：存在哪 · 何时创建 · 谁读谁写 · 状态怎么变', `<table class="ov-vars ov-objs"><thead><tr><th>对象</th><th>存在哪</th><th>何时创建</th><th>谁读 · 谁写</th><th>状态变化</th></tr></thead><tbody>`
       + objs.map(o => `<tr><td>${esc(o.name)}</td><td>${esc(o.where || '')}</td><td>${esc(o.created || '')}</td><td>${esc(o.rw || '')}</td><td>${esc(o.states || '')}${refsLine(o.refs)}</td></tr>`).join('')
@@ -2266,12 +2424,12 @@ function buildOverview() {
   document.getElementById('ov-body').innerHTML = html;
   document.getElementById('ov-btn').hidden = false;
 }
-function openOverview(varName) {
+function openOverview(rowId) {
   const ov = document.getElementById('overview');
   ov.hidden = false;
   ov.querySelectorAll('.ov-vars tr.hl').forEach(r => r.classList.remove('hl'));
-  if (varName) {
-    const row = document.getElementById('ov-var-' + varName);
+  if (rowId) {
+    const row = document.getElementById(rowId);
     if (row) { row.classList.add('hl'); row.scrollIntoView({ block: 'center' }); }
   } else ov.scrollTop = 0;
 }
@@ -2298,29 +2456,40 @@ function ovJump(f) {
 }
 /* 代码里的关键变量：文本节点级标注，不碰高亮结构；悬停 title 出含义 */
 function markVars() {
-  if (!OV || !(OV.vars || []).length) return;
-  const meaning = {};
-  OV.vars.forEach(v => { meaning[v.name] = v.meaning || ''; });
+  if (OV && (OV.vars || []).length) markNames(OV.vars.map(v => [v.name, v.name + ' — ' + (v.meaning || '')]), 'v');
+  const bx = DATA.boxes || [];   // 黑盒：只在调用处（后面紧跟 "(" ）标注
+  if (bx.length) markNames(bx.map(b => [b.name, `黑盒 · ${b.name}：${b.in || ''} → ${b.out || ''}；${b.effect || ''}`]), 'b');
+}
+/* 文本节点级标注，不碰高亮结构。高亮会把名字和后面的 "(" 拆进不同节点，
+   所以"是不是调用"按整行里名字后面的文字判断 */
+function markNames(pairs, kind) {
+  const meaning = Object.fromEntries(pairs);
   const names = Object.keys(meaning).sort((a, b) => b.length - a.length).map(escRe);
-  const re = new RegExp('(?<![\\w.])(' + names.join('|') + ')(?![\\w])', 'g');
+  const re = new RegExp((kind === 'v' ? '(?<![\\w.])(' : '(?<![\\w])(') + names.join('|') + ')(?![\\w])', 'g');
   for (const ln of document.querySelectorAll('.card .ln')) {
     const walker = document.createTreeWalker(ln, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    for (let n = walker.nextNode(); n; n = walker.nextNode())
-      if (!n.parentElement.closest('.no, .vref') && re.test(n.nodeValue)) nodes.push(n);
-    for (const n of nodes) {
+    const all = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) all.push(n);
+    const after = (i, off) => all[i].nodeValue.slice(off) + all.slice(i + 1).map(n => n.nodeValue).join('');
+    all.forEach((n, i) => {
+      if (n.parentElement.closest('.no, .vref')) return;
+      const hits = [];
+      re.lastIndex = 0;
+      for (let m; (m = re.exec(n.nodeValue));)
+        if (kind === 'v' || /^\s*\(/.test(after(i, m.index + m[0].length))) hits.push([m.index, m[1]]);
+      if (!hits.length) return;
       const frag = document.createDocumentFragment();
       let last = 0;
-      n.nodeValue.replace(re, (m, name, off) => {
+      for (const [off, name] of hits) {
         frag.appendChild(document.createTextNode(n.nodeValue.slice(last, off)));
         const s = document.createElement('span');
-        s.className = 'vref'; s.dataset.v = name; s.title = name + ' — ' + meaning[name]; s.textContent = name;
+        s.className = kind === 'b' ? 'vref box' : 'vref'; s.dataset[kind] = name; s.title = meaning[name]; s.textContent = name;
         frag.appendChild(s);
-        last = off + m.length;
-      });
+        last = off + name.length;
+      }
       frag.appendChild(document.createTextNode(n.nodeValue.slice(last)));
       n.parentNode.replaceChild(frag, n);
-    }
+    });
   }
 }
 buildOverview();
@@ -2340,6 +2509,8 @@ function upgradeMissing() {
   // 带读只要求读代码的步（与 validate 一致）：focus 里有带代码的卡
   const reads = story.filter(s => (s.focus || []).some(f => cardById[f] && cardById[f].code));
   if (!pv && reads.some(s => !(s.read && s.read.problem))) miss.push('逐段带读');
+  if (!pv && reads.length && !(DATA.boxes || []).length) miss.push('黑盒');
+  if (!pv && reads.length && !SCN.length) miss.push('情境推演');
   return miss;
 }
 document.getElementById('up-btn').addEventListener('click', () => {
@@ -2352,11 +2523,12 @@ document.getElementById('ov-close').addEventListener('click', closeOverview);
 document.getElementById('overview').addEventListener('click', e => {
   if (e.target === e.currentTarget) { closeOverview(); return; }
   const l = e.target.closest('.ov-link');
-  if (l) ovJump(OV.flow[+l.dataset.i]);
+  if (l && l.dataset.scn != null) { closeOverview(); if (readingOn()) exitReader(); enterScn(+l.dataset.scn); }
+  else if (l) ovJump(OV.flow[+l.dataset.i]);
 });
 document.addEventListener('click', e => {
   const v = e.target.closest('.vref');
-  if (v) { e.stopPropagation(); openOverview(v.dataset.v); }
+  if (v) { e.stopPropagation(); openOverview(v.dataset.v ? 'ov-var-' + v.dataset.v : 'ov-box-' + v.dataset.b); }
 }, true);
 if (OV) {
   let seen = false;

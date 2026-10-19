@@ -512,11 +512,6 @@ def main():
         elif mode not in ("preview", "plan", "diff") and i > 0 and s.get("focus") \
                 and any(f in cards and cards[f].get("code") for f in s["focus"]):
             warn(f"{sp}: 故事步缺 read 逐段带读——读者面对整张卡不知从何读起（见 schema.md）")
-    if mode not in ("preview", "plan", "diff"):
-        story = [s for s in steps[1:] if s.get("focus")]
-        if story and sum(1 for s in story if s.get("trace")) * 2 < len(story):
-            warn(f"只有 {sum(1 for s in story if s.get('trace'))}/{len(story)} 步写了 trace 步卡"
-                 "——深潜图至少一半的步要写（触发/同步异步/数据/失败分支/依据）")
         if s.get("storyline") and s["storyline"] not in regions:
             err(f"{sp}: storyline {s['storyline']} 不存在")
         for wid in s.get("wires") or []:
@@ -550,6 +545,105 @@ def main():
         for ref in s.get("order") or []:
             if ref not in cards and ref not in note_ids:
                 err(f"{sp}: order 引用 {ref} 既不是卡也不是 note")
+    if mode not in ("preview", "plan", "diff"):
+        story = [s for s in steps[1:] if s.get("focus")]
+        if story and sum(1 for s in story if s.get("trace")) * 2 < len(story):
+            warn(f"只有 {sum(1 for s in story if s.get('trace'))}/{len(story)} 步写了 trace 步卡"
+                 "——深潜图至少一半的步要写（触发/同步异步/数据/失败分支/依据）")
+
+    # 黑盒 / 情境推演：只对"卡片代码 ∪ 引用文件全文"核对名字，不许编造
+    corpus = "\n".join(c.get("code") or "" for c in cards.values()) + "\n" \
+        + "\n".join(str(t) for t in (d.get("files") or {}).values())
+    deep = mode not in ("preview", "plan", "diff") and any(c.get("code") for c in cards.values())
+    boxes = d.get("boxes")
+    if boxes is None:
+        if deep:
+            warn("缺 boxes 黑盒——主线上调用了却不展开的函数，读者不知道该不该点进去（见 schema.md）")
+    elif not isinstance(boxes, list):
+        err("boxes 必须是列表")
+    else:
+        if deep and not (4 <= len(boxes) <= 12):
+            warn(f"boxes 有 {len(boxes)} 个（建议 4-12）")
+        for j, b in enumerate(boxes):
+            bp = f"boxes[{j}]"
+            name = (b.get("name") if isinstance(b, dict) else None) or ""
+            if not re.match(r"^[A-Za-z_]\w*$", name):
+                err(f"{bp}: name 应为裸函数名（如 allocate_slots）"); continue
+            if not re.search(r"(?<![\w])" + re.escape(name) + r"\s*\(", corpus):
+                err(f"{bp}: {name}( 在卡片代码与引用文件里都没被调用——不许编造")
+            for k in ("in", "out", "effect"):
+                if not (b.get(k) or "").strip():
+                    err(f"{bp}: {name} 缺 {k}")
+            if not (b.get("why") or "").strip():
+                warn(f"{bp}: {name} 缺 why（为什么不展开）")
+            if len(b.get("effect") or "") > 90:
+                warn(f"{bp}: effect 超 80 字")
+            opened = [c["id"] for c in cards.values() if re.search(r"(?<![\w])" + re.escape(name) + r"\s*\(", c.get("name") or "")]
+            if opened:
+                warn(f"{bp}: {name} 已在画布上展开（卡 {opened[0]}），不算黑盒")
+            check_refs_shape(bp, b.get("refs"))
+
+    linked = set()
+    for w in d.get("wires", []):
+        a_, z_ = (w.get("from") or {}).get("card"), (w.get("to") or {}).get("card")
+        linked |= {(a_, z_), (z_, a_)}
+    scs = d.get("scenarios")
+    if scs is None:
+        if deep:
+            warn("缺 scenarios 情境推演——没有具体例子带读者沿 code path 走一遍（见 schema.md）")
+    elif not isinstance(scs, list):
+        err("scenarios 必须是列表")
+    else:
+        if len(scs) > 5:
+            warn(f"scenarios 有 {len(scs)} 个（建议 2-4）")
+        seen = set()
+        for j, sc in enumerate(scs):
+            qp = f"scenarios[{j}]"
+            if not isinstance(sc, dict):
+                err(f"{qp}: 必须是对象"); continue
+            if not sc.get("id") or sc["id"] in seen:
+                err(f"{qp}: id 缺失或重复")
+            seen.add(sc.get("id"))
+            qp = f"情境 {sc.get('id')}"
+            for k in ("title", "goal", "setup"):
+                if not (sc.get(k) or "").strip():
+                    err(f"{qp}: 缺 {k}")
+            if len(sc.get("title") or "") > 24:
+                warn(f"{qp}: title 超 20 字")
+            if not (sc.get("result") or "").strip():
+                warn(f"{qp}: 缺 result（结局）")
+            if sc.get("init") is not None and not isinstance(sc["init"], dict):
+                err(f"{qp}: init 应为 {{变量: 值}}")
+            ts = sc.get("ticks")
+            if not isinstance(ts, list) or not (3 <= len(ts) <= 40):
+                err(f"{qp}: ticks 应有 3-40 跳"); continue
+            prev = None
+            for k, t in enumerate(ts):
+                tp = f"{qp} 第 {k + 1} 跳"
+                c = cards.get(t.get("card")) if isinstance(t, dict) else None
+                if not c or not c.get("code"):
+                    err(f"{tp}: card {t.get('card') if isinstance(t, dict) else t} 不存在或没有代码"); continue
+                n = len(c["code"].split("\n"))
+                ln = t.get("lines")
+                if not (isinstance(ln, list) and len(ln) == 2 and all(isinstance(x, int) for x in ln)
+                        and 1 <= ln[0] <= ln[1] <= n):
+                    err(f"{tp}: lines {ln} 应为卡内 [起, 止]（卡 {c['id']} 共 {n} 行）")
+                elif ln[1] - ln[0] >= 12:
+                    warn(f"{tp}: 一跳 {ln[1] - ln[0] + 1} 行（≤12）——拆成几跳")
+                if not (t.get("text") or "").strip():
+                    err(f"{tp}: 缺 text")
+                vals = t.get("vals") or {}
+                if not isinstance(vals, dict):
+                    err(f"{tp}: vals 应为 {{变量: 值}}"); vals = {}
+                for vn, vv in vals.items():
+                    toks = re.findall(r"[A-Za-z_]\w*", vn)
+                    if not any(re.search(r"(?<![\w])" + re.escape(x) + r"(?![\w])", corpus) for x in toks):
+                        err(f"{tp}: vals 里的 {vn} 在卡片代码与引用文件里都没出现——推演不许编造变量")
+                    if len(str(vv)) > 48:
+                        warn(f"{tp}: {vn} 的值超 40 字（放进 text）")
+                if prev and prev != c["id"] and (prev, c["id"]) not in linked:
+                    warn(f"{tp}: 从卡 {prev} 跳到 {c['id']}，两卡之间没有连线——跳转没有依据")
+                prev = c["id"]
 
     for m in E:
         print(f"ERROR  {m}")

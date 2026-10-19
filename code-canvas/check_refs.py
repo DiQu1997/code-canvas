@@ -7,7 +7,7 @@ check_refs.py <canvas.json> <仓库根>
 写着"已确认"（ev 缺省或 fact）的步卡 trace，若依据全被剔除，降级为 infer。
 读者永远看不到假出处。agent 自查时看报告修正；服务端入库前再跑一遍兜底。
 
-依据出现在：steps[].trace.refs、gaps[].refs、objects[].refs。
+依据出现在：steps[].trace.refs、gaps[].refs、objects[].refs、boxes[].refs。
 exit 0（剔除也算正常完成）；1 参数/格式错。
 """
 import json
@@ -50,7 +50,7 @@ def main() -> int:
     for i, s in enumerate(d.get("steps") or []):
         if isinstance(s.get("trace"), dict):
             holders.append(("steps[{}].trace".format(i), s["trace"], True))
-    for key in ("gaps", "objects"):
+    for key in ("gaps", "objects", "boxes"):
         for i, g in enumerate(d.get(key) or []):
             if isinstance(g, dict):
                 holders.append(("{}[{}]".format(key, i), g, False))

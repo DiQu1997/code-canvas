@@ -557,6 +557,12 @@ def upgrade_gaps(d: dict) -> list:
                     "先写这段代码要解决的问题 problem 与难点 crux（不是考题式提问，见 schema.md）、"
                     "按段首尾相接覆盖每一行的讲解（具体到变量和条件，讲做了什么也讲为什么）、"
                     "最后 solution 说清怎么解决的；一步要读两张卡就把讲解放在主卡上。read 属于叙事层，可以补")
+    if not preview and coded and not d.get("boxes"):
+        miss.append("boxes 黑盒（4-12 个）——主线上调用了却不展开的函数，只写契约 in/out/effect/why + refs（见 schema.md）")
+    if not preview and coded and not d.get("scenarios"):
+        miss.append("scenarios 情境推演（2-4 个）——拿具体数字沿 code path 单步走：每跳 ≤12 行、"
+                    "写出变量值 vals 与走了哪个分支；一个主路径 + 一两个专走不同分支的；"
+                    "按代码逻辑推演，每个值都要算得出来（见 schema.md）")
     miss.append("ev 证据分级：逐个审视分区卡/连线/note，推断的标 infer，没把握的标 unknown + need")
     return miss
 
@@ -634,7 +640,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                if has_repo else "")
             + "事实可信层必写（SKILL 4d / preview-spec）：gaps 待核实清单、objects、ev 证据分级、"
             "trace 步卡（深潜至少一半的步，预览每条路线步）——它们和代码卡一样是交付物。"
-            "深潜画布每个故事步必写 read 逐段带读（SKILL 第 6 步）。\n"
+            "深潜画布每个故事步必写 read 逐段带读（SKILL 第 6 步），并写 boxes 黑盒与 scenarios 情境推演（SKILL 6b）。\n"
             "接着 python3 {skill}/validate.py {w} 清零 ERROR（warn 逐条自查）；"
             "python3 {skill}/render.py {w} {work}/canvas.html 渲染并截图自检。\n"
             "**不要写入画布库**——入库由服务端完成：收尾时它会嵌上下文、核依据、过 validate，全过才入库。"

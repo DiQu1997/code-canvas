@@ -60,20 +60,26 @@ def fact_diffs(old: dict, new: dict) -> list:
     return out
 
 
-def prune_vars(d: dict) -> list:
-    ov = d.get("overview")
-    if not isinstance(ov, dict) or not isinstance(ov.get("vars"), list):
-        return []
+def prune_names(d: dict) -> list:
+    """总览变量与黑盒：名字在"卡片代码 ∪ 引用文件"里找不到的剔除（整份升级不因此作废）。"""
     corpus = "\n".join(c.get("code") or "" for c in d.get("cards", [])) + "\n" \
         + "\n".join(str(t) for t in (d.get("files") or {}).values())
-    keep, dropped = [], []
-    for v in ov["vars"]:
-        name = (v.get("name") if isinstance(v, dict) else None) or ""
-        if name and re.search(r"(?<![\w.])" + re.escape(name) + r"(?![\w])", corpus):
-            keep.append(v)
-        else:
-            dropped.append(name or "?")
-    ov["vars"] = keep
+    dropped = []
+
+    def keep(items, pattern):
+        out = []
+        for v in items:
+            name = (v.get("name") if isinstance(v, dict) else None) or ""
+            if name and re.search(pattern.format(re.escape(name)), corpus):
+                out.append(v)
+            else:
+                dropped.append(name or "?")
+        return out
+    ov = d.get("overview")
+    if isinstance(ov, dict) and isinstance(ov.get("vars"), list):
+        ov["vars"] = keep(ov["vars"], r"(?<![\w.]){}(?![\w])")
+    if isinstance(d.get("boxes"), list):
+        d["boxes"] = keep(d["boxes"], r"(?<![\w]){}\s*\(")
     return dropped
 
 
@@ -94,9 +100,9 @@ def main() -> int:
         for x in diffs:
             print("  -", x)
         return 2
-    dropped = prune_vars(new)
+    dropped = prune_names(new)
     if dropped:
-        print("剔除代码里不存在的变量:", ", ".join(dropped))
+        print("剔除代码里不存在的变量/黑盒:", ", ".join(dropped))
     tmp = Path(tempfile.mkstemp(suffix=".json", dir=str(hub_j.parent))[1])
     tmp.write_text(json.dumps(new, ensure_ascii=False, indent=1), encoding="utf-8")
     r = subprocess.run([sys.executable, str(Path(__file__).with_name("validate.py")), str(tmp)],
@@ -108,7 +114,7 @@ def main() -> int:
         print("\n".join(errs) or r.stdout[-800:])
         return 2
     tmp.replace(hub_j)
-    added = [k for k in ("overview", "gaps", "objects") if new.get(k) and not old.get(k)]
+    added = [k for k in ("overview", "gaps", "objects", "boxes", "scenarios") if new.get(k) and not old.get(k)]
     traces = sum(1 for s in new.get("steps", []) if s.get("trace"))
     print("升级已合并进 {}（新增 {}；步卡 {} 步）".format(hub_j.name, "、".join(added) or "无新顶层", traces))
     return 0
