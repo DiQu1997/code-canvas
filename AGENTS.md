@@ -36,7 +36,7 @@ python3 tests/embed_test.py                             # 4 PASS（上下文嵌�
 node tests/overview.mjs                                 # 19 PASS（算法总览板：校验/升级合并/交互）
 node tests/evidence.mjs                                 # 16 PASS（事实可信层：证据分级/待核实/业务对象/步卡/依据核对）
 node tests/walk.mjs                                     # 18 PASS（逐段带读：覆盖校验/段内导航/讲解卡/手机交替排版）
-node tests/scenario.mjs                                 # 26 PASS（情境推演 + 黑盒：校验/依据核对/单步/调用处标注/总览入口/手机流）
+node tests/scenario.mjs                                 # 28 PASS（情境推演 + 黑盒：校验/依据核对/单步/调用处标注/总览入口/手机流）
 python3 tests/video_test.py                             # 12 PASS（视频脚本校验契约；渲染需本机 manim venv）
 ```
 

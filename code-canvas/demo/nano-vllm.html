@@ -420,8 +420,9 @@
   .sc-vars td { border-top: 1px solid #eaeef2; padding: 3px 6px; vertical-align: top; }
   .sc-vars td:first-child { font-family: ui-monospace, Menlo, monospace; color: #57606a; white-space: nowrap; }
   .sc-vars tr.hot td { background: #fbefff; color: #1f2328; font-weight: 600; }
-  #scn-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 7px; }
-  .scn-tab { font-size: 11px; border: 1px solid #d0d7de; border-radius: 999px; padding: 2px 9px; cursor: pointer; color: #57606a; background: #fff; }
+  #scn-tabs { display: flex; gap: 6px; margin-bottom: 7px; overflow-x: auto; scrollbar-width: none; }
+  #scn-tabs::-webkit-scrollbar { display: none; }
+  .scn-tab { flex: none; white-space: nowrap; font-size: 11px; border: 1px solid #d0d7de; border-radius: 999px; padding: 2px 9px; cursor: pointer; color: #57606a; background: #fff; }
   .scn-tab.on { background: #8250df; border-color: #8250df; color: #fff; }
   .schip.sc-chip { color: #8250df; border-color: #8250df; }
   .ms-tick { border-radius: 10px; margin: 0 0 12px; }
@@ -1661,17 +1662,22 @@ function showTick(k, animate = true) {
   placeBeside(t.card, lines, animate);
   drawWires();
 }
+/* 手机上的代码片段：去掉共同缩进（卡里深层代码前面常有 20+ 个空格，窄屏会把右半截挤没） */
+function msCode(c, a, z) {
+  const L = c.code.split('\n').slice(a - 1, z);
+  const ind = Math.min(...L.filter(x => x.trim()).map(x => x.match(/^\s*/)[0].length));
+  return L.map((x, j) => `<span class="no">${a + j}</span>${highlight(x.slice(Number.isFinite(ind) ? ind : 0), c.lang)}`).join('\n');
+}
 function buildScnStream() {
   const sc = SCN[scn];
   const add = (cls, html, id) => { const d = document.createElement('div'); d.className = cls; if (id) d.id = id; d.innerHTML = html; mstreamEl.appendChild(d); return d; };
   add('ms-q', `<b>要走的路</b><br>${mdInline(esc(sc.goal || ''))}<br><b>初始条件</b>${md(sc.setup || '')}`);
   sc.ticks.forEach((t, k) => {
-    const c = cardById[t.card], L = c.code.split('\n');
+    const c = cardById[t.card];
     const box = add('ms-tick', '', 'mst-' + k);
     const piece = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; box.appendChild(d); };
     piece('ms-th', `第 ${k + 1} 跳 · ${esc(c.name)} 第 ${t.lines[0]}–${t.lines[1]} 行`);
-    piece('ms-code', L.slice(t.lines[0] - 1, t.lines[1]).map((x, j) =>
-      `<span class="no">${t.lines[0] + j}</span>${highlight(x, c.lang)}`).join('\n'));
+    piece('ms-code', msCode(c, t.lines[0], t.lines[1]));
     const now = Object.entries(t.vals || {});
     if (now.length) piece('ms-vals', now.map(([n, v]) => `<span>${esc(n)} = ${esc(String(v))}</span>`).join(''));
     piece('ms-walk', mdInline(esc(t.text || '')) + (t.branch ? `<div class="ms-br"><b>分支</b> ${mdInline(esc(t.branch))}</div>` : ''));
@@ -2101,7 +2107,7 @@ function buildStream() {
   mstreamEl.appendChild(document.getElementById('stext'));
   if (scn !== null) { buildScnStream(); mstreamEl.scrollTop = 0; return; }
   if (hasRead(s)) {   // 手机上的带读：一段代码 + 一段讲解，交替往下读
-    const r = s.read, c = cardById[r.card], L = c.code.split('\n');
+    const r = s.read, c = cardById[r.card];
     const add = (cls, html) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; mstreamEl.appendChild(d); };
     msSect('带读 · ' + esc(c.name));
     if (r.problem) add('ms-q', '<b>要解决的问题</b><br>' + mdInline(esc(r.problem))
@@ -2109,8 +2115,7 @@ function buildStream() {
     r.walk.forEach((w, k) => {
       const gi = r.ranges.findIndex(([a]) => a === w.lines[0]);
       if (gi > 0 && (r.gaps || [])[gi - 1]) add('ms-gap', '⋯ ' + esc(r.gaps[gi - 1]));
-      add('ms-code', L.slice(w.lines[0] - 1, w.lines[1]).map((t, j) =>
-        `<span class="no">${w.lines[0] + j}</span>${highlight(t, c.lang)}`).join('\n'));
+      add('ms-code', msCode(c, w.lines[0], w.lines[1]));
       add('ms-walk', mdInline(esc(w.text)));
     });
     if (r.solution) add('ms-a', '<b>怎么解决的</b><br>' + mdInline(esc(r.solution)));

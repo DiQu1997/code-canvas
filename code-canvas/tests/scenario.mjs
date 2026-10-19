@@ -148,6 +148,8 @@ await page.click('#scn-tabs .scn-tab[data-i="0"]'); await page.waitForTimeout(40
 check('phone: scenario renders as one stream of ticks (code + value chips + text)',
   (await page.$$('#mstream .ms-tick')).length === 5 && (await page.$$('#mstream .ms-tick .ms-code')).length === 5
   && (await page.textContent('#mstream .ms-vals')).includes('n = 1') && (await page.textContent('#mstream')).includes('A 回到 waiting 队首'));
+check('phone: code slices drop the shared indentation', await page.$eval('#mst-1 .ms-code', e => e.textContent.split('\n')[0]).then(t => /^4if n == 0:/.test(t)));
+check('scenario tabs stay on one row', await page.$$eval('#scn-tabs .scn-tab', t => new Set(t.map(x => x.offsetTop)).size === 1));
 await page.click('#next'); await page.click('#next'); await page.waitForTimeout(400);
 check('phone: ▶ scrolls to the next tick and marks it',
   await page.$eval('#mst-2', e => e.classList.contains('cur'))
