@@ -634,18 +634,17 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)),
                post="{post}")
     has_repo = src["kind"] != "code"
-    tail = ("步骤：1) 产出 {w}；"
-            + ("2) python3 {skill}/embed_context.py {w} <仓库根>（上下文全文靠它）；"
-               "3) python3 {skill}/check_refs.py {w} <仓库根>（依据核不过的要修正，不要留给服务端剔除）；\n"
-               if has_repo else "")
-            + "事实可信层必写（SKILL 4d / preview-spec）：gaps 待核实清单、objects、ev 证据分级、"
-            "trace 步卡（深潜至少一半的步，预览每条路线步）——它们和代码卡一样是交付物。"
-            "深潜画布每个故事步必写 read 逐段带读（SKILL 第 6 步），并写 boxes 黑盒与 scenarios 情境推演（SKILL 6b）。\n"
-            "接着 python3 {skill}/validate.py {w} 清零 ERROR（warn 逐条自查）；"
-            "python3 {skill}/render.py {w} {work}/canvas.html 渲染并截图自检。\n"
+    tail = ("交付：{w}（canvas JSON）。\n"
+            "SKILL 第 6 节的交付契约不可商量：validate.py 无 ERROR、"
+            + ("check_refs.py <仓库根> 全过、embed_context.py <仓库根> 嵌入上下文、" if has_repo else "")
+            + "卡内代码是原文、meta.judgment 写实话（每条判断带理由）。\n"
+            "其余怎么做由你判断。完成的标准是 SKILL 第 1 节：一位第一次接触这个代码库的读者只看画布就能做到那六条。"
+            "用 render.py 渲染到 {work}/canvas.html、截图自己看，并用 reader_check.py 让新读者挑错，"
+            "读者做不到的地方回去改。\n"
             "**不要写入画布库**——入库由服务端完成：收尾时它会嵌上下文、核依据、过 validate，全过才入库。"
             "完成后打印 DONE。").format(skill=SKILL_DIR, w=wj, work=workdir)
-    head = "阅读 {skill}/SKILL.md 并严格按其管线执行（规模闸门、验证器、截图自检都算数）。\n".format(skill=SKILL_DIR)
+    head = ("阅读 {skill}/SKILL.md。它不是一条要逐步执行的管线：它给出判断标准、你必须自己做出的判断、"
+            "可用的工具，以及不可商量的交付契约。\n").format(skill=SKILL_DIR)
     if upgrade:
         cur = json.loads(hj.read_text(encoding="utf-8"))
         spec = "preview-spec.md" if (cur.get("meta") or {}).get("mode") == "preview" else "SKILL.md"

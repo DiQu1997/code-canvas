@@ -302,6 +302,15 @@ def main():
 
     steps = d.get("steps", [])
 
+    # 判断记录（agent 版 SKILL 第 7 节）：作者复查 agent 判断的依据
+    jd = (d.get("meta") or {}).get("judgment")
+    if mode not in ("plan", "diff"):
+        if not isinstance(jd, dict):
+            warn("缺 meta.judgment——作者无法复查形态/主角/部件切分等判断（见 SKILL.md 第 7 节）")
+        else:
+            for k in ("scope", "shape", "protagonist", "parts", "cut"):
+                if not jd.get(k):
+                    warn(f"meta.judgment.{k} 为空")
     # 算法总览板：深潜画布必写；链接指向真实卡/块/步；变量名必须真在代码里出现
     ov = d.get("overview")
     if ov is None:
