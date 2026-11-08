@@ -180,6 +180,12 @@ diff 画布复用：改完后 `python3 compare.py plan.json diff.json --annotate
 **预览地图**（`meta.mode:"preview"`）：见 `preview-spec.md`。分区是研究得出的逻辑组
 （不是目录清单），highlights 必须核实真实存在，线路交给深潜。
 
+**缩放画布**（`meta.mode:"zoom"`）：见 `zoom-spec.md`。一张无限画布，从系统框架图连续放大到
+模块内部结构（loop / dispatch / statemachine / flow / pipeline / layers / grid + 数据结构图形），
+部件原地变形成函数卡，再溶解成源码行；一条主角故事线把镜头带过每一层。第 1、2 节的判断标准照用
+（主角、形状、按职责切、对比），交付物换成 `zoom.json` + `build_zoom.py` 0 ERROR，
+自查用 `zoom_shot.js` 截图和 `reader_check.py --zoom`。
+
 ## 9. 渲染器现实（评测实测）
 
 - ≥6 列总览会小到难读，≤5 列封顶；行宽收窄可救列宽

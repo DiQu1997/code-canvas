@@ -237,6 +237,16 @@ def maybe_rerender(html_path: Path) -> None:
     """画布 html 是模板快照：若旁边有 json 且 html 比模板旧，自动重渲染。"""
     sib = html_path.with_suffix(".json")
     tpl = SKILL_DIR / "template" / "canvas.html"
+    ztpl = SKILL_DIR / "template" / "zoom.html"
+    if sib.exists() and ztpl.exists() and html_path.stat().st_mtime < ztpl.stat().st_mtime:
+        try:  # 缩放画布：hub 里的 json 已含代码，直接注入模板
+            d = json.loads(sib.read_text(encoding="utf-8"))
+            if (d.get("meta") or {}).get("mode") == "zoom":
+                data = json.dumps(d, ensure_ascii=False).replace("</", "<\\/")
+                html_path.write_text(ztpl.read_text(encoding="utf-8").replace("/*ZOOM_DATA*/null", data, 1), encoding="utf-8")
+                return
+        except Exception:
+            return
     if not (sib.exists() and tpl.exists()):
         return
     if html_path.stat().st_mtime >= tpl.stat().st_mtime:
@@ -568,7 +578,7 @@ def upgrade_gaps(d: dict) -> list:
 
 
 def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
-                   engine: str = "claude", model: str = "", upgrade: bool = False) -> dict:
+                   engine: str = "claude", model: str = "", upgrade: bool = False, zoom: bool = False) -> dict:
     """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。
     入库由服务端做：agent 只在工作目录产出 canvas.json，收尾时服务端嵌上下文、
     核依据、过 validate，全过才写进画布库（任务 done ⇔ 画布已入库）。
@@ -581,7 +591,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     meta_f = jd / (job_id + ".meta.json")
     workdir = jd / job_id
     workdir.mkdir(exist_ok=True)
-    wj = workdir / "canvas.json"
+    wj = workdir / ("zoom.json" if zoom else "canvas.json")
     hj, hh = ARGS.hub / (name + ".json"), ARGS.hub / (name + ".html")
     if upgrade:
         shutil.copyfile(str(hj), str(wj))
@@ -595,6 +605,14 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         """服务端入库（不信任 agent 守规程）。rc：3 升级被拒 / 4 validate 未过 /
         5 agent 没产出 canvas.json / 6 渲染失败。"""
         lg = q(log_f)
+        if zoom:  # 缩放画布：build_zoom 填代码+校验+渲染，填好代码的 spec 存进库
+            rec = ({"git_url": src["git_url"]} if src["kind"] == "git" else {"repo": src["repo"]})
+            sidecar = "printf '%s' {j} > {sf}; ".format(j=q(json.dumps(rec, ensure_ascii=False)),
+                                                        sf=q(ARGS.hub / (name + ".src.json")))
+            return ('if [ "$rc" -eq 0 ]; then if [ -f {w} ]; then '
+                    'if {bz} {w} --repo {r} --out {hh} --dump {hj} >> {lg} 2>&1; then {{ {sidecar}:; }}; '
+                    'else rc=4; fi; else rc=5; fi; fi; ').format(
+                        w=q(wj), bz=tool("build_zoom.py"), r=q(repo_dir), hh=q(hh), hj=q(hj), lg=lg, sidecar=sidecar)
         refs = ("{chk} {w} {r} >> {lg} 2>&1; ".format(chk=tool("check_refs.py"), w=q(wj), r=q(repo_dir), lg=lg)
                 if repo_dir else "")
         if upgrade:
@@ -645,6 +663,22 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             "完成后打印 DONE。").format(skill=SKILL_DIR, w=wj, work=workdir)
     head = ("阅读 {skill}/SKILL.md。它不是一条要逐步执行的管线：它给出判断标准、你必须自己做出的判断、"
             "可用的工具，以及不可商量的交付契约。\n").format(skill=SKILL_DIR)
+    if zoom:
+        head = ("阅读 {skill}/SKILL.md 的第 1、2 节（判断标准、你必须自己做的判断）和 {skill}/zoom-spec.md"
+                "（这次要交付的画布形态：缩放画布）。它们不是逐步执行的管线：给出的是判断标准、可选的表达原语、"
+                "工具和不可商量的交付契约。\n").format(skill=SKILL_DIR)
+        tail = ("交付：{w}。\n"
+                "契约：python3 {skill}/build_zoom.py {w} --repo <仓库根> --out {work}/zoom.html 0 ERROR（WARN 逐条看）；"
+                "卡里的代码由脚本从仓库读，你只写 file + 行段，行段必须对准真实函数；meta.judgment 写实话"
+                "（每条判断带理由，含改过什么）。\n"
+                "其余怎么做由你判断。完成的标准：一位第一次接触这个代码库的读者，从系统层一路放大，能说出主角经过"
+                "哪些部件、每个部件内部怎么运转、关键决定发生在哪几行。\n"
+                "用 node {skill}/zoom_shot.js {work}/zoom.html {work}/shots 截图，逐张看：方框里结构缩影是否可读、"
+                "部件和字段是否重叠、通道是否穿过方框、标签是否被截断；有问题就改再构建。再用 python3 "
+                "{skill}/reader_check.py {work}/zoom.data.json --zoom --out {work}/reader_report.md 让新读者挑错，"
+                "读者做不到的地方回去改（至少一轮）。\n"
+                "**不要写入画布库**——服务端收尾时重新构建并入库。完成后打印 DONE。").format(
+                    skill=SKILL_DIR, w=wj, work=workdir)
     if upgrade:
         cur = json.loads(hj.read_text(encoding="utf-8"))
         spec = "preview-spec.md" if (cur.get("meta") or {}).get("mode") == "preview" else "SKILL.md"
@@ -670,6 +704,8 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                     "核心文件），分区是逻辑组不是目录，highlights 必须核实真实存在，"
                     "3-6 条故事线路且每条 step 带 ask（深潜点单句）。读者关注点：{a}\n").format(
                         w=where, skill=SKILL_DIR, a=ask)
+        if zoom:
+            return "任务：为仓库 {w} 生成一张缩放画布，读者关注点：{a}\n".format(w=where, a=ask)
         return "任务：为仓库 {w} 生成一张 Code Canvas，主题/关注点：{a}\n".format(w=where, a=ask)
 
     if src["kind"] == "git":
@@ -722,7 +758,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     prompt_f.write_text(prompt, encoding="utf-8")
     proc = subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
     meta = {"id": job_id, "name": name, "ask": ask, "source": source_desc,
-            "mode": "upgrade" if upgrade else "preview" if preview else "deep", "pid": proc.pid,
+            "mode": "upgrade" if upgrade else "zoom" if zoom else "preview" if preview else "deep", "pid": proc.pid,
             "engine": engine, "model": model or "",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     if src["kind"] == "git":
@@ -796,6 +832,7 @@ GEN_FORM = """
   <div class=row id=ctype-row>
     <label><input type=radio name=ctype value=deep checked> 深潜画布（代码细讲）</label>
     <label><input type=radio name=ctype value=preview> 预览地图（陌生仓库的第一张图）</label>
+    <label><input type=radio name=ctype value=zoom> 缩放图（系统 → 模块 → 函数 → 代码，连续放大）</label>
   </div>
   <div class=row>
     <label><input type=radio name=eng value=claude checked> Claude（默认 opus-5.5）</label>
@@ -819,7 +856,7 @@ document.querySelectorAll('input[name=kind]').forEach(r=>r.onchange=()=>{
   if(k!=='code')$('g-src').placeholder=srcPH[k];
   // 粘贴片段没有"陌生仓库"可预览
   const pv=document.querySelector('input[name=ctype][value=preview]');
-  pv.disabled=k==='code';
+  pv.disabled=k==='code';document.querySelector('input[name=ctype][value=zoom]').disabled=k==='code';
   if(k==='code')document.querySelector('input[name=ctype][value=deep]').checked=true;
 });
 document.querySelectorAll('input[name=eng]').forEach(r=>r.onchange=()=>{
@@ -837,6 +874,7 @@ $('g-go').onclick=async()=>{
   if(k==='path')body.repo=$('g-src').value.trim();
   if(k==='code')body.code=$('g-code').value;
   if(document.querySelector('input[name=ctype]:checked').value==='preview')body.preview=true;
+  if(document.querySelector('input[name=ctype]:checked').value==='zoom')body.zoom=true;
   const eng=document.querySelector('input[name=eng]:checked').value;
   if(eng!=='claude')body.engine=eng;
   if($('g-model').value.trim())body.model=$('g-model').value.trim();
@@ -1096,6 +1134,11 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     return self._json(400, {"ok": False, "error": "git_url / repo / code 三选一"})
                 preview = bool(req.get("preview"))
+                zoom = bool(req.get("zoom"))
+                if zoom and src["kind"] == "code":
+                    return self._json(400, {"ok": False, "error": "缩放图需要 git 地址或盒子路径（要从仓库读代码）"})
+                if zoom and not req.get("name"):
+                    default += "-zoom"
                 if preview and src["kind"] == "code":
                     return self._json(400, {"ok": False,
                                             "error": "粘贴片段没有\"陌生仓库\"可预览——预览地图需要 git 地址或盒子路径"})
@@ -1111,7 +1154,7 @@ class Handler(BaseHTTPRequestHandler):
                 if model and not re.match(r"^[A-Za-z0-9._-]{1,64}$", model):
                     return self._json(400, {"ok": False, "error": "model 只允许 [A-Za-z0-9._-]"})
                 with SPAWN_LOCK:  # 缓存取用模式的判定+meta 落盘要原子，防同仓并发单互踩
-                    job = spawn_generate(src, ask, name, preview, engine, model)
+                    job = spawn_generate(src, ask, name, preview and not zoom, engine, model, zoom=zoom)
                 return self._json(200, {"ok": True, "job": job})
             return self._json(404, {"ok": False, "error": "not found"})
         if self.path.startswith("/ask"):

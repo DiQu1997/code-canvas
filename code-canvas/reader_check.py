@@ -35,19 +35,29 @@ overview/scenarios/boxes/objects/gaps 是辅助说明）。**不要读任何其�
 """
 
 
+ZOOM_FIELDS = """当前目录下的 canvas.json 是一张"缩放图"的数据（字段含义：modules 是系统层的模块方框，
+anatomy 是每个模块放大后的内部结构——primitive 是形状，items 是部件，fields 是它持有的数据结构；
+channels 是模块间的连线；cards 是挂在部件上的函数卡，code 是源码原文，blocks 是分块摘要；
+info 是模块说明；stories 是一个主角从头到尾的故事线，每步落在某张卡的某行或某个部件上）"""
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("canvas", type=Path)
     ap.add_argument("--out", type=Path, default=Path("reader_report.md"))
     ap.add_argument("--model", default=os.environ.get("READER_MODEL", "sonnet"))
     ap.add_argument("--cli", default=os.environ.get("READER_CLI", "claude"))
+    ap.add_argument("--zoom", action="store_true", help="canvas is a zoom-mode spec (build_zoom.py --dump output)")
     a = ap.parse_args()
     data = json.loads(a.canvas.read_text(encoding="utf-8"))
     data.pop("files", None)
     (data.get("meta") or {}).pop("judgment", None)   # 读者不看作者的自述，只看画布本身
     td = Path(tempfile.mkdtemp(prefix="reader-"))
     (td / "canvas.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
-    cmd = [a.cli, "-p", PROMPT, "--model", a.model, "--allowedTools", "Read", "--output-format", "text"]
+    prompt = PROMPT
+    if a.zoom or (data.get("meta") or {}).get("mode") == "zoom":
+        prompt = PROMPT.split("当前目录下的 canvas.json")[0] + ZOOM_FIELDS + "。**不要读任何其他文件" + PROMPT.split("。**不要读任何其他文件", 1)[1]
+    cmd = [a.cli, "-p", prompt, "--model", a.model, "--allowedTools", "Read", "--output-format", "text"]
     r = subprocess.run(cmd, cwd=td, capture_output=True, text=True, timeout=900)
     out = r.stdout.strip() or ("(读者没有输出) " + r.stderr[-2000:])
     a.out.write_text(out + "\n", encoding="utf-8")
