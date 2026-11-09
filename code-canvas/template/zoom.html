@@ -434,16 +434,17 @@ function apply(){const k=cam.k;document.body.classList.toggle('withInfo',PANEL()
     const r=k/modFitK(M);M.r=r;
     const sfont=11*M.s*k;setVis(M.gAT,lr(sfont,5.2,7));setVis(M.gL0,1-lr(sfont,4.6,6.4));
     const single=M.card&&CARD[M.card]&&CARD[M.card].how==='module';
-    let anatO=1;
+    let anatO=1,maxT=0;
     for(const c of MODCARDS[M.id]||[]){const t=c.how==='module'?lr(r,1.15,1.6):lr(c.wb.w*k,190,340);
       const codePx=c.fsW*k,co=lr(codePx,8.8,10.5),tb=lr(t,.45,1),lo=tb*(1-lr(codePx,8.2,9.8));c.t=t;c.co=co;
       if(c.how==='module')anatO=1-t;
-      else if(c.owner&&c.owner._lab){setVis(c.owner._lab,1-lr(t,.05,.5));if(c.owner._g)setVis(c.owner._g,1-lr(t,.3,.9))}
+      else{maxT=Math.max(maxT,t);if(c.owner&&c.owner._lab){setVis(c.owner._lab,1-lr(t,.05,.5));if(c.owner._g)setVis(c.owner._g,1-lr(t,.3,.9))}}
       const s=c.src;const fx=lerp(s.x,c.x0,t),fy=lerp(s.y,c.y0,t),fw=lerp(s.w,c.w,t),fh=lerp(s.h,c.h,t),frx=lerp(s.rx||8,c.fs*1.2,t);
       setVis(c.g,c.how==='module'?t:Math.min(1,t*4));
       c.morph.setAttribute('x',fx);c.morph.setAttribute('y',fy);c.morph.setAttribute('width',fw);c.morph.setAttribute('height',fh);c.morph.setAttribute('rx',frx);
       c.morph.style.fillOpacity=t.toFixed(3);c.morph.style.strokeOpacity=(c.how==='module'?t:.9).toFixed(3);
-      setVis(c.gF,lr(t,.55,1));setVis(c.gR,tb*(1-co*.55));setVis(c.gMini,lr(t,.4,1)*(1-co));setVis(c.gLab,lo);setVis(c.gCode,co);setVis(c.gMar,co)}
+      setVis(c.gF,lr(t,.55,1));setVis(c.gR,tb*(1-co*.55));setVis(c.gMini,lr(t,.4,1)*(1-co)*(1-lo*.85));setVis(c.gLab,lo);setVis(c.gCode,co);setVis(c.gMar,co)}
+    if(!single&&maxT>0){const dim=1-.8*lr(maxT,.2,.9);M.gA.style.opacity=dim.toFixed(3);M.gAT.style.opacity=(+M.gAT.style.opacity*(1-.9*lr(maxT,.2,.9))).toFixed(3)}else if(!single)M.gA.style.opacity='1';
     if(single){setVis(M.gA,anatO);M.gAT.style.opacity=(+M.gAT.style.opacity*anatO).toFixed(3);if(anatO<.01)M.gAT.style.display='none'}
     M.bgEl.classList.toggle('foc',r>.8)}
   {const f=clamp(11/k,3,14).toFixed(2);for(const t of CHL)t.setAttribute('font-size',f);for(const t of GRT)t.setAttribute('font-size',f)}
