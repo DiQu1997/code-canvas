@@ -435,7 +435,7 @@ function apply(){const k=cam.k;document.body.classList.toggle('withInfo',PANEL()
     const sfont=11*M.s*k;setVis(M.gAT,lr(sfont,5.2,7));setVis(M.gL0,1-lr(sfont,4.6,6.4));
     const single=M.card&&CARD[M.card]&&CARD[M.card].how==='module';
     let anatO=1,maxT=0;
-    for(const c of MODCARDS[M.id]||[]){const t=c.how==='module'?lr(r,1.15,1.6):lr(c.wb.w*k,190,340);
+    for(const c of MODCARDS[M.id]||[]){const t=c.how==='module'?lr(r,1.15,1.6):lr(k/(c.kfit||1),.3,.62);
       const codePx=c.fsW*k,co=lr(codePx,8.8,10.5),tb=lr(t,.45,1),lo=tb*(1-lr(codePx,8.2,9.8));c.t=t;c.co=co;
       if(c.how==='module')anatO=1-t;
       else{maxT=Math.max(maxT,t);if(c.owner&&c.owner._lab){setVis(c.owner._lab,1-lr(t,.05,.5));if(c.owner._g)setVis(c.owner._g,1-lr(t,.3,.9))}}
@@ -475,13 +475,29 @@ svg.addEventListener('pointerdown',e=>{svg.setPointerCapture(e.pointerId);ptrs.s
 svg.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,[e.clientX,e.clientY]);
   if(ptrs.size===2&&pinch0){const [a,b]=[...ptrs.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);const r=svg.getBoundingClientRect();zoomAt(pinch0.k*d/pinch0.d/cam.k,(a[0]+b[0])/2-r.left,(a[1]+b[1])/2-r.top);moved=99;return}
   if(!down)return;const dx=e.clientX-down.x,dy=e.clientY-down.y;moved=Math.max(moved,Math.hypot(dx,dy));if(moved>4){cam.x=down.cx-dx/cam.k;cam.y=down.cy-dy/cam.k;apply()}});
-function up(e){ptrs.delete(e.pointerId);svg.classList.remove('drag');if(ptrs.size<2)pinch0=null;
+function up(e){ptrs.delete(e.pointerId);svg.classList.remove('drag');if(ptrs.size<2){if(pinch0){snapDir=Math.sign(cam.k-pinch0.k);snapPt=[cam.x,cam.y];armSnap(120)}pinch0=null}
   if(down&&moved<=4&&ptrs.size===0){const tg=down.tg;const fl=tg.closest&&tg.closest('[data-fly]');
     if(fl){const [x,y,w,h]=fl.dataset.fly.split(',').map(Number);const cl=fl.classList;flyTo(fitBox({x,y,w,h},cl.contains('morph')||cl.contains('lnk')?1.25:cl.contains('mbg')?1.04:1.06))}
     else zoomOutOne()}
   if(ptrs.size===0)down=null}
 svg.addEventListener('pointerup',up);svg.addEventListener('pointercancel',up);
-svg.addEventListener('wheel',e=>{e.preventDefault();const r=svg.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*(e.ctrlKey?.012:.0022)),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+svg.addEventListener('wheel',e=>{e.preventDefault();const r=svg.getBoundingClientRect();const sx=e.clientX-r.left,sy=e.clientY-r.top;const k0=cam.k;
+  zoomAt(Math.exp(-e.deltaY*(e.ctrlKey?.012:.0022)),sx,sy);snapPt=[cam.x+(sx-viewCX())/cam.k,cam.y+(sy-viewCY())/cam.k];snapDir=Math.sign(cam.k-k0)||snapDir;armSnap(280)},{passive:false});
+/* ---- level snapping: after a zoom gesture settles, glide to the nearest level frame so that layer fills the screen core ---- */
+let snapT=null,snapPt=null,snapDir=0;
+function armSnap(ms){clearTimeout(snapT);snapT=setTimeout(snapLevel,ms)}
+function levelFrames(px,py){const F=[{t:fitAll(),d:0}];
+  for(const M of MODS)if(!M.ext&&inB(M.box,px,py))F.push({t:fitBox(M.box,1.04),d:1,box:M.box});
+  for(const c of Object.values(CARD)){if(!inB(c.wb,px,py))continue;if(c.how!=='module'||MODCARDS[c.M.id].length>1)F.push({t:fitBox(c.wb,1.12),d:2,box:c.wb});
+    // block frames only when the whole card is too long to read at its own fit; never zoom past ~15px code
+    const kc=fitBox(c.wb,1.12).k;if(c.fsW*kc<9.5)for(const b of c.blk)if(inB(b.bw,px,py)){const t=fitBox(b.bw,1.06);t.k=Math.min(t.k,15/c.fsW);const VV=W-PANEL()-RAILW();if(c.wb.w*t.k>VV-40)t.x=c.wb.x+(VV/2-24)/t.k;F.push({t,d:3,box:b.bw})}}
+  return F}
+function snapLevel(){if(flying||ptrs.size)return;const k=cam.k;const [px,py]=snapPt||[cam.x,cam.y];const F=levelFrames(px,py);
+  const deepest=Math.max(...F.map(f=>f.t.k));if(k>deepest*1.35&&k<deepest*2.4)return;   // a little past the deepest frame: free reading of code lines
+  // pick the frame nearest in log-zoom, biased toward the direction the reader was zooming
+  let best=null,bd=1e9;for(const f of F){let d=Math.log(f.t.k/k);if(snapDir>0&&d<-.05)d=Math.abs(d)*1.8;else if(snapDir<0&&d>.05)d*=1.8;d=Math.abs(d);if(d<bd){bd=d;best=f}}
+  if(!best)return;const dx=(best.t.x-cam.x)*k,dy=(best.t.y-cam.y)*k;if(bd<.04&&Math.hypot(dx,dy)<12)return;
+  flyTo(best.t,.55)}
 function zoomOutOne(){if(curBlk&&curCard)return flyTo(fitBox(curCard.wb,1.25));if(curCard&&curMod&&MODCARDS[curMod.id].length>1)return flyTo(fitBox(curMod.box,1.04));if(curMod)return flyTo(fitAll());}
 addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('input,textarea'))return;
   if(e.key==='Escape'){zoomOutOne()}else if(e.key==='+'||e.key==='='){flyTo({x:cam.x,y:cam.y,k:Math.min(KMAX,cam.k*2)})}else if(e.key==='-'){flyTo({x:cam.x,y:cam.y,k:Math.max(KMIN,cam.k/2)})}
@@ -490,7 +506,7 @@ addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('input,text
 /* ====================== breadcrumb / rail / info ====================== */
 const median=a=>{a=a.filter(x=>isFinite(x)&&x>0).sort((p,q)=>p-q);return a.length?a[Math.floor(a.length/2)]:null};
 let LEVELS=[];
-function calcLevels(){const k0=fitAllK();const km=median(MODS.filter(m=>!m.ext).map(modFitK))||k0*3;const kc=median(Object.values(CARD).map(c=>Math.min((W-PANEL())/(c.wb.w*1.25),(H-TOPH()-BOTH())/(c.wb.h*1.25))))||km*3;
+function calcLevels(){for(const c of Object.values(CARD))c.kfit=fitBox(c.wb,1.12).k;const k0=fitAllK();const km=median(MODS.filter(m=>!m.ext).map(modFitK))||k0*3;const kc=median(Object.values(CARD).map(c=>Math.min((W-PANEL())/(c.wb.w*1.25),(H-TOPH()-BOTH())/(c.wb.h*1.25))))||km*3;
   const kk=median(Object.values(CARD).map(c=>12/c.fsW))||kc*3;KMIN=k0*.5;KMAX=Math.max(kk*3,km*4);
   LEVELS=[['系统',k0],['模块',km],['函数',kc],['代码',kk]];const tr=$('tr');tr.querySelectorAll('.lv').forEach(e=>e.remove());
   let prevY=1e9;LEVELS.forEach(([n,k],i)=>{const b=document.createElement('button');b.className='lv';b.textContent=n;const y=Math.min(ky(k),prevY-26);prevY=y;b.style.top=y+'px';b.onclick=()=>flyTo(i===0?fitAll():{x:cam.x,y:cam.y,k});tr.appendChild(b)})}
