@@ -141,6 +141,24 @@ body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
 .note{fill:var(--hot);font-weight:600;font-family:var(--mono)}
 .tring{fill:none;stroke:var(--hot);stroke-width:2}
 .tk{fill:var(--kw)} .ts{fill:var(--str)} .tc{fill:var(--com)} .tn{fill:var(--num)} .ty{fill:var(--ty)} .tp{fill:var(--ink)}
+/* code layer: when zooming past a card, its code reflows in screen space (wraps to the screen width, scrolls vertically) */
+#codev{position:absolute;z-index:1;display:none;flex-direction:column;background:var(--panel);border:1.4px solid var(--hot);border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+#codev .cvh{display:flex;align-items:center;gap:8px;padding:8px 10px 7px 12px;border-bottom:1px solid var(--line);flex:none}
+#codev .cvt{font-family:var(--mono);font-weight:600;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#codev .cvf{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#codev .cvx{flex:none}
+#codev .cvs{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:4px 0 40vh;font-family:var(--mono);font-size:13px;line-height:1.55}
+#codev .cvb{position:sticky;top:0;z-index:1;font-family:var(--sans);font-size:12.5px;color:var(--ink);background:var(--panel2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:4px 12px;margin-top:6px}
+#codev .cvb::before{content:'▎';color:var(--hot)}
+#codev .cl{display:grid;grid-template-columns:3.4em 1fr;column-gap:.8em;padding-right:10px}
+#codev .cl .n{color:var(--faint);text-align:right;user-select:none}
+#codev .cl .x{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+#codev .cl.cur{background:color-mix(in srgb,var(--hot) 20%,transparent)}
+#codev .cl.gap .x{color:var(--com)}
+#codev .tk{color:var(--kw)} #codev .ts{color:var(--str)} #codev .tc{color:var(--com)} #codev .tn{color:var(--num)} #codev .ty{color:var(--ty)} #codev .tp{color:var(--ink)}
+#codev .lnk{text-decoration:underline;text-decoration-color:var(--faint);cursor:pointer}
+#codev .lnk:hover{color:var(--hot)}
+#codev .vnote{display:block;text-indent:0;margin:1px 0 2px;font-size:11.5px;color:var(--hot);font-weight:600;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -155,6 +173,7 @@ body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
   <div class="ov crumb" id="crumb"></div>
   <div class="ov rail"><div class="tr" id="tr"><div class="mk" id="mk"></div></div><div class="zb"><button class="btn" id="zin" aria-label="放大">＋</button><button class="btn" id="zout" aria-label="缩小">－</button></div></div>
   <button class="btn infoT" id="infoT" aria-pressed="true">说明</button>
+  <div id="codev" role="region" aria-label="源码"><div class="cvh"><span class="cvt" id="cvt"></span><span class="cvf" id="cvf"></span><button class="btn cvx" id="cvx" aria-label="退回卡片">⤡ 卡片</button></div><div class="cvs" id="cvs"></div></div>
   <aside class="ov info" id="info"><div id="infoBody"></div></aside>
   <div class="ov story" id="story" aria-live="polite">
     <div class="row"><span class="meta" id="smeta"></span><span class="sp"></span><span class="meta hideM" id="sref"></span></div>
@@ -450,8 +469,8 @@ function apply(){const k=cam.k;document.body.classList.toggle('withInfo',PANEL()
   {const f=clamp(11/k,3,14).toFixed(2);for(const t of CHL)t.setAttribute('font-size',f);for(const t of GRT)t.setAttribute('font-size',f)}
   // particles off when deep
   setVis(Ldot,partV?1-lr(k/fitAllK(),2.2,4):0);
-  placeTok();rail();crumb()}
-function zoomAt(f,sx,sy){const k2=clamp(cam.k*f,KMIN,KMAX);const cx=viewCX(),cy=viewCY();const wx=cam.x+(sx-cx)/cam.k,wy=cam.y+(sy-cy)/cam.k;cam.x=wx-(sx-cx)/k2;cam.y=wy-(sy-cy)/k2;cam.k=k2;flying=null;apply()}
+  updCodeView();placeTok();rail();crumb()}
+function zoomAt(f,sx,sy){let k2=clamp(cam.k*f,KMIN,KMAX);if(cvCard&&f>1){const lim=cvCard.kfit*CV_IN;if(k2>lim){if(cam.k>=lim*.999){$('cvs').scrollBy(0,(f-1)*400);return}k2=lim}}const cx=viewCX(),cy=viewCY();const wx=cam.x+(sx-cx)/cam.k,wy=cam.y+(sy-cy)/cam.k;cam.x=wx-(sx-cx)/k2;cam.y=wy-(sy-cy)/k2;cam.k=k2;flying=null;apply()}
 function izoom(p0,p1){const rho=1.4,r2=rho*rho,r4=r2*r2;const [ux0,uy0,w0]=p0,[ux1,uy1,w1]=p1,dx=ux1-ux0,dy=uy1-uy0,d2=dx*dx+dy*dy;let i,S2;
   if(d2<1e-9){S2=Math.log(w1/w0)/rho;i=t=>[ux0+t*dx,uy0+t*dy,w0*Math.exp(rho*t*S2)]}
   else{const d1=Math.sqrt(d2),b0=(w1*w1-w0*w0+r4*d2)/(2*w0*r2*d1),b1=(w1*w1-w0*w0-r4*d2)/(2*w1*r2*d1),q0=Math.log(Math.sqrt(b0*b0+1)-b0),q1=Math.log(Math.sqrt(b1*b1+1)-b1);S2=(q1-q0)/rho;
@@ -461,6 +480,51 @@ let flying=null;
 function flyTo(t,durScale=1,onStep){const VW=W-PANEL();const i=izoom([cam.x,cam.y,VW/cam.k],[t.x,t.y,VW/t.k]);const dur=RM?0:Math.max(380,Math.min(2800,i.dur*.95*durScale));
   const f={i,dur,t0:performance.now(),onStep,VW};flying=f;return new Promise(res=>{f.res=res;if(!dur){const [x,y,w]=i(1);cam={x,y,k:VW/w};if(onStep)onStep(1);apply();flying=null;res()}})}
 function tickFly(now){if(flying){const f=flying;const t=Math.min(1,(now-f.t0)/f.dur);const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;const [x,y,w]=f.i(e);cam={x,y,k:f.VW/w};if(f.onStep)f.onStep(e);apply();if(t>=1){flying=null;f.res()}}}
+
+/* ====================== code layer ====================== */
+// Past a card's own fit zoom the geometry stops growing: the card's code reflows into a screen-sized reader instead,
+// so the code layer always fits the screen core (wrapping long lines on phones) and scrolls vertically.
+const CV_A=1.18,CV_B=1.5,CV_IN=1.55;let cvCard=null,cvBuilt=null,cvO=0,cvPending=null;
+function cardAt(x,y){let best=null;for(const c of Object.values(CARD))if(c.t>.85&&inB(c.wb,x,y)&&(!best||c.kfit>best.kfit))best=c;return best}
+function codeRows(c){const st={};let h='';const bl=c.blk.slice();let bi=0;
+  c.lines.forEach(([ln,t])=>{while(bi<bl.length&&ln&&ln>=bl[bi].a){h+=`<div class="cvb" data-a="${bl[bi].a}">${esc(bl[bi].lab)}</div>`;bi++}
+    if(!ln){h+=`<div class="cl gap"><span class="n"></span><span class="x">${esc(t)}</span></div>`;return}
+    const ind=t.length-t.trimStart().length;const toks=hiLine(t,c.lang,st);let x='';
+    for(let j=0;j<toks.length;j++){const [cl,sv]=toks[j];let tgt=(c.cd.links&&c.cd.links[sv])||null;
+      if(!tgt&&cl==='p'&&LINKS[sv]){let k=j+1;while(k<toks.length&&!toks[k][1].trim())k++;if(k<toks.length&&'([<'.includes(toks[k][1]))tgt=LINKS[sv]}
+      x+=tgt&&tgt!==c.id&&CARD[tgt]&&cl!=='c'&&cl!=='s'?`<span class="t${cl} lnk" data-lnk="${tgt}">${esc(sv)}</span>`:`<span class="t${cl}">${esc(sv)}</span>`}
+    h+=`<div class="cl" data-ln="${ln}"><span class="n">${ln}</span><span class="x" style="padding-left:${ind+2}ch;text-indent:-${ind+2}ch">${x}</span></div>`});
+  return h}
+function buildCodeView(c){if(cvBuilt===c)return;cvBuilt=c;$('cvt').textContent=c.cd.title;const f=c.lines.find(l=>l[0]);$('cvf').textContent=`${c.cd.file}:${f?f[0]:''}`;
+  $('cvs').innerHTML=codeRows(c);markStepLine()}
+function cvRow(ln){return $('cvs').querySelector(`.cl[data-ln="${ln}"]`)}
+function scrollCodeTo(ln,smooth){const el=cvRow(ln);if(!el)return;const sc=$('cvs');const top=el.offsetTop-sc.clientHeight*.3;sc.scrollTo({top:Math.max(0,top),behavior:smooth&&!RM?'smooth':'auto'})}
+function markStepLine(){const sc=$('cvs');sc.querySelectorAll('.cl.cur').forEach(e=>e.classList.remove('cur'));sc.querySelectorAll('.vnote').forEach(e=>e.remove());
+  const s=STEPS[si];if(!s||!s.at||!cvBuilt||s.at.card!==cvBuilt.id||!tokW)return;const a=s.at.line,b=s.at.line2||a;
+  for(let l=a;l<=b;l++){const el=cvRow(l);if(el)el.classList.add('cur')}
+  if(s.value){const el=cvRow(b);if(el){const v=document.createElement('span');v.className='vnote';v.textContent=s.value;el.querySelector('.x').appendChild(v)}}}
+function updCodeView(){const box=$('codev');let c=cardAt(cam.x,cam.y);let o=0;
+  if(c){o=lr(cam.k/c.kfit,CV_A,CV_B)}
+  if(o<.01){if(cvCard){cvCard=null}box.style.display='none';cvO=0;return}
+  if(c!==cvBuilt){buildCodeView(c);const want=cvPending&&cvPending.c===c?cvPending.ln:null;
+    if(want)scrollCodeTo(want,false);else{const ly=(cam.y-c.M.ty)/c.M.s;const i=Math.max(0,Math.floor((ly-c.top)/c.LH));const l=c.lines[Math.min(i,c.lines.length-1)];if(l)scrollCodeTo(l[0]||c.lines[Math.max(0,i-1)][0],false)}}
+  cvCard=o>.5?c:null;cvO=o;
+  // frame: the card's screen rect, clipped to the screen core
+  const k=cam.k,L=viewCX()-(cam.x-c.wb.x)*k,T=viewCY()-(cam.y-c.wb.y)*k,Rr=L+c.wb.w*k,B=T+c.wb.h*k;
+  const cx0=RAILW()+(W<900?8:12),cy0=TOPH(),cx1=W-PANEL()-(W<900?8:14),cy1=H-BOTH()+4;
+  const x0=Math.max(L,cx0),y0=Math.max(T,cy0),x1=Math.min(Rr,cx1),y1=Math.min(B,cy1);
+  Object.assign(box.style,{display:'flex',left:x0+'px',top:y0+'px',width:Math.max(120,x1-x0)+'px',height:Math.max(120,y1-y0)+'px',opacity:o.toFixed(3)});
+  box.style.pointerEvents=o>.6?'auto':'none'}
+$('cvx').onclick=()=>{const c=cvCard||cvBuilt;if(c)flyTo(fitBox(c.wb,1.12),.7)};
+$('cvs').addEventListener('scroll',()=>{placeTok();lastCrumb='';crumb()},{passive:true});
+$('cvs').addEventListener('click',e=>{const l=e.target.closest('.lnk');if(!l)return;const t=CARD[l.dataset.lnk];if(!t)return;cvPending=null;
+  flyTo({x:t.wb.x+t.wb.w/2,y:t.wb.y+t.wb.h/2,k:t.kfit*CV_IN})});
+// leaving the code layer: trackpad pinch (ctrl+wheel) or two-finger pinch inside the reader zooms back out
+$('codev').addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();if(e.deltaY>0&&cvBuilt)flyTo(fitBox(cvBuilt.wb,1.12),.7)},{passive:false});
+{let d0=null;const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+ $('codev').addEventListener('touchstart',e=>{if(e.touches.length===2)d0=dist(e.touches)},{passive:true});
+ $('codev').addEventListener('touchmove',e=>{if(d0&&e.touches.length===2&&dist(e.touches)/d0<.8){d0=null;if(cvBuilt)flyTo(fitBox(cvBuilt.wb,1.12),.7)}},{passive:true});
+ $('codev').addEventListener('touchend',()=>{d0=null},{passive:true})}
 
 /* ====================== particles ====================== */
 const DOTS=[];for(const c of CH){const n=c.kind==='async'||c.kind==='control'?1:c.kind==='error'?0:2;for(let i=0;i<n;i++)DOTS.push({c,ph:(c.ph+i/n)%1,el:E('circle',{r:3,fill:c.col,class:'dot'},Ldot)})}
@@ -490,15 +554,15 @@ function levelFrames(px,py){const F=[{t:fitAll(),d:0}];
   for(const M of MODS)if(!M.ext&&inB(M.box,px,py))F.push({t:fitBox(M.box,1.04),d:1,box:M.box});
   for(const c of Object.values(CARD)){if(!inB(c.wb,px,py))continue;if(c.how!=='module'||MODCARDS[c.M.id].length>1)F.push({t:fitBox(c.wb,1.12),d:2,box:c.wb});
     // block frames only when the whole card is too long to read at its own fit; never zoom past ~15px code
-    const kc=fitBox(c.wb,1.12).k;if(c.fsW*kc<9.5)for(const b of c.blk)if(inB(b.bw,px,py)){const t=fitBox(b.bw,1.06);t.k=Math.min(t.k,15/c.fsW);const VV=W-PANEL()-RAILW();if(c.wb.w*t.k>VV-40)t.x=c.wb.x+(VV/2-24)/t.k;F.push({t,d:3,box:b.bw})}}
+    F.push({t:{x:cam.x,y:cam.y,k:c.kfit*CV_IN},d:3,box:c.wb})}
   return F}
 function snapLevel(){if(flying||ptrs.size)return;const k=cam.k;const [px,py]=snapPt||[cam.x,cam.y];const F=levelFrames(px,py);
-  const deepest=Math.max(...F.map(f=>f.t.k));if(k>deepest*1.35&&k<deepest*2.4)return;   // a little past the deepest frame: free reading of code lines
+  if(cvCard)return;
   // pick the frame nearest in log-zoom, biased toward the direction the reader was zooming
   let best=null,bd=1e9;for(const f of F){let d=Math.log(f.t.k/k);if(snapDir>0&&d<-.05)d=Math.abs(d)*1.8;else if(snapDir<0&&d>.05)d*=1.8;d=Math.abs(d);if(d<bd){bd=d;best=f}}
   if(!best)return;const dx=(best.t.x-cam.x)*k,dy=(best.t.y-cam.y)*k;if(bd<.04&&Math.hypot(dx,dy)<12)return;
   flyTo(best.t,.55)}
-function zoomOutOne(){if(curBlk&&curCard)return flyTo(fitBox(curCard.wb,1.25));if(curCard&&curMod&&MODCARDS[curMod.id].length>1)return flyTo(fitBox(curMod.box,1.04));if(curMod)return flyTo(fitAll());}
+function zoomOutOne(){if(cvCard)return flyTo(fitBox(cvCard.wb,1.12),.7);if(curBlk&&curCard)return flyTo(fitBox(curCard.wb,1.25));if(curCard&&curMod&&MODCARDS[curMod.id].length>1)return flyTo(fitBox(curMod.box,1.04));if(curMod)return flyTo(fitAll());}
 addEventListener('keydown',e=>{if(e.target.closest&&e.target.closest('input,textarea'))return;
   if(e.key==='Escape'){zoomOutOne()}else if(e.key==='+'||e.key==='='){flyTo({x:cam.x,y:cam.y,k:Math.min(KMAX,cam.k*2)})}else if(e.key==='-'){flyTo({x:cam.x,y:cam.y,k:Math.max(KMIN,cam.k/2)})}
   else if(e.key==='ArrowRight'&&STEPS.length){stopPlay();goStep(si+1)}else if(e.key==='ArrowLeft'&&STEPS.length){stopPlay();goStep(si-1)}});
@@ -517,7 +581,8 @@ const inB=(b,x,y)=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h;let lastCrumb='';
 function crumb(){const items=[[meta.short||meta.title||'系统',null]];curMod=null;curCard=null;curBlk=null;
   for(const M of MODS)if(!M.ext&&M.r>.55&&inB(M.box,cam.x,cam.y)){curMod=M;items.push([M.title,fitBox(M.box,1.04)]);break}
   if(curMod)for(const c of MODCARDS[curMod.id]||[]){if(c.t>.6&&inB(c.wb,cam.x,cam.y)){curCard=c;items.push([c.cd.title,fitBox(c.wb,1.25)]);
-    if(c.co>.4){const ly=(cam.y-c.M.ty)/c.M.s;const bl=c.blk.find(q=>ly>=q.y1&&ly<=q.y2);if(bl){curBlk=bl;items.push([bl.lab,fitBox(bl.bw)])}}break}}
+    if(cvCard===c){const sc=$('cvs');let lab=null;sc.querySelectorAll('.cvb').forEach(h=>{if(h.offsetTop<=sc.scrollTop+8)lab=h.textContent});if(lab)items.push([lab,null]);}
+    else if(c.co>.4){const ly=(cam.y-c.M.ty)/c.M.s;const bl=c.blk.find(q=>ly>=q.y1&&ly<=q.y2);if(bl){curBlk=bl;items.push([bl.lab,fitBox(bl.bw)])}}break}}
   const key=items.map(i=>i[0]).join('|');if(key===lastCrumb)return;lastCrumb=key;
   const el=$('crumb');el.innerHTML='';items.forEach(([n,t],i)=>{if(i){const s=document.createElement('span');s.className='sep';s.textContent='›';el.appendChild(s)}
     const b=document.createElement('button');b.textContent=n;if(i===items.length-1)b.className='cur';b.onclick=()=>flyTo(t||fitAll());el.appendChild(b)});
@@ -554,7 +619,9 @@ function stepPos(s){const a=s.at||{};
   if(a.item){const [m,i]=String(a.item).split('/');const M=MOD[m];const r=M&&M.anch&&M.anch[i];if(r){const b=wRect(M,r);return {x:b.x+b.w/2,y:b.y+b.h/2,box:b,M}}}
   if(a.module&&MOD[a.module]){const b=MOD[a.module].box;return {x:b.x+b.w/2,y:b.y+(MOD[a.module].ext?b.h/2:20),box:b,M:MOD[a.module],mod:true}}
   return {x:bnd.x+20,y:bnd.y+20}}
-function placeTok(){if(!tokW){tokG.style.display='none';return}tokG.style.display='';const k=cam.k;let x=tokW.x;if(tokW.c)x-=Math.min(14/k,6);
+function placeTok(){if(!tokW){tokG.style.display='none';return}tokG.style.display='';const k=cam.k;
+  if(tokW.c&&cvO>.6&&cvBuilt===tokW.c){const s=STEPS[si];const el=s&&s.at&&cvRow(s.at.line);if(el){const r=el.getBoundingClientRect(),br=$('codev').getBoundingClientRect(),sr=svg.getBoundingClientRect();
+      const y=clamp(r.top+r.height/2,br.top+40,br.bottom-12)-sr.top;tokG.setAttribute('transform',`translate(${br.left-sr.left-14},${y})`);tokNote.style.display='none';return}}let x=tokW.x;if(tokW.c)x-=Math.min(14/k,6);
   tokG.setAttribute('transform',`translate(${viewCX()+(x-cam.x)*k},${viewCY()+(tokW.y-cam.y)*k})`);
   const show=tokW.c&&tokW.c.co>.5;tokNote.style.display=show?'':'none';if(show)tokNote.setAttribute('x',tokW.c.wb.w*k+24)}
 function clearHL(){for(const c of Object.values(CARD)){c.hlG.innerHTML='';c.morph.classList.remove('on');c.blk.forEach(b=>b.r.classList.remove('on'))}}
@@ -564,14 +631,14 @@ function showStep(){const s=STEPS[si];clearHL();const p=stepPos(s);
   tokNote.textContent=s.value||'';tokT.textContent=(STORY.token||'').slice(0,3);
   $('smeta').textContent=`${STORY.title?STORY.title+' · ':''}${si+1} / ${STEPS.length}`;$('stxt').textContent=s.text||'';$('sval').textContent=s.value||'';
   $('sref').textContent=p.c?`${p.c.cd.file.split('/').pop()}:${s.at.line}${s.at.line2?'–'+s.at.line2:''}`:(p.M?p.M.title:'');return p}
-async function goStep(n){si=(n+STEPS.length)%STEPS.length;const p=showStep();const from=tokW?{...tokW}:{x:p.x,y:p.y};const to={x:p.x,y:p.y,c:p.c};
+async function goStep(n){si=(n+STEPS.length)%STEPS.length;const p=showStep();const s0=STEPS[si];const from=tokW?{...tokW}:{x:p.x,y:p.y};const to={x:p.x,y:p.y,c:p.c};
   const mv=e=>{tokW={x:from.x+(to.x-from.x)*e,y:from.y+(to.y-from.y)*e,c:e>.97?to.c:null}};
   if(followCam){let tgt;const VW=W-PANEL();
-    if(p.c){const c=p.c;const VV=VW-RAILW();let k=Math.min(KMAX,Math.max((VV-160)/(c.wb.w*1.15),11.5/c.fsW));const x=c.wb.w*k>VV-140?c.wb.x+(VV/2-80)/k:c.wb.x+c.wb.w/2;tgt={x,y:p.y,k}}
+    if(p.c){const c=p.c;cvPending={c,ln:s0.at.line};if(cvBuilt===c&&cvCard===c){scrollCodeTo(s0.at.line,true)}tgt={x:c.wb.x+c.wb.w/2,y:c.wb.y+c.wb.h/2,k:c.kfit*CV_IN}}
     else if(p.box)tgt=fitBox(p.box,p.mod?1.04:2.2);else tgt=fitAll();
     await flyTo(tgt,1,mv)}
   else{const t0=performance.now(),d=RM?0:500;await new Promise(r=>{const f=now=>{const e=d?Math.min(1,(now-t0)/d):1;mv(e);apply();e<1?requestAnimationFrame(f):r()};requestAnimationFrame(f)})}
-  tokW=to;apply()}
+  tokW=to;apply();if(p.c&&cvBuilt===p.c){scrollCodeTo(s0.at.line,true);markStepLine()}}
 function sched(){clearTimeout(timer);if(!playing)return;timer=setTimeout(async()=>{if(si+1>=STEPS.length){stopPlay();return}await goStep(si+1);sched()},Math.max(1700,(STEPS[si].text||'').length*60))}
 const stopPlay=()=>{playing=false;$('play').textContent='▶ 播放';clearTimeout(timer)};
 $('play').onclick=()=>{if(playing){stopPlay();return}playing=true;$('play').textContent='❚❚ 暂停';(tokW?goStep(si+1):goStep(si)).then(sched)};
