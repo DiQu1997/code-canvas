@@ -41,10 +41,10 @@ channels 是模块间的连线；cards 是挂在部件上的函数卡，code 是
 info 是模块说明；stories 是一个主角从头到尾的故事线，每步落在某张卡的某行或某个部件上）"""
 
 
-FLOW_FIELDS = """当前目录下的 canvas.json 是一张"逻辑线图"的数据（字段含义：meta.question 是它要回答的问题；root 是步骤树，
-每个节点是一步：title 是人话、code 是关键标识符、kind 是类型（判断/循环/写状态/等待/出口/黑盒）、lane 是谁在执行、
-children 是钻进去之后的下一层、problem 是那一层要解决的问题、omitted 是省略掉的行及原因、contract 是黑盒的契约；
-files 是各步骤对应的源码原文（按文件、行号）；state 是贯穿全程的状态；walk 是用一个具体例子走一遍，每步有此刻的值）"""
+FLOW_FIELDS = """当前目录下的 canvas.json 是一组"逐层放大的结构图"的数据（字段含义：meta.question 是它要回答的问题；root 是部件树。
+有 children + edges 的部件是一张结构图：children 是这一层的部件（title/desc 是人话，kind 是类型：线程/部件/函数/队列/存储/状态/外部），
+edges 是它们之间的关系 [from, to, 标签, 类型, 编号]，编号是发生的顺序；有 steps 的部件是一个函数，steps 是它的伪代码，omitted 是省略的行及原因；
+files 是对应的源码原文；walk 是用一个具体例子走一遍，每步落在某个部件或某步伪代码上，带此刻的值）"""
 
 
 def main() -> None:

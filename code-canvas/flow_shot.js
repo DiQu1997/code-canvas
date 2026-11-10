@@ -21,10 +21,10 @@ const path = require('path'), fs = require('fs');
   let i = 0;
   for (const id of pages) {
     await p.evaluate(id => __flow.nav(id, {push: false}), id); await p.waitForTimeout(900);
-    const clipped = await p.evaluate(() => [...document.querySelectorAll('.card .t')].filter(e => e.scrollHeight > e.clientHeight + 2).map(e => e.textContent));
+    const clipped = await p.evaluate(() => [...document.querySelectorAll('.node .t, .ps .t')].filter(e => e.scrollHeight > e.clientHeight + 2).map(e => e.textContent));
     const n = `${pre}${String(i++).padStart(2, '0')}-${id.replace(/[^\w-]/g, '_')}.png`;
     await p.screenshot({path: path.join(out, n)});
-    console.log(n + (clipped.length ? '   CLIPPED TITLES: ' + clipped.join(' | ') : ''));
+    console.log(n + (clipped.length ? '   CLIPPED: ' + clipped.join(' | ') : ''));
   }
   const nW = await p.evaluate(() => __flow.walk().length);
   for (const k of [...new Set([0, Math.floor(nW * .4), Math.floor(nW * .75)])].filter(k => k < nW)) {

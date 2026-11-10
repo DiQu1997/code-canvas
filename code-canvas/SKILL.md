@@ -180,10 +180,10 @@ diff 画布复用：改完后 `python3 compare.py plan.json diff.json --annotate
 **预览地图**（`meta.mode:"preview"`）：见 `preview-spec.md`。分区是研究得出的逻辑组
 （不是目录清单），highlights 必须核实真实存在，线路交给深潜。
 
-**逻辑线图**（`meta.mode:"flow"`）：见 `flow-spec.md`。可视化的伪代码：用户提一个问题，你顺着那条执行路径交出一棵步骤树，
-每层一页 5-9 张卡（人话 + 关键标识符 + 文件:行号），点进去是下一层，到底是源码；同一页的卡可以来自不同文件。
-用一个具体例子把整条线跑一遍。第 1、2 节的判断标准照用。交付物是 `flow.json`，`build_flow.py` 0 ERROR
-（含行覆盖检查），并用 `verify_flow.py`（能读仓库的事实核对）和 `reader_check.py` 自查。旧的缩放画布（`zoom-spec.md`）已由它取代。
+**结构图画布**（`meta.mode:"flow"`）：见 `flow-spec.md`。用户提一个问题，你交出一组逐层放大的架构图：每一层是一张结构图
+（方框 = 部件，包括队列 / 表这些数据结构；连线 = 关系，编号 = 发生顺序），点一个部件进到它内部的结构图，直到单个函数才是
+伪代码 + 源码。按逻辑切，不按文件切。用一个具体例子沿着连线跑一遍。第 1、2 节的判断标准照用。交付物是 `flow.json`，
+`build_flow.py` 0 ERROR（含每个函数的行覆盖检查），并用 `verify_flow.py`（能读仓库的事实核对）和 `reader_check.py` 自查。
 
 ## 9. 渲染器现实（评测实测）
 

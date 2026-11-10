@@ -669,14 +669,14 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             "可用的工具，以及不可商量的交付契约。\n").format(skill=SKILL_DIR)
     if zoom:
         head = ("阅读 {skill}/SKILL.md 的第 1、2 节（判断标准、你必须自己做的判断）和 {skill}/flow-spec.md"
-                "（这次要交付的画布形态：逻辑线图，可视化的伪代码）。它们不是逐步执行的管线：给出的是判断标准、"
+                "（这次要交付的画布形态：逐层放大的结构图，到单个函数才是伪代码）。它们不是逐步执行的管线：给出的是判断标准、"
                 "格式、工具和不可商量的交付契约。\n").format(skill=SKILL_DIR)
         tail = ("交付：{w}。\n"
                 "契约：python3 {skill}/build_flow.py {w} --repo <仓库根> --out {work}/flow.html 0 ERROR（覆盖检查报漏的行："
                 "要么补一步，要么写进 omitted 并说明原因；WARN 逐条看）；代码由脚本从仓库读，你只写 file + 行段；"
                 "meta.judgment 写实话。\n"
-                "完成的标准：一位第一次接触这个代码库的读者，从顶层一页页点进去，能说清这条逻辑线每一步做了什么、"
-                "在哪做的决定、状态怎么变，并且相信它没有漏掉核心逻辑。卡片标题说人话，不要复述函数名。\n"
+                "完成的标准：一位第一次接触这个代码库的读者，看每一层的图就能说出这一层有哪些部件、它们什么关系、事情按什么顺序走；"
+                "一层层点进去，直到单个函数才看到伪代码和源码。每一层都必须是一张有结构的图，不是一列步骤。标题说人话。\n"
                 "自查三件事，都要做：1) node {skill}/flow_shot.js {work}/flow.html {work}/shots 截图逐张看；"
                 "2) python3 {skill}/verify_flow.py {work}/flow.data.json --repo <仓库根> --out {work}/verify_report.md，"
                 "检查者报的每条事实错误都要处理；3) python3 {skill}/reader_check.py {work}/flow.data.json "
@@ -709,7 +709,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                     "3-6 条故事线路且每条 step 带 ask（深潜点单句）。读者关注点：{a}\n").format(
                         w=where, skill=SKILL_DIR, a=ask)
         if zoom:
-            return "任务：为仓库 {w} 生成一张逻辑线图，回答用户的问题：{a}\n".format(w=where, a=ask)
+            return "任务：为仓库 {w} 生成一张结构图画布，回答用户的问题：{a}\n".format(w=where, a=ask)
         return "任务：为仓库 {w} 生成一张 Code Canvas，主题/关注点：{a}\n".format(w=where, a=ask)
 
     if src["kind"] == "git":
@@ -836,7 +836,7 @@ GEN_FORM = """
   <div class=row id=ctype-row>
     <label><input type=radio name=ctype value=deep checked> 深潜画布（代码细讲）</label>
     <label><input type=radio name=ctype value=preview> 预览地图（陌生仓库的第一张图）</label>
-    <label><input type=radio name=ctype value=zoom> 逻辑线图（按一个问题走一条线，一层层点进去直到源码）</label>
+    <label><input type=radio name=ctype value=zoom> 结构图（按一个问题画，每层一张架构图，点进去直到伪代码和源码）</label>
   </div>
   <div class=row>
     <label><input type=radio name=eng value=claude checked> Claude（默认 opus-5.5）</label>
@@ -1140,7 +1140,7 @@ class Handler(BaseHTTPRequestHandler):
                 preview = bool(req.get("preview"))
                 zoom = bool(req.get("zoom"))
                 if zoom and src["kind"] == "code":
-                    return self._json(400, {"ok": False, "error": "逻辑线图需要 git 地址或盒子路径（要从仓库读代码）"})
+                    return self._json(400, {"ok": False, "error": "结构图需要 git 地址或盒子路径（要从仓库读代码）"})
                 if zoom and not req.get("name"):
                     default += "-flow"
                 if preview and src["kind"] == "code":
