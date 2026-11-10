@@ -41,6 +41,12 @@ channels 是模块间的连线；cards 是挂在部件上的函数卡，code 是
 info 是模块说明；stories 是一个主角从头到尾的故事线，每步落在某张卡的某行或某个部件上）"""
 
 
+FLOW_FIELDS = """当前目录下的 canvas.json 是一张"逻辑线图"的数据（字段含义：meta.question 是它要回答的问题；root 是步骤树，
+每个节点是一步：title 是人话、code 是关键标识符、kind 是类型（判断/循环/写状态/等待/出口/黑盒）、lane 是谁在执行、
+children 是钻进去之后的下一层、problem 是那一层要解决的问题、omitted 是省略掉的行及原因、contract 是黑盒的契约；
+files 是各步骤对应的源码原文（按文件、行号）；state 是贯穿全程的状态；walk 是用一个具体例子走一遍，每步有此刻的值）"""
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("canvas", type=Path)
@@ -50,13 +56,16 @@ def main() -> None:
     ap.add_argument("--zoom", action="store_true", help="canvas is a zoom-mode spec (build_zoom.py --dump output)")
     a = ap.parse_args()
     data = json.loads(a.canvas.read_text(encoding="utf-8"))
-    data.pop("files", None)
+    if (data.get("meta") or {}).get("mode") != "flow":
+        data.pop("files", None)
     (data.get("meta") or {}).pop("judgment", None)   # 读者不看作者的自述，只看画布本身
     td = Path(tempfile.mkdtemp(prefix="reader-"))
     (td / "canvas.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     prompt = PROMPT
     if a.zoom or (data.get("meta") or {}).get("mode") == "zoom":
         prompt = PROMPT.split("当前目录下的 canvas.json")[0] + ZOOM_FIELDS + "。**不要读任何其他文件" + PROMPT.split("。**不要读任何其他文件", 1)[1]
+    if (data.get("meta") or {}).get("mode") == "flow":
+        prompt = PROMPT.split("当前目录下的 canvas.json")[0] + FLOW_FIELDS + "。**不要读任何其他文件" + PROMPT.split("。**不要读任何其他文件", 1)[1]
     cmd = [a.cli, "-p", prompt, "--model", a.model, "--allowedTools", "Read", "--output-format", "text"]
     r = subprocess.run(cmd, cwd=td, capture_output=True, text=True, timeout=900)
     out = r.stdout.strip() or ("(读者没有输出) " + r.stderr[-2000:])
