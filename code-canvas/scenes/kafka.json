@@ -1,0 +1,852 @@
+{
+ "title": "Kafka：P7 的一生",
+ "subtitle": "一个 acks=-1 的 PRODUCE 请求穿过 broker：两组线程、两条队列、一个被别的线程点燃的回调",
+ "intro": "这是 broker 里处理一个请求的全部角色：网络线程只管读写字节，处理线程只管业务，中间靠队列交接。按 ▶ 或右方向键，跟着请求 P7 走一遍。线程号、offset 是示例值。",
+ "tokens": {
+  "P7": {
+   "label": "P7",
+   "color": "c1"
+  },
+  "cb": {
+   "label": "λ 回调",
+   "color": "c3",
+   "kind": "closure"
+  },
+  "F9": {
+   "label": "F9",
+   "color": "c2"
+  },
+  "R7": {
+   "label": "R7",
+   "color": "c4"
+  },
+  "g1": {
+   "kind": "gray",
+   "color": "c6"
+  }
+ },
+ "entities": [
+  {
+   "id": "g_net",
+   "type": "group",
+   "x": 205,
+   "y": 150,
+   "w": 240,
+   "h": 335,
+   "title": "网络线程 · num.network.threads = 3"
+  },
+  {
+   "id": "g_io",
+   "type": "group",
+   "x": 760,
+   "y": 60,
+   "w": 245,
+   "h": 425,
+   "title": "处理线程池 · num.io.threads = 8"
+  },
+  {
+   "id": "client",
+   "type": "ext",
+   "kind": "client",
+   "x": 15,
+   "y": 195,
+   "w": 150,
+   "h": 125,
+   "title": "producer-1",
+   "sub": "acks = -1"
+  },
+  {
+   "id": "proc",
+   "type": "thread",
+   "kind": "network thread",
+   "x": 225,
+   "y": 180,
+   "w": 200,
+   "h": 135,
+   "title": "Processor 1",
+   "sub": "selector 循环",
+   "state": "run",
+   "vars": {
+    "连接": "可读"
+   }
+  },
+  {
+   "id": "respq",
+   "type": "queue",
+   "x": 235,
+   "y": 412,
+   "w": 180,
+   "h": 44,
+   "title": "responseQueue",
+   "sub": "Processor 1 私有",
+   "count": false
+  },
+  {
+   "id": "reqq",
+   "type": "queue",
+   "x": 500,
+   "y": 225,
+   "w": 210,
+   "h": 46,
+   "cap": 500,
+   "capShow": 6,
+   "title": "requestQueue",
+   "sub": "全局、有界：满了网络线程就卡住"
+  },
+  {
+   "id": "h4",
+   "type": "thread",
+   "kind": "request handler",
+   "x": 780,
+   "y": 85,
+   "w": 200,
+   "h": 135,
+   "title": "处理线程 #4",
+   "sub": "KafkaApis.handle()",
+   "state": "blocked",
+   "on": "requestQueue"
+  },
+  {
+   "id": "h6",
+   "type": "thread",
+   "kind": "request handler",
+   "x": 780,
+   "y": 325,
+   "w": 200,
+   "h": 135,
+   "title": "处理线程 #6",
+   "sub": "KafkaApis.handle()",
+   "state": "run"
+  },
+  {
+   "id": "log",
+   "type": "log",
+   "x": 1075,
+   "y": 70,
+   "w": 235,
+   "h": 150,
+   "title": "orders-0 的日志",
+   "sub": "leader 副本",
+   "range": [
+    998,
+    1007
+   ],
+   "markers": [
+    {
+     "id": "hw",
+     "label": "HW",
+     "color": "c4",
+     "v": 1000
+    },
+    {
+     "id": "leo",
+     "label": "LEO",
+     "color": "c1",
+     "v": 1000,
+     "side": "b"
+    }
+   ],
+   "vars": {
+    "follower LEO": 1000
+   }
+  },
+  {
+   "id": "purg",
+   "type": "store",
+   "kind": "purgatory",
+   "x": 1075,
+   "y": 325,
+   "w": 235,
+   "h": 150,
+   "title": "DelayedProduce",
+   "sub": "等条件满足或超时",
+   "rows": [
+    {
+     "id": "w",
+     "label": "orders-0"
+    },
+    {
+     "id": "t",
+     "label": "时间轮"
+    }
+   ]
+  },
+  {
+   "id": "fol",
+   "type": "ext",
+   "kind": "follower",
+   "x": 500,
+   "y": 470,
+   "w": 180,
+   "h": 115,
+   "title": "broker 2",
+   "sub": "来拉 orders-0"
+  }
+ ],
+ "wires": [
+  {
+   "id": "w_in",
+   "a": [
+    "client",
+    "r",
+    0.3
+   ],
+   "b": [
+    "proc",
+    "l",
+    0.3
+   ],
+   "kind": "data",
+   "label": "PRODUCE"
+  },
+  {
+   "id": "w_out",
+   "a": [
+    "proc",
+    "l",
+    0.75
+   ],
+   "b": [
+    "client",
+    "r",
+    0.75
+   ],
+   "kind": "ret",
+   "label": "响应"
+  },
+  {
+   "id": "w_enq",
+   "a": [
+    "proc",
+    "r",
+    0.45
+   ],
+   "b": [
+    "reqq",
+    "l"
+   ],
+   "kind": "queue",
+   "label": "put"
+  },
+  {
+   "id": "w_take4",
+   "a": [
+    "reqq",
+    "r",
+    0.3
+   ],
+   "b": [
+    "h4",
+    "l",
+    0.6
+   ],
+   "kind": "queue",
+   "label": "poll"
+  },
+  {
+   "id": "w_take6",
+   "a": [
+    "reqq",
+    "r",
+    0.7
+   ],
+   "b": [
+    "h6",
+    "l",
+    0.4
+   ],
+   "kind": "queue",
+   "label": "poll"
+  },
+  {
+   "id": "w_app",
+   "a": [
+    "h4",
+    "r",
+    0.3
+   ],
+   "b": [
+    "log",
+    "l",
+    0.5
+   ],
+   "kind": "call",
+   "label": "append"
+  },
+  {
+   "id": "w_watch",
+   "a": [
+    "h4",
+    "r",
+    0.75
+   ],
+   "b": [
+    "purg",
+    "l",
+    0.25
+   ],
+   "kind": "call",
+   "label": "挂起等待",
+   "lt": 0.42
+  },
+  {
+   "id": "w_hw",
+   "a": [
+    "h6",
+    "r",
+    0.2
+   ],
+   "b": [
+    "log",
+    "b",
+    0.25
+   ],
+   "kind": "call",
+   "label": "推进 HW",
+   "lt": 0.55
+  },
+  {
+   "id": "w_chk",
+   "a": [
+    "h6",
+    "r",
+    0.6
+   ],
+   "b": [
+    "purg",
+    "l",
+    0.7
+   ],
+   "kind": "call",
+   "label": "检查等待者"
+  },
+  {
+   "id": "w_cb",
+   "a": [
+    "purg",
+    "b",
+    0.5
+   ],
+   "b": [
+    "h6",
+    "b",
+    0.6
+   ],
+   "kind": "cb",
+   "label": "onComplete → 调用闭包",
+   "hidden": true,
+   "bend": 0.55
+  },
+  {
+   "id": "w_resp",
+   "a": [
+    "h6",
+    "l",
+    0.85
+   ],
+   "b": [
+    "respq",
+    "r"
+   ],
+   "kind": "ret",
+   "label": "按 P7.processor = 1 投递"
+  },
+  {
+   "id": "w_rq",
+   "a": [
+    "respq",
+    "t"
+   ],
+   "b": [
+    "proc",
+    "b"
+   ],
+   "kind": "queue"
+  },
+  {
+   "id": "w_f",
+   "a": [
+    "fol",
+    "t"
+   ],
+   "b": [
+    "reqq",
+    "b"
+   ],
+   "kind": "data",
+   "label": "FETCH（经另一个 Processor，未画）",
+   "lt": 0.3
+  }
+ ],
+ "setup": [
+  {
+   "op": "spawn",
+   "tok": "g1",
+   "at": [
+    "h6"
+   ]
+  }
+ ],
+ "steps": [
+  {
+   "text": "producer-1 发出 P7：PRODUCE，写 orders-0，acks=-1。字节到达 Processor 1 的 selector，被读成一个完整的请求。",
+   "value": "acks = -1, topic = orders-0",
+   "focus": [
+    "client",
+    "proc"
+   ],
+   "beats": [
+    [
+     {
+      "op": "spawn",
+      "tok": "P7",
+      "at": [
+       "client"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "P7",
+      "to": [
+       "proc"
+      ],
+      "via": "w_in"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "Processor 1 只解析请求头，并在请求上记下自己的编号。这个编号就是 P7 回程的地址。",
+   "value": "P7.processor = 1",
+   "focus": [
+    "proc"
+   ],
+   "beats": [
+    [
+     {
+      "op": "var",
+      "ent": "proc",
+      "k": "P7.processor",
+      "v": 1
+     },
+     {
+      "op": "flash",
+      "ent": "proc",
+      "color": null
+     }
+    ]
+   ]
+  },
+  {
+   "text": "放进全局的 requestQueue，然后 mute 这条连接：P7 的响应写出之前，这条连接上不会再读下一个请求。网络线程不等结果，回去继续 poll。",
+   "value": "conn muted",
+   "focus": [
+    "proc",
+    "reqq"
+   ],
+   "beats": [
+    [
+     {
+      "op": "move",
+      "tok": "P7",
+      "to": [
+       "reqq"
+      ],
+      "via": "w_enq"
+     }
+    ],
+    [
+     {
+      "op": "var",
+      "ent": "proc",
+      "k": "连接",
+      "v": "muted"
+     },
+     {
+      "op": "state",
+      "ent": "proc",
+      "s": "idle",
+      "on": "poll(300)"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "处理线程 #4 一直阻塞在 requestQueue 上。队列里有了东西，它被唤醒，取走 P7。从这里到 handle() 返回，P7 都在线程 #4 上。",
+   "focus": [
+    "reqq",
+    "h4"
+   ],
+   "beats": [
+    [
+     {
+      "op": "state",
+      "ent": "h4",
+      "s": "run",
+      "on": ""
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "P7",
+      "to": [
+       "h4"
+      ],
+      "via": "w_take4"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "KafkaApis 校验后交给 ReplicaManager，仍在线程 #4 上：把记录追加到 orders-0 的 leader 日志。",
+   "value": "LEO 1000 → 1005",
+   "focus": [
+    "h4",
+    "log"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_app",
+      "back": true
+     },
+     {
+      "op": "mark",
+      "ent": "log",
+      "k": "leo",
+      "v": 1005
+     },
+     {
+      "op": "var",
+      "ent": "log",
+      "k": "requiredOffset",
+      "v": 1005
+     }
+    ]
+   ]
+  },
+  {
+   "text": "acks=-1：要等 ISR 里的副本都追到 1005 才能回复，而此刻 HW 还是 1000。KafkaApis 早先交出了一个闭包 sendResponseCallback：谁调用它，谁就发出 P7 的响应。",
+   "value": "HW 1000 < 1005",
+   "focus": [
+    "h4",
+    "log"
+   ],
+   "beats": [
+    [
+     {
+      "op": "spawn",
+      "tok": "cb",
+      "at": [
+       "h4"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "flash",
+      "ent": "log",
+      "color": null
+     }
+    ]
+   ]
+  },
+  {
+   "text": "于是 P7 连同这个闭包被包成 DelayedProduce，挂到 purgatory 里 orders-0 的 watcher 上，同时放进时间轮等超时（30000ms，示例值）。",
+   "focus": [
+    "h4",
+    "purg"
+   ],
+   "beats": [
+    [
+     {
+      "op": "move",
+      "tok": "P7",
+      "to": [
+       "purg",
+       "w"
+      ],
+      "via": "w_watch",
+      "ms": 620
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "cb",
+      "to": [
+       "purg",
+       "w"
+      ],
+      "via": "w_watch",
+      "ms": 620
+     },
+     {
+      "op": "var",
+      "ent": "purg",
+      "k": "超时",
+      "v": "30000ms"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "调用链一路返回，线程 #4 回去阻塞在 requestQueue 上等下一件活。注意：P7 现在不属于任何线程，它只是 purgatory 里的一条记录。",
+   "value": "P7 ∈ watchers[orders-0]",
+   "focus": [
+    "h4",
+    "purg",
+    "reqq"
+   ],
+   "beats": [
+    [
+     {
+      "op": "state",
+      "ent": "h4",
+      "s": "blocked",
+      "on": "requestQueue"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "另一个请求出场：follower broker 2 来拉数据，FETCH F9（fetchOffset=1005）。它走和 P7 相同的路进入 requestQueue，被处理线程 #6 取走。",
+   "value": "F9 ≠ P7",
+   "focus": [
+    "fol",
+    "reqq",
+    "h6"
+   ],
+   "beats": [
+    [
+     {
+      "op": "spawn",
+      "tok": "F9",
+      "at": [
+       "fol"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "F9",
+      "to": [
+       "reqq"
+      ],
+      "via": "w_f"
+     }
+    ],
+    [
+     {
+      "op": "gone",
+      "tok": "g1"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "F9",
+      "to": [
+       "h6"
+      ],
+      "via": "w_take6"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "在线程 #6 上：F9 说明 follower 2 已经追到 1005。HW 取 ISR 中 LEO 的最小值；ISR = {1, 2} 都到了 1005，HW 前进。",
+   "value": "HW 1000 → 1005",
+   "focus": [
+    "h6",
+    "log"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_hw",
+      "back": false
+     },
+     {
+      "op": "var",
+      "ent": "log",
+      "k": "follower LEO",
+      "v": 1005
+     }
+    ],
+    [
+     {
+      "op": "mark",
+      "ent": "log",
+      "k": "hw",
+      "v": 1005
+     }
+    ]
+   ]
+  },
+  {
+   "text": "HW 前进后，线程 #6 顺手检查 purgatory 里等 orders-0 的请求：HW 1005 ≥ requiredOffset 1005，P7 的条件满足了。",
+   "value": "1005 ≥ 1005",
+   "focus": [
+    "h6",
+    "purg",
+    "log"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_chk",
+      "back": true
+     }
+    ],
+    [
+     {
+      "op": "flash",
+      "ent": "purg",
+      "color": "c4"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "完成 DelayedProduce，就是调用当初存下的那个闭包。执行它的是线程 #6，不是当初处理 P7 的线程 #4：谁让条件成立，谁就替 P7 发响应。",
+   "value": "thread = handler-6",
+   "focus": [
+    "h6",
+    "purg",
+    "h4"
+   ],
+   "beats": [
+    [
+     {
+      "op": "wire",
+      "id": "w_cb"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "cb",
+      "to": [
+       "h6"
+      ],
+      "via": "w_cb",
+      "rev": false
+     }
+    ],
+    [
+     {
+      "op": "gone",
+      "tok": "cb"
+     },
+     {
+      "op": "gone",
+      "tok": "P7"
+     },
+     {
+      "op": "spawn",
+      "tok": "R7",
+      "at": [
+       "h6"
+      ]
+     },
+     {
+      "op": "var",
+      "ent": "purg",
+      "k": "超时",
+      "v": "已取消"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "闭包构造出响应 R7，按 P7.processor = 1 投进 Processor 1 私有的 responseQueue，并 wakeup 它，打断它正在进行的 poll。（F9 自己的响应这里不画。）",
+   "focus": [
+    "h6",
+    "respq",
+    "proc"
+   ],
+   "beats": [
+    [
+     {
+      "op": "move",
+      "tok": "R7",
+      "to": [
+       "respq"
+      ],
+      "via": "w_resp"
+     }
+    ],
+    [
+     {
+      "op": "state",
+      "ent": "proc",
+      "s": "run",
+      "on": ""
+     },
+     {
+      "op": "gone",
+      "tok": "F9"
+     },
+     {
+      "op": "state",
+      "ent": "h6",
+      "s": "blocked",
+      "on": "requestQueue"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "Processor 1 下一圈取出响应，写回 socket，然后 unmute 连接：producer-1 的下一个请求现在可以被读了。P7 的一生结束。",
+   "value": "conn unmuted",
+   "focus": [
+    "respq",
+    "proc",
+    "client"
+   ],
+   "beats": [
+    [
+     {
+      "op": "move",
+      "tok": "R7",
+      "to": [
+       "proc"
+      ],
+      "via": "w_rq"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "R7",
+      "to": [
+       "client"
+      ],
+      "via": "w_out"
+     }
+    ],
+    [
+     {
+      "op": "var",
+      "ent": "proc",
+      "k": "连接",
+      "v": "可读"
+     },
+     {
+      "op": "wire",
+      "id": "w_cb",
+      "show": false
+     }
+    ]
+   ]
+  }
+ ]
+}
