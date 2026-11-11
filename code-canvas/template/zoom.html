@@ -210,6 +210,30 @@ body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
 .hint{position:absolute;z-index:3;left:50%;transform:translateX(-50%);top:calc(66px + env(safe-area-inset-top,0px));background:var(--ink);color:var(--bg);font-size:12.5px;padding:6px 14px;border-radius:999px;pointer-events:none;transition:opacity .4s;white-space:nowrap}
 .hint.hide{opacity:0}
 @media (max-width:900px){.cl{grid-template-columns:2.8em minmax(0,1fr);min-width:0;column-gap:.6em}.cl .x{white-space:pre-wrap;overflow-wrap:break-word}.hint{white-space:normal;text-align:center;max-width:88vw;top:auto;bottom:46%}}
+/* pseudo-code beside the source */
+.duo{display:grid;grid-template-columns:minmax(290px,.72fr) minmax(0,1.28fr);border-top:1px solid var(--line)}
+.ps{position:sticky;top:0;align-self:start;max-height:var(--pgh,70vh);overflow:auto;overscroll-behavior:contain;padding:6px 8px 14px;border-right:1px solid var(--line)}
+.pb{font-size:12px;font-weight:600;color:var(--muted);margin:14px 8px 4px;display:flex;gap:6px}.pb:first-child{margin-top:6px}
+.pb::before{content:"▎";color:var(--hot)}
+.pr{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:8px;align-items:baseline;padding:6px 8px 6px calc(8px + var(--d,0)*22px);border-radius:8px;cursor:pointer;font-size:14.5px;line-height:1.45}
+.pr:hover{background:var(--panel2)}
+.pr.act{background:color-mix(in srgb,var(--hot) 16%,transparent);box-shadow:inset 3px 0 0 var(--hot)}
+.pk{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:center}
+.k-decision .pk{color:var(--c3)}.k-loop .pk{color:var(--c2)}.k-write .pk{color:var(--c1)}.k-wait .pk{color:var(--c4)}.k-return .pk{color:var(--c5)}.k-call .pk{color:var(--hot)}
+.k-decision .pt,.k-loop .pt{font-weight:600}
+.pt small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.pt .pc{font-style:normal;font-weight:400;color:var(--hot);font-size:12px;margin-left:8px;white-space:nowrap}
+.pl{font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
+.pr.om{cursor:default;color:var(--faint);font-size:12px;padding-block:2px}.pr.om:hover{background:none}
+.cl.sel{background:color-mix(in srgb,var(--hot) 11%,transparent)}
+.cl.omd .x{opacity:.45}
+.duo .cl{grid-template-columns:3.2em minmax(0,1fr);min-width:0;column-gap:.7em}.duo .cl .x{white-space:pre-wrap;overflow-wrap:anywhere}
+.duo .bh{display:none}
+.vsw{display:none;margin-left:0!important;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-family:var(--sans)!important}
+.vsw button{font:inherit;font-size:12.5px;border:0;background:none;color:var(--muted);padding:4px 12px}
+.cardpg[data-view=p] .vsw [data-view=p],.cardpg[data-view=s] .vsw [data-view=s]{background:var(--panel2);color:var(--ink);font-weight:600}
+@media (max-width:900px){.duo{display:block}.ps{position:static;max-height:none;border-right:0}.vsw{display:inline-flex;direction:ltr!important}.hasps .cdh{position:sticky;top:0;z-index:2;background:var(--panel);border-radius:14px 14px 0 0}
+ .cardpg[data-view=p] .duo>.codeb{display:none}.cardpg[data-view=s] .duo>.ps{display:none}}
 @media (prefers-reduced-motion: reduce){.pulse{animation:none}}
 @media (max-width:900px){.crumb{flex-wrap:nowrap;overflow-x:auto;max-width:calc(100vw - 20px);white-space:nowrap;scrollbar-width:none}.crumb button{white-space:nowrap;flex:none}}
 </style>
@@ -471,6 +495,7 @@ function segsOf(C){const lines=C.cd.code||[];const nums=lines.filter(l=>l[0]).ma
   const segs=[];let cur=[];const flush=()=>{if(cur.length){segs.push({gap:true,lines:cur});cur=[]}};let bi=0;
   for(let i=0;i<lines.length;i++){const ln=lines[i][0];if(bi<blocks.length&&ln&&ln===blocks[bi][0]){flush();const [a,b,lab]=blocks[bi];const L=[];while(i<lines.length&&(!lines[i][0]||lines[i][0]<=b)){L.push(lines[i]);i++}i--;segs.push({a,b,lab,lines:L});bi++}else cur.push(lines[i])}
   flush();return segs}
+const PK={step:'·',decision:'◇',loop:'↻',write:'✎',wait:'‖',return:'↩',call:'→'};
 const cardLines=C=>(C.cd.code||[]).length;
 const isShort=ids=>{const a=area();return ids.reduce((n,id)=>n+cardLines(CARDS[id])+4,0)*20.5<=a.h-20};
 function pageCard(ids,mod){const a=area();const el=HT('div','layer',stage);const pg=HT('div','cardpg',el);Object.assign(pg.style,{left:a.x+'px',top:a.y+'px',width:a.w+'px',height:a.h+'px'});pg.style.overflow='hidden';
@@ -484,19 +509,42 @@ function pageCard(ids,mod){const a=area();const el=HT('div','layer',stage);const
       if(!best)return {type:'code',ids,mod,card:ids[0]};const [,cid,ln]=best.dataset.key.split(':');return {type:'code',ids,mod,card:cid,line:+ln}},
     mark(key,val,line){pg.querySelectorAll('.brow.on').forEach(e=>e.classList.remove('on'));const C=CARDS[key];if(!C)return;const s=segsOf(C).find(q=>!q.gap&&line>=q.a&&line<=q.b);if(s){const e=pg.querySelector(`[data-key="blk:${key}:${s.a}"]`);if(e)e.classList.add('on')}}}}
 function pageCode(ids,mod,card,line){const a=area();const el=HT('div','layer',stage);const pg=HT('div','cardpg',el);Object.assign(pg.style,{left:a.x+'px',top:a.y+'px',width:a.w+'px',height:a.h+'px'});
-  let maxC=40;for(const id of ids)for(const [,t] of CARDS[id].cd.code||[])maxC=Math.max(maxC,Math.min(t.length,120));const fs=clamp((a.w-90)/(maxC*.602),phone()?11:11.5,14);pg.style.setProperty('--cfs',fs+'px');
-  for(const id of ids){const C=CARDS[id];const lang=EXT(C.cd.file);const first=(C.cd.code||[]).find(l=>l[0]);const cd=HT('div','cd read',pg);cd.dataset.card=id;HT('div','cdh',cd,`<b>${esc(C.cd.title)}</b><span>${esc(C.cd.file)}:${first?first[0]:''}</span>`);
+  let maxC=40;for(const id of ids)for(const [,t] of CARDS[id].cd.code||[])maxC=Math.max(maxC,Math.min(t.length,120));const fs=clamp((a.w-90)/(maxC*.602),phone()?11:11.5,14);pg.style.setProperty('--cfs',fs+'px');let anyPs=false;
+  for(const id of ids){const C=CARDS[id];const lang=EXT(C.cd.file);const first=(C.cd.code||[]).find(l=>l[0]);const cd=HT('div','cd read'+((C.cd.steps||[]).length?' hasps':''),pg);cd.dataset.card=id;HT('div','cdh',cd,`<b>${esc(C.cd.title)}</b><span>${esc(C.cd.file)}:${first?first[0]:''}</span>`);
     const st={};let h='';for(const s of segsOf(C)){if(!s.gap)h+=`<div class="bh" data-a="${s.a}"><span>${esc(s.lab)}</span><small>L${s.a}${s.b!==s.a?'–'+s.b:''}</small></div>`;
       for(const [ln,t] of s.lines){if(!ln){h+=`<div class="cl"><span class="n"></span><span class="x tc">${esc(t)}</span></div>`;continue}const toks=hiLine(t,lang,st);let x='';
         for(let j=0;j<toks.length;j++){const [cl,sv]=toks[j];let tgt=(C.cd.links&&C.cd.links[sv])||null;if(!tgt&&cl==='p'&&LINKS[sv]){let k=j+1;while(k<toks.length&&!toks[k][1].trim())k++;if(k<toks.length&&'([<'.includes(toks[k][1]))tgt=LINKS[sv]}
           x+=tgt&&tgt!==id&&CARDS[tgt]&&cl!=='c'&&cl!=='s'?`<span class="t${cl} lnk" data-lnk="${tgt}">${esc(sv)}</span>`:`<span class="t${cl}">${esc(sv)}</span>`}
         h+=`<div class="cl" data-ln="${ln}" data-c="${id}"><span class="n">${ln}</span><span class="x">${x}</span></div>`}}
-    HT('div','codeb',cd,h)}
+    const steps=C.cd.steps;
+    if(steps&&steps.length){anyPs=true;const blk=segsOf(C).filter(q=>!q.gap);const om=(C.cd.omitted||[]).map(o=>({om:true,lines:[o[0],o[1]],title:o[2]}));
+      const all=[...steps.map((q,i)=>({...q,i})),...om].sort((x,y)=>x.lines[0]-y.lines[0]);let ph='',lastB=null;
+      for(const q of all){const b=blk.find(z=>q.lines[0]>=z.a&&q.lines[0]<=z.b);if(b&&b!==lastB){ph+=`<div class="pb">${esc(b.lab)}</div>`;lastB=b}
+        const ref=`L${q.lines[0]}${q.lines[1]!==q.lines[0]?'–'+q.lines[1]:''}`;
+        if(q.om){ph+=`<div class="pr om"><span class="pk">·</span><span class="pt">省略 ${ref}：${esc(q.title)}</span></div>`;continue}
+        const k=PK[q.kind]?q.kind:'step';const call=q.call&&CARDS[q.call]&&q.call!==id?`<i class="pc lnk" data-lnk="${q.call}">进入 ${esc(String(CARDS[q.call].cd.title).replace(/\(.*$/,'').split(/\.|::/).pop())} ›</i>`:'';
+        ph+=`<div class="pr k-${k}" role="button" data-i="${q.i}" data-c="${id}" data-a="${q.lines[0]}" data-b="${q.lines[1]}" style="--d:${q.depth||0}"><span class="pk">${PK[k]}</span><span class="pt">${esc(q.title)}${call}${q.note?`<small>${esc(q.note)}</small>`:''}</span><span class="pl">${ref}</span></div>`}
+      cd.querySelector('.cdh').insertAdjacentHTML('beforeend','<span class="vsw"><button data-view="p">伪代码</button><button data-view="s">源码</button></span>');
+      const duo=HT('div','duo',cd);HT('div','ps',duo,ph);const cb=HT('div','codeb',duo,h);
+      for(const o of C.cd.omitted||[])for(let n=o[0];n<=o[1];n++){const e=cb.querySelector(`.cl[data-ln="${n}"]`);if(e){e.classList.add('omd');e.title='伪代码里省略：'+o[2]}}
+    }else HT('div','codeb',cd,h)}
+  if(anyPs){pg.style.setProperty('--cfs',(phone()?12:12.5)+'px');pg.style.setProperty('--pgh',a.h+'px');pg.dataset.view='p'}
+  let lock=0;
+  const pick=(c,i,how)=>{pg.querySelectorAll('.pr.act').forEach(e=>e.classList.remove('act'));const r=pg.querySelector(`.pr[data-c="${c}"][data-i="${i}"]`);if(!r)return;r.classList.add('act');
+    const ps=r.parentNode;if(ps.scrollHeight>ps.clientHeight+2){const y=r.offsetTop-ps.offsetTop;if(y<ps.scrollTop+30||y>ps.scrollTop+ps.clientHeight-70)ps.scrollTo({top:Math.max(0,y-ps.clientHeight*.35),behavior:RM?'auto':'smooth'})}
+    if(how==='scroll')return;pg.querySelectorAll('.cl.sel').forEach(e=>e.classList.remove('sel'));for(let n=+r.dataset.a;n<=+r.dataset.b;n++){const e=row(c,n);if(e)e.classList.add('sel')}
+    if(how==='click'){lock=performance.now()+900;if(phone())pg.dataset.view='s';requestAnimationFrame(()=>scrollTo(c,+r.dataset.a,!phone()))}};
+  const stepAt=(c,l)=>{let best=-1;pg.querySelectorAll(`.pr[data-c="${c}"][data-i]`).forEach(e=>{if(+e.dataset.a<=l)best=+e.dataset.i});return best};
+  let sraf=0;pg.addEventListener('scroll',()=>{if(!anyPs||sraf||performance.now()<lock)return;sraf=requestAnimationFrame(()=>{sraf=0;const probe=pg.getBoundingClientRect().top+pg.clientHeight*.3;let hit=null;
+    for(const e of pg.querySelectorAll('.hasps .cl[data-ln]')){const r=e.getBoundingClientRect();if(r.height&&r.top<=probe)hit=e;else if(r.top>probe)break}
+    if(hit){const i=stepAt(hit.dataset.c,+hit.dataset.ln);if(i>=0)pick(hit.dataset.c,i,'scroll')}})},{passive:true});
+  const setView=v=>{pg.dataset.view=v;const r=pg.querySelector('.pr.act');if(!r)return;if(v==='s')scrollTo(r.dataset.c,+r.dataset.a,false);else pg.scrollTo({top:Math.max(0,r.offsetTop-pg.offsetTop-pg.clientHeight*.3)})};
   const row=(c,l)=>pg.querySelector(`.cl[data-c="${c}"][data-ln="${l}"]`);
   const scrollTo=(c,l,smooth)=>{const e=l?row(c,l):pg.querySelector(`.cd[data-card="${c}"]`);if(e)pg.scrollTo({top:Math.max(0,e.offsetTop-pg.offsetTop-(l?pg.clientHeight*.28:0)),behavior:smooth&&!RM?'smooth':'auto'})};
-  if(card)requestAnimationFrame(()=>scrollTo(card,line,false));
-  return {type:'code',ids,mod,card,el,pg,frame:rc(a.x,a.y,a.w,a.h),rectOf:()=>null,targetAt:()=>null,scrollTo,
+  if(card)requestAnimationFrame(()=>{scrollTo(card,line,false);if(line){const i=stepAt(card,line);if(i>=0){lock=performance.now()+500;pick(card,i,'init');if(phone()){const r=pg.querySelector('.pr.act');if(r)pg.scrollTo({top:Math.max(0,r.offsetTop-pg.offsetTop-pg.clientHeight*.3)})}}}});
+  return {type:'code',ids,mod,card,el,pg,frame:rc(a.x,a.y,a.w,a.h),rectOf:()=>null,targetAt:()=>null,scrollTo,pick,setView,
     mark(key,val,l,l2){pg.querySelectorAll('.cl.cur').forEach(e=>e.classList.remove('cur'));pg.querySelectorAll('.vn').forEach(e=>e.remove());if(!l)return;for(let i=l;i<=(l2||l);i++){const e=row(key,i);if(e)e.classList.add('cur')}
+      if(anyPs){const i=stepAt(key,l);if(i>=0){lock=performance.now()+900;pick(key,i,'init')}if(phone())pg.dataset.view='s'}
       const e=row(key,l2||l);if(e&&val){const v=document.createElement('span');v.className='vn';v.textContent='→ '+val;e.querySelector('.x').appendChild(v)}scrollTo(key,l,true)}}}
 function build(p){return p.type==='sys'?pageSys():p.type==='mod'?pageMod(p.id):p.type==='card'?(isShort(p.ids)?Object.assign(pageCode(p.ids,p.mod,null,null),{type:'card',short:true,ids:p.ids,mod:p.mod}):pageCard(p.ids,p.mod)):pageCode(p.ids,p.mod,p.card,p.line)}
 const levelOf=p=>p.type==='sys'?0:p.type==='mod'?1:p.type==='card'?(p.short?3:2):3;
@@ -541,6 +589,9 @@ stage.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.s
 function pup(e){ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;if(down&&down.moved<6&&ptrs.size===0&&!TR&&!busy)click(down.t,e.clientX,e.clientY);if(ptrs.size===0)down=null}
 stage.addEventListener('pointerup',pup);stage.addEventListener('pointercancel',e=>{ptrs.delete(e.pointerId);pinch=null;down=null});
 function click(t,x,y){hideHint();const lk=t.closest&&t.closest('.lnk');if(lk){const C=CARDS[lk.dataset.lnk];if(C)return goto({type:'code',ids:[C.id],mod:C.mod,card:C.id})}
+  const vb=t.closest&&t.closest('.vsw [data-view]');if(vb&&cur.setView)return cur.setView(vb.dataset.view);
+  const pr=t.closest&&t.closest('.pr[data-i]');if(pr&&cur.pick)return cur.pick(pr.dataset.c,+pr.dataset.i,'click');
+  const sl=t.closest&&t.closest('.hasps .cl[data-ln]');if(sl&&cur.pick){const rows=[...cur.pg.querySelectorAll(`.pr[data-c="${sl.dataset.c}"][data-i]`)];const r=rows.filter(e=>+e.dataset.a<=+sl.dataset.ln).pop();if(r)cur.pick(r.dataset.c,+r.dataset.i,'src')}
   const k=t.closest&&t.closest('[data-key]');
   if(cur.type==='sys'){if(k&&k.dataset.key.startsWith('mod:'))return enter({type:'mod',id:k.dataset.key.slice(4)});return}
   if(cur.type==='mod'){if(k&&k.dataset.cards)return enter({type:'card',ids:k.dataset.cards.split(','),mod:cur.id});if(!(t.closest&&t.closest('.frame,[data-key]'))||t.classList.contains('frame'))return k?null:(t.classList&&t.classList.contains('frame')?null:leave());return}

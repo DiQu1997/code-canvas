@@ -193,6 +193,50 @@ def validate(spec, R):
                 R.e(f"card {cid}: no blocks (summaries are the function level)")
             elif len(covered) < .6 * len(lines):
                 R.w(f"card {cid}: blocks cover {len(covered)}/{len(lines)} lines")
+        # ---- pseudo-code: steps + omitted must cover every code line of the card ----
+        steps = c.get("steps")
+        if steps is not None:
+            SK = {"step", "decision", "loop", "write", "wait", "return", "call"}
+            txt = {n: t for n, t in c.get("code") or [] if n}
+            cov = set()
+            if not (3 <= len(steps) <= 26):
+                R.w(f"card {cid}: {len(steps)} pseudo-code steps (aim 4-20)")
+            last = 0
+            for i, st in enumerate(steps):
+                sw = f"card {cid} step {i + 1}"
+                if not str(st.get("title") or "").strip():
+                    R.e(f"{sw}: title missing")
+                elif len(st["title"]) > 34:
+                    R.w(f"{sw}: title {len(st['title'])} chars (max ~28): {st['title']}")
+                if st.get("kind") and st["kind"] not in SK:
+                    R.e(f"{sw}: kind must be one of {sorted(SK)}")
+                if st.get("call") and st["call"] not in cards:
+                    R.e(f"{sw}: call '{st['call']}' is not a card id")
+                sl = st.get("lines")
+                if not (isinstance(sl, list) and len(sl) == 2 and sl[0] <= sl[1]):
+                    R.e(f"{sw}: lines [a,b] required"); continue
+                if sl[0] not in txt or sl[1] not in txt:
+                    R.e(f"{sw}: lines {sl} not inside the card's lines"); continue
+                if sl[0] < last:
+                    R.w(f"{sw}: lines {sl} go backwards (steps should follow the source order)")
+                last = sl[0]
+                cov |= set(range(sl[0], sl[1] + 1))
+            for o in c.get("omitted") or []:
+                if not (isinstance(o, list) and len(o) >= 3 and str(o[2]).strip()):
+                    R.e(f"card {cid}: omitted entries are [from, to, reason]"); continue
+                cov |= set(range(o[0], o[1] + 1))
+            def is_code(t):
+                t = t.strip()
+                return bool(t) and not t.startswith(("#", "//", "/*", "*", '"""', "'''")) and bool(re.search(r"[A-Za-z0-9]", t))
+            missing = [n for n in sorted(txt) if is_code(txt[n]) and n not in cov]
+            if missing:
+                runs, a0 = [], None
+                for n in missing:
+                    if a0 is None: a0 = b0 = n
+                    elif n == b0 + 1: b0 = n
+                    else: runs.append((a0, b0)); a0 = b0 = n
+                runs.append((a0, b0))
+                R.e(f"card {cid}: {len(missing)} code lines not covered by any step or omitted: " + ", ".join(f"{x}" if x == y else f"{x}-{y}" for x, y in runs))
     stories = spec.get("stories") or ([spec["story"]] if spec.get("story") else [])
     if not stories:
         R.w("no story — a protagonist walk is what ties the levels together")

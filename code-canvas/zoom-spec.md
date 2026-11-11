@@ -162,3 +162,26 @@ python3 reader_check.py zoom.data.json --zoom --out reader_report.md  # 新读�
 ## 连线不能穿过别的模块
 
 一条线如果从第三个模块的框里穿过去，读者会以为它是从那个模块出发或到达的。渲染器会自动换出入边、把弧线拉大来绕开；绕不开时 `zoom_shot.js` 末尾的 `CROSSINGS` 会列出来——挪模块位置，或用 `sides` / `dx1` `dy1` `dx2` `dy2` 修到 `none`。
+
+## 伪代码（cards[].steps，可选）
+
+最后一层左边伪代码、右边源码并排对照（手机上是切换）。给一张卡写 `steps` 就启用：
+
+```jsonc
+{"id": "step", "title": "EngineCore.step()", "file": "vllm/v1/engine/core.py", "lines": [710, 743],
+ "blocks": [[719, 722, "调度器里一个请求都没有就不走这拍"], ...],          // 函数卡那层的几句摘要，不变
+ "steps": [
+   {"title": "调度器里没有请求？", "kind": "decision", "lines": [719, 720]},
+   {"title": "是：返回空输出", "kind": "return", "lines": [721, 722], "depth": 1},
+   {"title": "scheduler_output = 调度这一拍", "kind": "call", "call": "sched_main", "lines": [723, 723]},
+   {"title": "把它交给 GPU，不阻塞", "kind": "step", "lines": [724, 726]},
+   {"title": "等结果出来", "kind": "wait", "lines": [727, 732], "note": "等的时候顺手处理新到的中止请求"}
+ ],
+ "omitted": [[711, 716, "docstring"], [733, 733, "日志"]]}
+```
+
+- 一步 = 一个动作或一个判断，人话，≤ 28 字；保留**全部**核心逻辑：顺序、分支、循环、改了哪个状态、返回什么。读者只看伪代码就应该能复述这个函数。
+- `kind`：`step` `decision` `loop` `write`（改状态）`wait`（阻塞 / 等待）`return` `call`（`call` 填被调函数的卡 id，可点过去）。`depth`：在分支 / 循环里面的 +1。`note`：一句补充（≤ 40 字）。
+- 步骤按源码顺序写，`lines` 是它对应的源码行。日志、统计、防御性检查、与主线无关的特殊路径进 `omitted: [[a, b, 原因]]`。
+- **机械检查**：`steps` 的行段 + `omitted` 必须盖住卡里的每一行代码（空行、注释不算），漏的行报 ERROR 并列出行号。
+- 十来行以内、一眼能看完的卡不用写 `steps`。
