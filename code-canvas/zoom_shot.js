@@ -41,6 +41,9 @@ const path = require('path'), fs = require('fs');
   const n = await p.evaluate(() => __zoom.steps().length);
   for (const i of [...new Set([0, Math.floor(n * .3), Math.floor(n * .6), n - 2].filter(i => i >= 0 && i < n))]) {
     await p.evaluate(i => __zoom.goStep(i), i); await p.waitForTimeout(400); await shot(`s-step-${i + 1}.png`) }
+  await p.evaluate(() => __zoom.goto({type: 'sys'})); await idle();
+  const cross = await p.evaluate(() => window.__zoomCross || []);
+  console.log('CROSSINGS (连线穿过了别的模块，用 sides / dy1 / dy2 / 挪位置修掉):', cross.length ? '\n  ' + cross.join('\n  ') : 'none');
   console.log('ERRORS:', errs.join('\n') || 'none');
   await b.close();
 })();

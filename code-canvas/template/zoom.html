@@ -260,6 +260,20 @@ const COLW=D.layout?.colw||330,ROWH=D.layout?.rowh||260,GAP=D.layout?.gap||44;
 const MODS=(D.modules||[]).map(m=>({...m}));const MOD={};
 MODS.forEach(M=>{MOD[M.id]=M;const ext=M.kind==='external'||!M.anatomy;const [c,r]=M.pos||[0,0];const [sw,sh]=M.span||(ext?[.55,.5]:[1,1]);M.box={x:c*COLW,y:r*ROWH,w:sw*COLW-GAP,h:sh*ROWH-GAP};M.ext=ext});
 const bnd=(()=>{if(!MODS.length)return {x:0,y:0,w:100,h:100};let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const M of MODS){const b=M.box;x0=Math.min(x0,b.x);y0=Math.min(y0,b.y);x1=Math.max(x1,b.x+b.w);y1=Math.max(y1,b.y+b.h)}return {x:x0-36,y:y0-52,w:x1-x0+72,h:y1-y0+84}})();
+let bx0=bnd.x,by0=bnd.y,bx1=bnd.x+bnd.w,by1=bnd.y+bnd.h;
+const side=(b,s)=>s==='r'?[b.x+b.w,b.y+b.h/2]:s==='l'?[b.x,b.y+b.h/2]:s==='t'?[b.x+b.w/2,b.y]:[b.x+b.w/2,b.y+b.h];const pairN={};const ROUTES=[];
+  (D.channels||[]).forEach(c=>{const A=MOD[c.from],B=MOD[c.to];if(!A||!B)return;const a2=A.box,b=B.box;let sa,sb;const acy=a2.y+a2.h/2,bcy=b.y+b.h/2;
+    if(c.sides){[sa,sb]=c.sides.split('')}else if(b.x>=a2.x+a2.w-4){sa='r';sb='l'}else if(b.x+b.w<=a2.x+4){sa='l';sb='r'}else if(bcy>acy){sa='b';sb='t'}else{sa='t';sb='b'}
+    const key=[c.from,c.to].sort().join('|');const n=pairN[key]=(pairN[key]||0)+1;const off=(n-1)*16*(n%2?1:-1);
+    const geo=(sa,sb,mul=1)=>{let [x1,y1]=side(a2,sa),[x2,y2]=side(b,sb);if(sa==='r'||sa==='l')y1+=off+(c.dy1||0);else x1+=off+(c.dx1||0);if(sb==='r'||sb==='l')y2+=off+(c.dy2||0);else x2+=off+(c.dx2||0);
+      const h1=(sa==='r'||sa==='l'),h2=(sb==='r'||sb==='l');const dd=Math.max(30,Math.hypot(x2-x1,y2-y1)*.4)*mul;
+      const c1=h1?[x1+(sa==='r'?dd:-dd),y1]:[x1,y1+(sa==='b'?dd:-dd)],c2=h2?[x2+(sb==='r'?dd:-dd),y2]:[x2,y2+(sb==='b'?dd:-dd)];
+      let bad=0,len=0,px=x1,py=y1;const pts=[];for(let i=1;i<=40;i++){const t=i/40,u=1-t;const x=u*u*u*x1+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*x2,y=u*u*u*y1+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*y2;len+=Math.hypot(x-px,y-py);px=x;py=y;pts.push([x,y]);
+        for(const M of MODS){const q=M.box;const own=M.id===c.from||M.id===c.to;const m=own?-6:3;if(i>2&&i<38&&x>q.x+m&&x<q.x+q.w-m&&y>q.y+m&&y<q.y+q.h-m)bad+=own?.5:1}}
+      return {x1,y1,x2,y2,c1,c2,bad,len,pts}};
+    let G=geo(sa,sb);if(G.bad){for(const mul of [1,1.5,2.1])for(const s1 of 'rlbt')for(const s2 of 'rlbt'){const g=geo(s1,s2,mul);g.len*=mul;if(g.bad<G.bad-.01||(Math.abs(g.bad-G.bad)<.01&&g.bad&&g.len<G.len))G=g}}  // the asked-for sides run through another module: pick the cleanest pair instead
+    ROUTES.push({c,G});for(const q of G.pts){bx0=Math.min(bx0,q[0]-14);by0=Math.min(by0,q[1]-22);bx1=Math.max(bx1,q[0]+14);by1=Math.max(by1,q[1]+14)}});
+bnd.x=bx0;bnd.y=by0;bnd.w=bx1-bx0;bnd.h=by1-by0;
 const CARDS={};(D.cards||[]).forEach(c=>{CARDS[c.id]={cd:c,id:c.id}});
 const itemCards=it=>!it||!it.card?[]:(Array.isArray(it.card)?it.card:[it.card]).filter(id=>CARDS[id]);
 // stubs used by the shared drawing code
@@ -419,13 +433,8 @@ function pageSys(){const a=area();const el=HT('div','layer',stage);const svg=E('
   const world=E('g',{transform:`translate(${ox},${oy}) scale(${k})`},svg);const Lg=E('g',{},world),Lch=E('g',{},world),Lm=E('g',{},world),Ldot=E('g',{},world),Lz=E('g',{},world),Lfx=E('g',{},world);
   for(const G of D.groups||[]){const ms=(G.modules||[]).map(i=>MOD[i]).filter(Boolean);if(!ms.length)continue;const p=16;const x0=Math.min(...ms.map(m=>m.box.x))-p,y0=Math.min(...ms.map(m=>m.box.y))-p-16,x1=Math.max(...ms.map(m=>m.box.x+m.box.w))+p,y1=Math.max(...ms.map(m=>m.box.y+m.box.h))+p;
     E('rect',{x:x0,y:y0,width:x1-x0,height:y1-y0,rx:14,class:'grp'},Lg);E('text',{x:x0+12,y:y0+14,class:'grpt','font-size':clamp(11/k,8,26)},Lg,G.title||'')}
-  const side=(b,s)=>s==='r'?[b.x+b.w,b.y+b.h/2]:s==='l'?[b.x,b.y+b.h/2]:s==='t'?[b.x+b.w/2,b.y]:[b.x+b.w/2,b.y+b.h];const pairN={},CH=[];
-  (D.channels||[]).forEach(c=>{const A=MOD[c.from],B=MOD[c.to];if(!A||!B)return;const a2=A.box,b=B.box;let sa,sb;const acy=a2.y+a2.h/2,bcy=b.y+b.h/2;
-    if(c.sides){[sa,sb]=c.sides.split('')}else if(b.x>=a2.x+a2.w-4){sa='r';sb='l'}else if(b.x+b.w<=a2.x+4){sa='l';sb='r'}else if(bcy>acy){sa='b';sb='t'}else{sa='t';sb='b'}
-    const key=[c.from,c.to].sort().join('|');const n=pairN[key]=(pairN[key]||0)+1;const off=(n-1)*16*(n%2?1:-1);let [x1,y1]=side(a2,sa),[x2,y2]=side(b,sb);
-    if(sa==='r'||sa==='l')y1+=off+(c.dy1||0);else x1+=off+(c.dx1||0);if(sb==='r'||sb==='l')y2+=off+(c.dy2||0);else x2+=off+(c.dx2||0);
-    const h1=(sa==='r'||sa==='l'),h2=(sb==='r'||sb==='l');const dd=Math.max(30,Math.hypot(x2-x1,y2-y1)*.4);
-    const c1=h1?[x1+(sa==='r'?dd:-dd),y1]:[x1,y1+(sa==='b'?dd:-dd)],c2=h2?[x2+(sb==='r'?dd:-dd),y2]:[x2,y2+(sb==='b'?dd:-dd)];const kind=KC[c.kind]?c.kind:'flow',col=KC[kind];
+  const CH=[];ROUTES.forEach(({c,G})=>{const {x1,y1,x2,y2,c1,c2}=G;
+    const kind=KC[c.kind]?c.kind:'flow',col=KC[kind];
     const p=E('path',{d:`M${x1} ${y1} C${c1} ${c2} ${x2} ${y2}`,class:'ch '+kind,stroke:col,'marker-end':`url(#ar-${kind})`},Lch);const L=p.getTotalLength?0:0;
     CH.push({...c,p,col,kind,ph:Math.random()})});
   const boxes={};
@@ -437,6 +446,10 @@ function pageSys(){const a=area();const el=HT('div','layer',stage);const svg=E('
     const fs=10.5/(c.s*k);for(const l of c.l0){let f=l.mh?Math.min(fs,l.mh*.62):fs;if(tw(l.t)*f>l.mw){if(tw(l.t)*f*.85<=l.mw)f*=.85;else continue}E('text',{x:l.x,y:l.y,'font-size':f,'text-anchor':l.anc,'dominant-baseline':l.base,class:'al'},c.gL0,l.t)}}
   // channel labels after layout (needs the svg in the document)
   for(const c of CH){c.L=c.p.getTotalLength();if(c.label){const mid=c.p.getPointAtLength(c.L/2);E('text',{x:mid.x,y:mid.y-5,'text-anchor':'middle',class:'chl',fill:c.col,'font-size':clamp(11/k,7,26)},Lch,c.label)}}
+  // a channel that runs through a third module's box reads as if it started or ended there: report it
+  const cross=[];for(const c of CH){const hit=new Set();for(let i=1;i<40;i++){const q=c.p.getPointAtLength(c.L*i/40);for(const M of MODS){if(M.id===c.from||M.id===c.to)continue;const b=M.box;if(q.x>b.x+3&&q.x<b.x+b.w-3&&q.y>b.y+3&&q.y<b.y+b.h-3)hit.add(M.id)}}
+    if(hit.size)cross.push(`${c.from} → ${c.to}「${c.label||''}」穿过了 ${[...hit].join(', ')}`)}
+  window.__zoomCross=cross;
   const dots=[];for(const c of CH){const n=c.kind==='async'||c.kind==='control'?1:c.kind==='error'?0:2;for(let i=0;i<n;i++)dots.push({c,ph:(c.ph+i/n)%1,el:E('circle',{r:3.2/k,fill:c.col,class:'dot'},Ldot)})}
   const toS=b=>rc(ox+b.x*k,oy+b.y*k,b.w*k,b.h*k);const setPan=(x,y)=>{ox=clamp(x,a.x+a.w-(bnd.x+bnd.w)*k,a.x-bnd.x*k);world.setAttribute('transform',`translate(${ox},${oy}) scale(${k})`);sysPan=[ox,oy]};
   return {type:'sys',el,frame:toS(bnd),dots,k,Lfx,pan:big?(dx=>setPan(ox+dx,oy)):null,rectOf:key=>{const M=MOD[key.slice(4)];return M?toS(M.box):null},
