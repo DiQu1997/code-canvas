@@ -186,3 +186,15 @@ python3 reader_check.py zoom.data.json --zoom --out reader_report.md  # 新读�
 - 步骤按源码顺序写，`lines` 是它对应的源码行。日志、统计、防御性检查、与主线无关的特殊路径进 `omitted: [[a, b, 原因]]`。
 - **机械检查**：`steps` 的行段 + `omitted` 必须盖住卡里的每一行代码（空行、注释不算），漏的行报 ERROR 并列出行号。
 - 十来行以内、一眼能看完的卡不用写 `steps`。
+
+## 动画场景作为最上层（scene.json，可选）
+
+`zoom.json` 旁边放一个 `scene.json`，画布的最上层就从静态系统图换成会动的场景：实体有状态（线程在跑 / 阻塞在哪、队列里的条目、日志游标、预算条、GPU 批次、块池），主角是一个从头走到尾的物体，每一步的变化都从上一个画面动画过去。
+
+- `entities[]`：`type` = `thread` `ext` `queue` `store` `log` `grid` `bar` `group`，带位置 `x y w h`；**`module`** 填它对应的模块 id——放大这个实体就进到那个模块的内部结构。
+- `wires[]`：`kind` = `call` `queue` `ret` `cb`（回调，可 `hidden`，被调用时才画出来）`ipc` `data`。
+- `tokens`：请求、闭包、响应等会移动的东西。
+- `steps[]`：`text` `value` `focus`（点亮哪些实体）`beats`（一拍里并行的一组状态变化：`spawn` `move` `gone` `tok` `state` `var` `mark` `segs` `batch` `alloc` `free` `pulse` `flash` `wire`），以及 **`at: {card, line, line2}`**——这一步对应的代码，侧栏据此显示伪代码和源码，并能一键放大过去。
+- 画面上的每个值都要能在代码或故事设定里找到出处；为演示做的假设写在 `text` 里。
+
+格式的完整例子：`scenes/kafka.json`、`scenes/vllm.json`。

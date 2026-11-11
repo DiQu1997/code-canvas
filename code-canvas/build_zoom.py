@@ -280,8 +280,37 @@ def main():
     a = ap.parse_args()
     spec = json.loads(a.spec.read_text(encoding="utf-8"))
     R = Report()
+    # an animated scene (scene.json beside the spec, or spec["scene"]) becomes the top level of the canvas
+    sib = a.spec.with_name("scene.json")
+    if "scene" not in spec and sib.exists():
+        spec["scene"] = json.loads(sib.read_text(encoding="utf-8"))
     fill_code(spec, a.repo, R)
     validate(spec, R)
+    sc = spec.get("scene")
+    if sc:
+        mods = {m["id"] for m in spec.get("modules") or []}
+        cards = {c["id"]: c for c in spec.get("cards") or []}
+        ents = {e["id"] for e in sc.get("entities") or []}
+        if not any(e.get("module") for e in sc.get("entities") or []):
+            R.e("scene: no entity has a module — nothing to zoom into")
+        for e in sc.get("entities") or []:
+            if e.get("module") and e["module"] not in mods:
+                R.e(f"scene entity {e['id']}: unknown module {e['module']}")
+        for w in sc.get("wires") or []:
+            for end in (w["a"], w["b"]):
+                if end[0] not in ents:
+                    R.e(f"scene wire {w['id']}: unknown entity {end[0]}")
+        for i, st in enumerate(sc.get("steps") or []):
+            at = st.get("at") or {}
+            if at.get("card"):
+                c = cards.get(at["card"])
+                if not c:
+                    R.e(f"scene step {i + 1}: unknown card {at['card']}")
+                elif at.get("line") not in {n for n, _ in c.get("code") or [] if n}:
+                    R.e(f"scene step {i + 1}: line {at.get('line')} not in card {at['card']}")
+            for f in st.get("focus") or []:
+                if f not in ents:
+                    R.e(f"scene step {i + 1}: focus on unknown entity {f}")
     for m in R.err:
         print("ERROR", m)
     for m in R.warn:

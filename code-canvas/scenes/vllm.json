@@ -58,7 +58,8 @@
    "h": 50,
    "title": "input_queue",
    "sub": "跨进程（ZMQ）",
-   "count": false
+   "count": false,
+   "module": "eng"
   },
   {
    "id": "eng",
@@ -73,7 +74,8 @@
    "state": "run",
    "vars": {
     "拍": "N − 1"
-   }
+   },
+   "module": "eng"
   },
   {
    "id": "waiting",
@@ -84,7 +86,8 @@
    "w": 180,
    "h": 150,
    "title": "waiting",
-   "sub": "FCFS，队首在上"
+   "sub": "FCFS，队首在上",
+   "module": "q"
   },
   {
    "id": "running",
@@ -95,7 +98,8 @@
    "w": 180,
    "h": 190,
    "title": "running",
-   "sub": "每格：已算的 / 应有的 token"
+   "sub": "每格：已算的 / 应有的 token",
+   "module": "run"
   },
   {
    "id": "budget",
@@ -106,7 +110,8 @@
    "h": 30,
    "total": 2048,
    "title": "token_budget",
-   "sub": "每拍重置为 max_num_batched_tokens"
+   "sub": "每拍重置为 max_num_batched_tokens",
+   "module": "sched"
   },
   {
    "id": "gpu",
@@ -133,7 +138,8 @@
    "cols": 16,
    "rowsN": 6,
    "title": "BlockPool（KV 块）",
-   "sub": "示意：1 格 ≈ 4 块，每块 16 token；斜线 = 带 hash 的缓存块"
+   "sub": "示意：1 格 ≈ 4 块，每块 16 token；斜线 = 带 hash 的缓存块",
+   "module": "pool"
   }
  ],
  "wires": [
@@ -381,7 +387,11 @@
       "via": "w_add"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "enqueue",
+    "line": 2788
+   }
   },
   {
    "tick": "第 N 拍",
@@ -406,7 +416,11 @@
       "color": null
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "sched_head",
+    "line": 735
+   }
   },
   {
    "tick": "第 N 拍",
@@ -459,7 +473,12 @@
       "n": 32
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "run_count",
+    "line": 862,
+    "line2": 864
+   }
   },
   {
    "tick": "第 N 拍",
@@ -477,7 +496,12 @@
       "color": "c5"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "wait_pick",
+    "line": 1095,
+    "line2": 1096
+   }
   },
   {
    "tick": "第 N 拍",
@@ -531,7 +555,11 @@
       "ent": "gpu"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "after",
+    "line": 1912
+   }
   },
   {
    "tick": "第 N 拍",
@@ -551,7 +579,11 @@
       }
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "upd_append",
+    "line": 2886
+   }
   },
   {
    "tick": "第 N+1 拍",
@@ -603,7 +635,12 @@
       "n": 15
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "run_count",
+    "line": 855,
+    "line2": 859
+   }
   },
   {
    "tick": "第 N+1 拍",
@@ -637,7 +674,11 @@
       }
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "kv_hit",
+    "line": 324
+   }
   },
   {
    "tick": "第 N+1 拍",
@@ -686,7 +727,12 @@
       "via": "w_adm"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "wait_admit",
+    "line": 1609,
+    "line2": 1611
+   }
   },
   {
    "tick": "第 N+1 拍",
@@ -779,7 +825,11 @@
       "who": "C"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "sched_pack",
+    "line": 1692
+   }
   },
   {
    "tick": "第 N+2 拍",
@@ -830,7 +880,12 @@
       "color": "c5"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "run_alloc",
+    "line": 930,
+    "line2": 938
+   }
   },
   {
    "tick": "第 N+2 拍",
@@ -876,7 +931,12 @@
       "front": true
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "preempt",
+    "line": 1875,
+    "line2": 1876
+   }
   },
   {
    "tick": "第 N+2 拍",
@@ -918,7 +978,11 @@
       "color": "c5"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "wait_pick",
+    "line": 1066
+   }
   },
   {
    "tick": "之后",

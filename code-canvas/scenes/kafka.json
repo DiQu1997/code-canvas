@@ -68,7 +68,8 @@
    "state": "run",
    "vars": {
     "连接": "可读"
-   }
+   },
+   "module": "proc"
   },
   {
    "id": "respq",
@@ -79,7 +80,8 @@
    "h": 44,
    "title": "responseQueue",
    "sub": "Processor 1 私有",
-   "count": false
+   "count": false,
+   "module": "proc"
   },
   {
    "id": "reqq",
@@ -91,7 +93,8 @@
    "cap": 500,
    "capShow": 6,
    "title": "requestQueue",
-   "sub": "全局、有界：满了网络线程就卡住"
+   "sub": "全局、有界：满了网络线程就卡住",
+   "module": "rc"
   },
   {
    "id": "h4",
@@ -104,7 +107,8 @@
    "title": "处理线程 #4",
    "sub": "KafkaApis.handle()",
    "state": "blocked",
-   "on": "requestQueue"
+   "on": "requestQueue",
+   "module": "handler"
   },
   {
    "id": "h6",
@@ -116,7 +120,8 @@
    "h": 135,
    "title": "处理线程 #6",
    "sub": "KafkaApis.handle()",
-   "state": "run"
+   "state": "run",
+   "module": "handler"
   },
   {
    "id": "log",
@@ -148,7 +153,8 @@
    ],
    "vars": {
     "follower LEO": 1000
-   }
+   },
+   "module": "rm"
   },
   {
    "id": "purg",
@@ -169,7 +175,8 @@
      "id": "t",
      "label": "时间轮"
     }
-   ]
+   ],
+   "module": "purg"
   },
   {
    "id": "fol",
@@ -437,7 +444,11 @@
       "color": null
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "proc_recv",
+    "line": 1007
+   }
   },
   {
    "text": "放进全局的 requestQueue，然后 mute 这条连接：P7 的响应写出之前，这条连接上不会再读下一个请求。网络线程不等结果，回去继续 poll。",
@@ -471,7 +482,12 @@
       "on": "poll(300)"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "proc_recv",
+    "line": 1019,
+    "line2": 1021
+   }
   },
   {
    "text": "处理线程 #4 一直阻塞在 requestQueue 上。队列里有了东西，它被唤醒，取走 P7。从这里到 handle() 返回，P7 都在线程 #4 上。",
@@ -498,7 +514,12 @@
       "via": "w_take4"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "rc_recv",
+    "line": 161,
+    "line2": 165
+   }
   },
   {
    "text": "KafkaApis 校验后交给 ReplicaManager，仍在线程 #4 上：把记录追加到 orders-0 的 leader 日志。",
@@ -527,7 +548,11 @@
       "v": 1005
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "rm_local",
+    "line": 1415
+   }
   },
   {
    "text": "acks=-1：要等 ISR 里的副本都追到 1005 才能回复，而此刻 HW 还是 1000。KafkaApis 早先交出了一个闭包 sendResponseCallback：谁调用它，谁就发出 P7 的响应。",
@@ -553,7 +578,12 @@
       "color": null
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "api_produce",
+    "line": 548,
+    "line2": 554
+   }
   },
   {
    "text": "于是 P7 连同这个闭包被包成 DelayedProduce，挂到 purgatory 里 orders-0 的 watcher 上，同时放进时间轮等超时（30000ms，示例值）。",
@@ -592,7 +622,12 @@
       "v": "30000ms"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "pg_watch",
+    "line": 155,
+    "line2": 169
+   }
   },
   {
    "text": "调用链一路返回，线程 #4 回去阻塞在 requestQueue 上等下一件活。注意：P7 现在不属于任何线程，它只是 purgatory 里的一条记录。",
@@ -611,7 +646,12 @@
       "on": "requestQueue"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "h_run",
+    "line": 174,
+    "line2": 175
+   }
   },
   {
    "text": "另一个请求出场：follower broker 2 来拉数据，FETCH F9（fetchOffset=1005）。它走和 P7 相同的路进入 requestQueue，被处理线程 #6 取走。",
@@ -688,7 +728,11 @@
       "v": 1005
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "rm_hw",
+    "line": 1031
+   }
   },
   {
    "text": "HW 前进后，线程 #6 顺手检查 purgatory 里等 orders-0 的请求：HW 1005 ≥ requiredOffset 1005，P7 的条件满足了。",
@@ -713,7 +757,12 @@
       "color": "c4"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "pg_check",
+    "line": 189,
+    "line2": 193
+   }
   },
   {
    "text": "完成 DelayedProduce，就是调用当初存下的那个闭包。执行它的是线程 #6，不是当初处理 P7 的线程 #4：谁让条件成立，谁就替 P7 发响应。",
@@ -764,7 +813,11 @@
       "v": "已取消"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "dp_try",
+    "line": 195
+   }
   },
   {
    "text": "闭包构造出响应 R7，按 P7.processor = 1 投进 Processor 1 私有的 responseQueue，并 wakeup 它，打断它正在进行的 poll。（F9 自己的响应这里不画。）",
@@ -802,7 +855,12 @@
       "on": "requestQueue"
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "rc_sendresp",
+    "line": 149,
+    "line2": 153
+   }
   },
   {
    "text": "Processor 1 下一圈取出响应，写回 socket，然后 unmute 连接：producer-1 的下一个请求现在可以被读了。P7 的一生结束。",
@@ -846,7 +904,12 @@
       "show": false
      }
     ]
-   ]
+   ],
+   "at": {
+    "card": "proc_sent",
+    "line": 1052,
+    "line2": 1053
+   }
   }
  ]
 }
