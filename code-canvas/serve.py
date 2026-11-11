@@ -595,7 +595,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     meta_f = jd / (job_id + ".meta.json")
     workdir = jd / job_id
     workdir.mkdir(exist_ok=True)
-    wj = workdir / ("flow.json" if zoom else "canvas.json")
+    wj = workdir / ("zoom.json" if zoom else "canvas.json")
     hj, hh = ARGS.hub / (name + ".json"), ARGS.hub / (name + ".html")
     if upgrade:
         shutil.copyfile(str(hj), str(wj))
@@ -609,14 +609,14 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         """服务端入库（不信任 agent 守规程）。rc：3 升级被拒 / 4 validate 未过 /
         5 agent 没产出 canvas.json / 6 渲染失败。"""
         lg = q(log_f)
-        if zoom:  # 逻辑线图：build_flow 读代码+校验+覆盖检查+渲染，填好代码的数据存进库
+        if zoom:  # 缩放画布（动画场景在最上层）：build_zoom 读代码+校验+重放场景+渲染，填好代码的数据存进库
             rec = ({"git_url": src["git_url"]} if src["kind"] == "git" else {"repo": src["repo"]})
             sidecar = "printf '%s' {j} > {sf}; ".format(j=q(json.dumps(rec, ensure_ascii=False)),
                                                         sf=q(ARGS.hub / (name + ".src.json")))
             return ('if [ "$rc" -eq 0 ]; then if [ -f {w} ]; then '
                     'if {bz} {w} --repo {r} --out {hh} --dump {hj} >> {lg} 2>&1; then {{ {sidecar}:; }}; '
                     'else rc=4; fi; else rc=5; fi; fi; ').format(
-                        w=q(wj), bz=tool("build_flow.py"), r=q(repo_dir), hh=q(hh), hj=q(hj), lg=lg, sidecar=sidecar)
+                        w=q(wj), bz=tool("build_zoom.py"), r=q(repo_dir), hh=q(hh), hj=q(hj), lg=lg, sidecar=sidecar)
         refs = ("{chk} {w} {r} >> {lg} 2>&1; ".format(chk=tool("check_refs.py"), w=q(wj), r=q(repo_dir), lg=lg)
                 if repo_dir else "")
         if upgrade:
@@ -668,19 +668,19 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     head = ("阅读 {skill}/SKILL.md。它不是一条要逐步执行的管线：它给出判断标准、你必须自己做出的判断、"
             "可用的工具，以及不可商量的交付契约。\n").format(skill=SKILL_DIR)
     if zoom:
-        head = ("阅读 {skill}/SKILL.md 的第 1、2 节（判断标准、你必须自己做的判断）和 {skill}/flow-spec.md"
-                "（这次要交付的画布形态：逐层放大的结构图，到单个函数才是伪代码）。它们不是逐步执行的管线：给出的是判断标准、"
-                "格式、工具和不可商量的交付契约。\n").format(skill=SKILL_DIR)
-        tail = ("交付：{w}。\n"
-                "契约：python3 {skill}/build_flow.py {w} --repo <仓库根> --out {work}/flow.html 0 ERROR（覆盖检查报漏的行："
-                "要么补一步，要么写进 omitted 并说明原因；WARN 逐条看）；代码由脚本从仓库读，你只写 file + 行段；"
-                "meta.judgment 写实话。\n"
-                "完成的标准：一位第一次接触这个代码库的读者，看每一层的图就能说出这一层有哪些部件、它们什么关系、事情按什么顺序走；"
-                "一层层点进去，直到单个函数才看到伪代码和源码。每一层都必须是一张有结构的图，不是一列步骤。标题说人话。\n"
-                "自查三件事，都要做：1) node {skill}/flow_shot.js {work}/flow.html {work}/shots 截图逐张看；"
-                "2) python3 {skill}/verify_flow.py {work}/flow.data.json --repo <仓库根> --out {work}/verify_report.md，"
-                "检查者报的每条事实错误都要处理；3) python3 {skill}/reader_check.py {work}/flow.data.json "
-                "--out {work}/reader_report.md，读者读不懂的地方回去改（一轮）。\n"
+        head = ("阅读 {skill}/SKILL.md 的第 1、2 节（判断标准、你必须自己做的判断）、{skill}/zoom-spec.md（缩放画布，含最后的"
+                "伪代码一节）和 {skill}/scene-spec.md（动画场景，画布的最上层）。再读一个场景例子 {skill}/scenes/kafka.json。"
+                "它们不是逐步执行的管线：给出的是判断标准、可选的表达原语、工具和不可商量的交付契约。\n").format(skill=SKILL_DIR)
+        tail = ("交付（都在 {work}/）：\n"
+                "1. zoom.json —— 模块、通道、每个模块的内部结构、函数卡；每张超过 12 行的卡带英文伪代码 steps + omitted。\n"
+                "2. scene.json —— 动画场景：最上层。实体带 module，每一步带 at 指向卡和行。\n"
+                "契约：python3 {skill}/build_zoom.py {w} --repo <仓库根> --out {work}/zoom.html 0 ERROR（WARN 逐条看）；"
+                "代码由脚本从仓库读，你只写 file + 行段，行段必须对准真实函数；伪代码和场景的每一步都要对着真实源码写，"
+                "不凭印象；meta.judgment 写实话。\n"
+                "自查：node {skill}/zoom_shot.js {work}/zoom.html {work}/shots 截图并逐张看（Read 图片）：场景每一步的画面"
+                "（s-step-N.png）、每个模块的结构图、函数卡。有重叠、压线、token 停错地方、文字和画面不一致就改了再构建，至少两轮。\n"
+                "完成的标准：一位第一次接触这个代码库的读者，看完动画能说出主角经过了哪些执行者和队列；放大任何一个实体"
+                "能看到它内部怎么运转；到最后一层能对着伪代码读懂源码。\n"
                 "**不要写入画布库**——服务端收尾时重新构建并入库。完成后打印 DONE。").format(
                     skill=SKILL_DIR, w=wj, work=workdir)
     if upgrade:
@@ -709,7 +709,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                     "3-6 条故事线路且每条 step 带 ask（深潜点单句）。读者关注点：{a}\n").format(
                         w=where, skill=SKILL_DIR, a=ask)
         if zoom:
-            return "任务：为仓库 {w} 生成一张结构图画布，回答用户的问题：{a}\n".format(w=where, a=ask)
+            return "任务：为仓库 {w} 生成一张完整的缩放画布（动画场景在最上层），读者关注点：{a}\n".format(w=where, a=ask)
         return "任务：为仓库 {w} 生成一张 Code Canvas，主题/关注点：{a}\n".format(w=where, a=ask)
 
     if src["kind"] == "git":
@@ -762,7 +762,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     prompt_f.write_text(prompt, encoding="utf-8")
     proc = subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
     meta = {"id": job_id, "name": name, "ask": ask, "source": source_desc,
-            "mode": "upgrade" if upgrade else "flow" if zoom else "preview" if preview else "deep", "pid": proc.pid,
+            "mode": "upgrade" if upgrade else "zoom" if zoom else "preview" if preview else "deep", "pid": proc.pid,
             "engine": engine, "model": model or "",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     if src["kind"] == "git":
@@ -836,7 +836,7 @@ GEN_FORM = """
   <div class=row id=ctype-row>
     <label><input type=radio name=ctype value=deep checked> 深潜画布（代码细讲）</label>
     <label><input type=radio name=ctype value=preview> 预览地图（陌生仓库的第一张图）</label>
-    <label><input type=radio name=ctype value=zoom> 结构图（按一个问题画，每层一张架构图，点进去直到伪代码和源码）</label>
+    <label><input type=radio name=ctype value=zoom> 动画缩放图（最上层是会动的系统图，每步带代码；放大进到模块结构、函数卡、伪代码对照源码）</label>
   </div>
   <div class=row>
     <label><input type=radio name=eng value=claude checked> Claude（默认 opus-5.5）</label>
@@ -1140,7 +1140,7 @@ class Handler(BaseHTTPRequestHandler):
                 preview = bool(req.get("preview"))
                 zoom = bool(req.get("zoom"))
                 if zoom and src["kind"] == "code":
-                    return self._json(400, {"ok": False, "error": "结构图需要 git 地址或盒子路径（要从仓库读代码）"})
+                    return self._json(400, {"ok": False, "error": "动画缩放图需要 git 地址或盒子路径（要从仓库读代码）"})
                 if zoom and not req.get("name"):
                     default += "-flow"
                 if preview and src["kind"] == "code":
