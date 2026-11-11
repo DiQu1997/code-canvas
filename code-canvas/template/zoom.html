@@ -211,20 +211,21 @@ body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
 .hint.hide{opacity:0}
 @media (max-width:900px){.cl{grid-template-columns:2.8em minmax(0,1fr);min-width:0;column-gap:.6em}.cl .x{white-space:pre-wrap;overflow-wrap:break-word}.hint{white-space:normal;text-align:center;max-width:88vw;top:auto;bottom:46%}}
 /* pseudo-code beside the source */
-.duo{display:grid;grid-template-columns:minmax(290px,.72fr) minmax(0,1.28fr);border-top:1px solid var(--line)}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);border-top:1px solid var(--line)}
 .ps{position:sticky;top:0;align-self:start;max-height:var(--pgh,70vh);overflow:auto;overscroll-behavior:contain;padding:6px 8px 14px;border-right:1px solid var(--line)}
 .pb{font-size:12px;font-weight:600;color:var(--muted);margin:14px 8px 4px;display:flex;gap:6px}.pb:first-child{margin-top:6px}
 .pb::before{content:"▎";color:var(--hot)}
-.pr{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:8px;align-items:baseline;padding:6px 8px 6px calc(8px + var(--d,0)*22px);border-radius:8px;cursor:pointer;font-size:14.5px;line-height:1.45}
+.pr{display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:8px;align-items:baseline;padding:6px 8px 6px calc(8px + var(--d,0)*22px);border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:13px;line-height:1.5}
 .pr:hover{background:var(--panel2)}
 .pr.act{background:color-mix(in srgb,var(--hot) 16%,transparent);box-shadow:inset 3px 0 0 var(--hot)}
 .pk{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:center}
 .k-decision .pk{color:var(--c3)}.k-loop .pk{color:var(--c2)}.k-write .pk{color:var(--c1)}.k-wait .pk{color:var(--c4)}.k-return .pk{color:var(--c5)}.k-call .pk{color:var(--hot)}
 .k-decision .pt,.k-loop .pt{font-weight:600}
-.pt small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.pt{min-width:0;overflow-wrap:anywhere}
+.pt small{display:block;color:var(--muted);font-family:var(--sans);font-size:12px;font-weight:400}
 .pt .pc{font-style:normal;font-weight:400;color:var(--hot);font-size:12px;margin-left:8px;white-space:nowrap}
 .pl{font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
-.pr.om{cursor:default;color:var(--faint);font-size:12px;padding-block:2px}.pr.om:hover{background:none}
+.pr.om{cursor:default;color:var(--faint);font-family:var(--sans);font-size:12px;padding-block:2px}.pr.om:hover{background:none}
 .cl.sel{background:color-mix(in srgb,var(--hot) 11%,transparent)}
 .cl.omd .x{opacity:.45}
 .duo .cl{grid-template-columns:3.2em minmax(0,1fr);min-width:0;column-gap:.7em}.duo .cl .x{white-space:pre-wrap;overflow-wrap:anywhere}
@@ -521,12 +522,12 @@ function pageCode(ids,mod,card,line){const a=area();const el=HT('div','layer',st
       const all=[...steps.map((q,i)=>({...q,i})),...om].sort((x,y)=>x.lines[0]-y.lines[0]);let ph='',lastB=null;
       for(const q of all){const b=blk.find(z=>q.lines[0]>=z.a&&q.lines[0]<=z.b);if(b&&b!==lastB){ph+=`<div class="pb">${esc(b.lab)}</div>`;lastB=b}
         const ref=`L${q.lines[0]}${q.lines[1]!==q.lines[0]?'–'+q.lines[1]:''}`;
-        if(q.om){ph+=`<div class="pr om"><span class="pk">·</span><span class="pt">省略 ${ref}：${esc(q.title)}</span></div>`;continue}
+        if(q.om){ph+=`<div class="pr om"><span class="pk">·</span><span class="pt">omitted ${ref}: ${esc(q.title)}</span></div>`;continue}
         const k=PK[q.kind]?q.kind:'step';const call=q.call&&CARDS[q.call]&&q.call!==id?`<i class="pc lnk" data-lnk="${q.call}">进入 ${esc(String(CARDS[q.call].cd.title).replace(/\(.*$/,'').split(/\.|::/).pop())} ›</i>`:'';
         ph+=`<div class="pr k-${k}" role="button" data-i="${q.i}" data-c="${id}" data-a="${q.lines[0]}" data-b="${q.lines[1]}" style="--d:${q.depth||0}"><span class="pk">${PK[k]}</span><span class="pt">${esc(q.title)}${call}${q.note?`<small>${esc(q.note)}</small>`:''}</span><span class="pl">${ref}</span></div>`}
       cd.querySelector('.cdh').insertAdjacentHTML('beforeend','<span class="vsw"><button data-view="p">伪代码</button><button data-view="s">源码</button></span>');
       const duo=HT('div','duo',cd);HT('div','ps',duo,ph);const cb=HT('div','codeb',duo,h);
-      for(const o of C.cd.omitted||[])for(let n=o[0];n<=o[1];n++){const e=cb.querySelector(`.cl[data-ln="${n}"]`);if(e){e.classList.add('omd');e.title='伪代码里省略：'+o[2]}}
+      for(const o of C.cd.omitted||[])for(let n=o[0];n<=o[1];n++){const e=cb.querySelector(`.cl[data-ln="${n}"]`);if(e){e.classList.add('omd');e.title='omitted in pseudo-code: '+o[2]}}
     }else HT('div','codeb',cd,h)}
   if(anyPs){pg.style.setProperty('--cfs',(phone()?12:12.5)+'px');pg.style.setProperty('--pgh',a.h+'px');pg.dataset.view='p'}
   let lock=0;

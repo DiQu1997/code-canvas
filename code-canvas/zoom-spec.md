@@ -171,17 +171,18 @@ python3 reader_check.py zoom.data.json --zoom --out reader_report.md  # 新读�
 {"id": "step", "title": "EngineCore.step()", "file": "vllm/v1/engine/core.py", "lines": [710, 743],
  "blocks": [[719, 722, "调度器里一个请求都没有就不走这拍"], ...],          // 函数卡那层的几句摘要，不变
  "steps": [
-   {"title": "调度器里没有请求？", "kind": "decision", "lines": [719, 720]},
-   {"title": "是：返回空输出", "kind": "return", "lines": [721, 722], "depth": 1},
-   {"title": "scheduler_output = 调度这一拍", "kind": "call", "call": "sched_main", "lines": [723, 723]},
-   {"title": "把它交给 GPU，不阻塞", "kind": "step", "lines": [724, 726]},
-   {"title": "等结果出来", "kind": "wait", "lines": [727, 732], "note": "等的时候顺手处理新到的中止请求"}
+   {"title": "if scheduler has no requests:", "kind": "decision", "lines": [719, 720]},
+   {"title": "return {}, executed = False", "kind": "return", "lines": [721, 722], "depth": 1},
+   {"title": "scheduler_output = scheduler.schedule()", "kind": "call", "call": "sched_main", "lines": [723, 723]},
+   {"title": "future = execute_model(scheduler_output)  // non-blocking", "kind": "step", "lines": [724, 726]},
+   {"title": "model_output = wait for future", "kind": "wait", "lines": [727, 732], "note": "aborts that arrive meanwhile are handled right after"}
  ],
- "omitted": [[711, 716, "docstring"], [733, 733, "日志"]]}
+ "omitted": [[711, 716, "signature and docstring"], [733, 733, "logging"]]}
 ```
 
-- 一步 = 一个动作或一个判断，人话，≤ 28 字；保留**全部**核心逻辑：顺序、分支、循环、改了哪个状态、返回什么。读者只看伪代码就应该能复述这个函数。
-- `kind`：`step` `decision` `loop` `write`（改状态）`wait`（阻塞 / 等待）`return` `call`（`call` 填被调函数的卡 id，可点过去）。`depth`：在分支 / 循环里面的 +1。`note`：一句补充（≤ 40 字）。
+- **伪代码用英文写**（`title`、`note`、`omitted` 的原因都是英文），写成读起来像代码的伪代码而不是散文：`if no requests in scheduler:` / `return empty output, executed = False` / `scheduler_output = scheduler.schedule()` / `for each request in running:`。变量和函数名用源码里的真名。函数卡那层的 `blocks` 摘要仍用画布的语言。
+- 一步 = 一个动作或一个判断，≤ 56 个字符；保留**全部**核心逻辑：顺序、分支、循环、改了哪个状态、返回什么。读者只看伪代码就应该能复述这个函数。
+- `kind`：`step` `decision` `loop` `write`（改状态）`wait`（阻塞 / 等待）`return` `call`（`call` 填被调函数的卡 id，可点过去）。`depth`：在分支 / 循环里面的 +1。`note`：一句补充（≤ 80 个字符）。
 - 步骤按源码顺序写，`lines` 是它对应的源码行。日志、统计、防御性检查、与主线无关的特殊路径进 `omitted: [[a, b, 原因]]`。
 - **机械检查**：`steps` 的行段 + `omitted` 必须盖住卡里的每一行代码（空行、注释不算），漏的行报 ERROR 并列出行号。
 - 十来行以内、一眼能看完的卡不用写 `steps`。

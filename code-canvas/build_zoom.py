@@ -206,8 +206,10 @@ def validate(spec, R):
                 sw = f"card {cid} step {i + 1}"
                 if not str(st.get("title") or "").strip():
                     R.e(f"{sw}: title missing")
-                elif len(st["title"]) > 34:
-                    R.w(f"{sw}: title {len(st['title'])} chars (max ~28): {st['title']}")
+                elif len(st["title"]) > 64:
+                    R.w(f"{sw}: title {len(st['title'])} chars (max ~56): {st['title']}")
+                elif re.search(r"[\u4e00-\u9fff]", st["title"] + str(st.get("note") or "")):
+                    R.w(f"{sw}: pseudo-code is written in English: {st['title']}")
                 if st.get("kind") and st["kind"] not in SK:
                     R.e(f"{sw}: kind must be one of {sorted(SK)}")
                 if st.get("call") and st["call"] not in cards:
