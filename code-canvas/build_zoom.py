@@ -240,7 +240,7 @@ def validate(spec, R):
                 runs.append((a0, b0))
                 R.e(f"card {cid}: {len(missing)} code lines not covered by any step or omitted: " + ", ".join(f"{x}" if x == y else f"{x}-{y}" for x, y in runs))
     stories = spec.get("stories") or ([spec["story"]] if spec.get("story") else [])
-    if not stories:
+    if not stories and not spec.get("scene") and not spec.get("_has_scene"):
         R.w("no story — a protagonist walk is what ties the levels together")
     for s in stories:
         for i, st in enumerate(s.get("steps") or []):

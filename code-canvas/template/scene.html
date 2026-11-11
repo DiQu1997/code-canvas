@@ -116,7 +116,7 @@ function buildEnt(e){ENT[e.id]=e;const g=e.g=E('g',{class:'ent st-'+(e.state||'i
     if(e.sub)E('text',{x:0,y:h+(e.cap?26:18),class:'es'},g,e.sub);
     if(!v){E('path',{d:`M${w+4} ${h/2-6}l8 6l-8 6`,fill:'none',stroke:'var(--faint)','stroke-width':1.6},g);E('path',{d:`M-12 ${h/2-6}l8 6l-8 6`,fill:'none',stroke:'var(--faint)','stroke-width':1.6},g)}}
   if(e.type==='store'){E('rect',{width:w,height:h,rx:12,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'store');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
-    const top=e.sub?62:48,rh=(h-top-8)/e.rows.length;e.rowY={};e.rows.forEach((r,i)=>{const y=top+i*rh;E('path',{d:`M10 ${y}H${w-10}`,class:'rowl'},g);E('text',{x:14,y:y+rh/2+4,class:'rowk'},g,r.label);e.rowY[r.id]={y:y+rh/2,x:14+tw(r.label)*7+14}})}
+    const top=e.sub?62:48,rh=(h-top-8)/e.rows.length;e.rowY={};e.rows.forEach((r,i)=>{const y=top+i*rh;E('path',{d:`M10 ${y}H${w-10}`,class:'rowl'},g);E('text',{x:14,y:y+rh/2+4,class:'rowk'},g,r.label);e.rowY[r.id]={y:y+rh/2,x:14+tw(r.label.trimEnd())*11.6+12}})}
   if(e.type==='log'){E('rect',{width:w,height:h,rx:12,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'log');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
     e.ty=h/2+22;E('path',{d:`M22 ${e.ty}H${w-22}`,class:'track'},g);e.mk={};
     (e.markers||[]).forEach((m,i)=>{const up=m.side!=='b';const mg=E('g',{class:'mk'},g);E('path',{d:up?'M0 -5l-6 -9h12z':'M0 5l-6 9h12z',fill:col(m.color)},mg);const t=E('text',{y:up?-19:28,'text-anchor':'middle',fill:col(m.color)},mg,'');e.mk[m.id]={g:mg,t,label:m.label,v:null}})}
@@ -251,9 +251,9 @@ $('theme').onclick=()=>{const r=document.documentElement;r.dataset.theme=getComp
 /* ---------------- camera ---------------- */
 function bbox(ids){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const e of S.entities){if(ids&&!ids.includes(e.id))continue;if(ids&&e.type==='group')continue;const top=(e.type==='queue'||e.type==='grid'||e.type==='bar')?34:(e.type==='group'?22:0);
     x0=Math.min(x0,e.x-14);y0=Math.min(y0,e.y-top);x1=Math.max(x1,e.x+e.w+14);y1=Math.max(y1,e.y+e.h+44)}return {x:x0,y:y0,w:x1-x0,h:y1-y0}}
-function frame(focus){const r=$('stage').getBoundingClientRect();const narrow=r.width<760;const all=bbox(null);let b=all;
-  if(narrow&&focus&&focus.length){b=bbox(focus);const minW=Math.min(all.w,r.width/0.78);if(b.w<minW){b.x-=(minW-b.w)/2;b.w=minW}}
-  const pad=narrow?10:26;const k=Math.min((r.width-pad*2)/b.w,(r.height-pad*2)/b.h,narrow?1.15:1.6);
+function frame(focus){const r=$('stage').getBoundingClientRect();const all=bbox(null);let b=all;const phone=r.width<760;const narrow=phone||Math.min(r.width/all.w,r.height/all.h)<.85;   // the whole scene would be too small to read: follow the focus instead
+  if(narrow&&focus&&focus.length){b=bbox(focus);const minW=Math.min(all.w,r.width/(phone?0.78:1.05));if(b.w<minW){b.x-=(minW-b.w)/2;b.w=minW}}
+  const pad=phone?10:26;const k=Math.min((r.width-pad*2)/b.w,(r.height-pad*2)/b.h,phone?1.15:1.6);
   $('cam').style.transform=`translate(${(r.width-b.w*k)/2-b.x*k}px,${(r.height-b.h*k)/2-b.y*k}px) scale(${k})`}
 addEventListener('resize',()=>frame(si<0?null:STEPS[si].focus));
 

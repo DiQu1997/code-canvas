@@ -23,6 +23,7 @@ const path = require('path'), fs = require('fs');
   const shot = async n => { await idle(); await p.screenshot({path: path.join(out, n)}); console.log(n) };
   await p.screenshot({path: path.join(out, '0-system.png')}); console.log('0-system.png');
   if (!(await p.evaluate(() => !!window.__zoom))) { console.log('ERRORS:', errs.join('\n') || 'page did not initialise'); await b.close(); process.exit(1) }
+  const hasScene = await p.evaluate(() => !!(__zoom.cur().scene));
   const mods = await p.evaluate(() => Object.values(__zoom.MOD).filter(m => !m.ext).map(m => m.id));
   const cards = await p.evaluate(() => __zoom.MODCARDS);
   // frames inside the first transition
@@ -39,7 +40,6 @@ const path = require('path'), fs = require('fs');
     }
   }
   const n = await p.evaluate(() => __zoom.steps().length);
-  const hasScene = await p.evaluate(() => !!(__zoom.cur().scene));
   // with an animated scene on top, every step is a picture worth checking
   for (const i of hasScene ? [...Array(n).keys()] : [...new Set([0, Math.floor(n * .3), Math.floor(n * .6), n - 2].filter(i => i >= 0 && i < n))]) {
     await p.evaluate(i => { __zoom.goStep(i) }, i); await p.waitForTimeout(500); await idle(); await p.waitForTimeout(hasScene ? 700 : 0); await shot(`s-step-${i + 1}.png`) }
