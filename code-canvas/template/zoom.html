@@ -911,7 +911,7 @@ if(STORIES.length)setStory(0);else $('story').hidden=true;
 cur=build({type:'sys'});after();
 try{if(!localStorage.getItem('cc-zoom3-hint')){$('hint').classList.remove('hide');setTimeout(hideHint,4500);localStorage.setItem('cc-zoom3-hint','1')}}catch(e){}
 requestAnimationFrame(tick);
-window.__zoom={goto,enter,leave,cur:()=>cur,MOD,CARD:CARDS,MODCARDS,goStep,steps:()=>STEPS,busy:()=>busy||!!TR};
+window.__zoom={goto,enter,leave,cur:()=>cur,MOD,CARD:CARDS,MODCARDS,goStep,steps:()=>STEPS,busy:()=>busy||!!TR||!!(cur&&cur.scene&&cur.scene.busy())};
 })();
 </script>
 </body>

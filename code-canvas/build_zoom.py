@@ -311,6 +311,67 @@ def main():
             for f in st.get("focus") or []:
                 if f not in ents:
                     R.e(f"scene step {i + 1}: focus on unknown entity {f}")
+        # every op must refer to things that exist, in an order that makes sense (replay the scene)
+        ET = {"thread", "ext", "queue", "store", "log", "grid", "bar", "group"}
+        E = {e["id"]: e for e in sc.get("entities") or []}
+        for e in E.values():
+            if e.get("type") not in ET:
+                R.e(f"scene entity {e['id']}: type must be one of {sorted(ET)}")
+            for k in ("x", "y", "w", "h"):
+                if not isinstance(e.get(k), (int, float)):
+                    R.e(f"scene entity {e['id']}: {k} missing")
+            if e.get("type") == "grid" and not (e.get("cols") and e.get("rowsN")):
+                R.e(f"scene entity {e['id']}: grid needs cols and rowsN")
+            if e.get("type") == "log" and not (e.get("range") and e.get("markers")):
+                R.e(f"scene entity {e['id']}: log needs range and markers")
+            if e.get("type") == "bar" and not e.get("total"):
+                R.e(f"scene entity {e['id']}: bar needs total")
+            if e.get("type") == "store" and not e.get("rows"):
+                R.e(f"scene entity {e['id']}: store needs rows")
+        boxes = [e for e in E.values() if e.get("type") != "group" and all(isinstance(e.get(k), (int, float)) for k in "xywh")]
+        for i, p in enumerate(boxes):
+            for q in boxes[i + 1:]:
+                if p["x"] < q["x"] + q["w"] and q["x"] < p["x"] + p["w"] and p["y"] < q["y"] + q["h"] and q["y"] < p["y"] + p["h"]:
+                    R.e(f"scene: entities {p['id']} and {q['id']} overlap")
+        W = {w["id"] for w in sc.get("wires") or []}
+        toks, alive = sc.get("tokens") or {}, set()
+        OPS = {"spawn", "move", "gone", "tok", "state", "var", "mark", "wire", "segs", "batch", "alloc", "free", "hash", "pulse", "flash", "run"}
+        def chk(o, where):
+            op = o.get("op")
+            if op not in OPS:
+                R.e(f"{where}: unknown op {op}"); return
+            if "tok" in o:
+                if o["tok"] not in toks: R.e(f"{where}: unknown token {o['tok']}")
+                elif op == "spawn": alive.add(o["tok"])
+                elif o["tok"] not in alive: R.e(f"{where}: token {o['tok']} used before spawn (or after gone)")
+                if op == "gone": alive.discard(o["tok"])
+            for k in ("at", "to"):
+                if k in o:
+                    loc = o[k]
+                    if not (isinstance(loc, list) and loc and loc[0] in E): R.e(f"{where}: {k} must be [entity] or [store, row]; got {loc}")
+                    elif E[loc[0]].get("type") == "store" and (len(loc) < 2 or loc[1] not in {r["id"] for r in E[loc[0]].get("rows") or []}): R.e(f"{where}: store {loc[0]} needs a row id, got {loc}")
+                    elif E[loc[0]].get("type") in ("group", "log", "grid", "bar"): R.e(f"{where}: tokens cannot sit in a {E[loc[0]]['type']} ({loc[0]})")
+            if "ent" in o and o["ent"] not in E: R.e(f"{where}: unknown entity {o['ent']}")
+            for k in ("via", "wire"):
+                if k in o and o[k] not in W: R.e(f"{where}: unknown wire {o[k]}")
+            if op == "wire" and o.get("id") not in W: R.e(f"{where}: unknown wire {o.get('id')}")
+            if op == "state" and o.get("s") not in ("run", "blocked", "idle"): R.e(f"{where}: state s must be run / blocked / idle")
+            if op == "mark" and "ent" in o and o["ent"] in E and o.get("k") not in {m["id"] for m in E[o["ent"]].get("markers") or []}: R.e(f"{where}: unknown marker {o.get('k')}")
+        for j, o in enumerate(sc.get("setup") or []):
+            chk(o, f"scene setup op {j + 1}")
+        steps = sc.get("steps") or []
+        if not (8 <= len(steps) <= 24):
+            R.w(f"scene has {len(steps)} steps (aim 10-20)")
+        for i, st in enumerate(steps):
+            if not str(st.get("text") or "").strip(): R.e(f"scene step {i + 1}: text missing")
+            if len(str(st.get("text") or "")) > 150: R.w(f"scene step {i + 1}: text {len(st['text'])} chars (max ~120)")
+            if not st.get("beats"): R.w(f"scene step {i + 1}: nothing changes on screen (no beats)")
+            if not st.get("focus"): R.w(f"scene step {i + 1}: no focus")
+            for bi, beat in enumerate(st.get("beats") or []):
+                for o in (beat if isinstance(beat, list) else [beat]):
+                    chk(o, f"scene step {i + 1} beat {bi + 1}")
+        if sum(1 for st in steps if (st.get("at") or {}).get("card")) < .6 * max(1, len(steps)):
+            R.w("scene: fewer than 60% of the steps point at code (at.card + line)")
     for m in R.err:
         print("ERROR", m)
     for m in R.warn:
