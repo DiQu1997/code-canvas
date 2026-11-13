@@ -1,0 +1,2537 @@
+{
+ "meta": {
+  "mode": "zoom",
+  "title": "Kafka Broker：一个请求穿过的线程与队列",
+  "short": "Kafka broker",
+  "subtitle": "一个 acks=-1 的 PRODUCE 请求 P7：Acceptor → Processor → requestQueue → 处理线程 → KafkaApis → ReplicaManager → Purgatory → 另一条线程回调 → responseQueue → Processor 写回",
+  "audience": "有经验的工程师，第一次读 Kafka broker 源码，想知道请求经过哪些线程和队列",
+  "overview": [
+   "broker 处理请求用的是两组线程夹一条队列：网络线程（Processor，每个 listener 默认 num.network.threads=3 条）只管字节读写；请求处理线程（KafkaRequestHandler，num.io.threads=8 条）只管业务。两者之间唯一的交接点是 RequestChannel：去程走一条全局有界队列 requestQueue（queued.max.requests=500），回程走每个 Processor 私有的 responseQueue。",
+   "关键不变量：同一条连接在任何时刻最多只有一个请求在 broker 里。Processor 把请求入队后立刻 mute 这条连接（不再读它），直到响应写完（processCompletedSends）才 unmute。所以同一连接的请求天然按顺序处理和响应。",
+   "回程不一定由收到请求的那条处理线程发起：acks=-1 的 PRODUCE 写完本地日志后要等 ISR 副本追上，请求被挂进 DelayedProducePurgatory；之后是处理 follower FETCH 的那条处理线程（或超时的 ExpirationReaper 线程）执行回调、把响应投进 responseQueue。Request 里记着 processor 编号，回程靠它找到原来的网络线程。",
+   "灰虚线框是外部角色（客户端、Partition/日志），不展开；实线框都可以放大。故事线（右上角 ▶）把 P7 从客户端一路带到代码行再带回来。"
+  ],
+  "judgment": {
+   "scope": "只讲数据面（data-plane）一个请求从进 socket 到写回 socket 的路径，以 PRODUCE 为主角，因为它是唯一一条会经过全部线程和队列（含 purgatory 和跨线程回调）的常见请求。剪掉了：controller 侧、KRaft、副本拉取线程（ReplicaFetcherThread）本身、日志段写入细节、SASL/SSL 握手、连接配额的实现。理由：读者的问题是“经过哪些线程和队列”，这些都不改变线程/队列的交接拓扑。",
+   "shape": "流经（请求穿过 broker）叠两个循环：Processor 的 selector 循环和处理线程的取活循环；中间插一段“一生”——DelayedProduce 从新建到完成/超时。两条线在 RequestChannel 交汇（去程 requestQueue、回程 responseQueue），在 Purgatory 处分叉（谁完成它，谁的线程就负责回程）。",
+   "protagonist": "Request 对象（org.apache.kafka.network.Request），故事里叫 P7：一个 acks=-1、写 orders-0 的 PRODUCE，correlationId=7，由 Processor 1 创建。选 Request 而不是“字节”或“连接”，因为它是唯一一个跨越所有队列被传递、并携带回程地址（processor 编号）的对象。",
+   "parts": [
+    {
+     "name": "Acceptor 线程",
+     "owns": "ServerSocketChannel、throttledSockets、轮询下标",
+     "not": "不读任何请求字节；把连接交出去后就再也不碰它",
+     "why": "独立线程、独立 selector，只做 accept + 分配，是连接进入的唯一闸口"
+    },
+    {
+     "name": "Processor（网络线程）",
+     "owns": "KSelector 里的所有 KafkaChannel、newConnections、responseQueue、inflightResponses",
+     "not": "不解析业务、不碰日志；只解析请求头",
+     "why": "每条连接终身绑定一个 Processor，所有 socket I/O 都在它的循环里，是 mute/unmute 不变量的执行者"
+    },
+    {
+     "name": "RequestChannel",
+     "owns": "requestQueue、callbackQueue、processors 映射",
+     "not": "不是线程，不调度；它只是两种线程之间的信箱 + 回程地址簿",
+     "why": "所有跨线程交接都经过它，读者最该记住的“队列”就在这里"
+    },
+    {
+     "name": "KafkaRequestHandler（I/O 线程池）",
+     "owns": "每线程的 RequestLocal 和当前请求的 ThreadLocal",
+     "not": "不做 I/O、不知道连接；不按 apiKey 分派（那是 KafkaApis）",
+     "why": "它决定一个线程此刻处理哪个工作单元（新请求 / 回调 / 关闭），这是“线程”维度的分章"
+    },
+    {
+     "name": "KafkaApis",
+     "owns": "无请求级状态；持有 replicaManager、quotas 等引用",
+     "not": "不是线程：它在调用它的处理线程上同步执行；也不负责等副本",
+     "why": "按 apiKey 分派、做鉴权/限流并构造响应回调，是“谁来回响应”被决定的地方"
+    },
+    {
+     "name": "ReplicaManager",
+     "owns": "分区表、delayed*Purgatory、defaultActionQueue",
+     "not": "不直接回响应；它要么当场调回调，要么把回调交给 DelayedProduce",
+     "why": "acks 判据（是否要等副本）在这里落定，是请求是否“离开当前线程”的分岔点"
+    },
+    {
+     "name": "Purgatory + DelayedProduce",
+     "owns": "按分区分片的 watcher 列表、时间轮 timeoutTimer、ExpirationReaper 线程",
+     "not": "不是队列：没有消费者主动取它；它靠事件（HW 前进）或超时被“戳”",
+     "why": "回程由谁的线程发起在这里决定，是本图最反直觉的一段"
+    }
+   ],
+   "cut": "按线程/所有权切：Acceptor、Processor、处理线程池是三种线程；RequestChannel 是它们之间的信箱；KafkaApis/ReplicaManager/Purgatory 都跑在处理线程上，但各自做不同的决定（分派、acks 判据、完成时机），所以分开。Processor.accept() 虽然定义在 Processor 类里，但跑在 Acceptor 线程上，所以卡挂在 Acceptor 模块里。Partition/UnifiedLog 是黑盒（外部角色）。",
+   "primitives": {
+    "acceptor": "loop：run() 里 while(shouldRun) 每圈固定两站；把“accept/配额/分配”拆成三站更能说清它的决定",
+    "proc": "loop：run() 里 while(shouldRun) 依次调 7 个函数，顺序就是代码顺序；四个持有的结构画在旁边",
+    "rc": "pipeline（一行 4 个部件 + 3 个字段，部件之间不连箭头）：它没有自己的线程，本质是三个数据结构；起初用纯字段 grid，但字段挂卡会在模块层提前变形，改成 4 个操作部件各挂一张卡、虚线指向它读写的字段。不是真正的先后流水线，所以不写部件间的边",
+    "handler": "dispatch：外层 while 很薄，真正的决定是 match req 分四类；center 放 run()",
+    "apis": "dispatch：handle() 就是一个 60 多支的 match apiKey，只画与主线相关的分支",
+    "rm": "flow（竖排）：入口 → appendRecords → 写日志 → 判据菱形 → 挂起 / 立即回调，是带分支的过程；follower 推进 HW 的入口挂在 KafkaApis 的 FETCH 分支上",
+    "purg": "statemachine：DelayedProduce 有清晰的状态（新建→登记观察→完成/超时），转换由不同线程触发"
+   },
+   "cards": "只给主角经过、且改变状态或做决定的函数开卡：入队/出队、mute/unmute、分派、acks 判据、完成判据、超时。纯转发（sendNoOpResponse 等）、指标、日志不开卡。长函数（handle、handleProduceRequest、run）用 ranges 截主干。全图 34 张，超出 10-30 的建议：读者报告第一轮指出 handleProduceAppend、poll、checkEnoughReplicasReachOffset 缺卡导致链条断开，补上后删了 Acceptor.run（两站循环，结构图已说清），其余每张都在故事线上被走到。Partition.updateFollowerFetchState 挂在 KafkaApis 的 FETCH 分支上而不是 ReplicaManager：按“谁的线程执行它”切，它是处理 follower FETCH 的那条处理线程一路调下去的。",
+   "skipped": [
+    "poll() 只是 selector.poll(300|0) 的包装，作为站点画出但不开卡；真正的读写在 KSelector（clients 模块）里，作为黑盒",
+    "processDisconnected / closeExcessConnections：不在主角路径上，只画站点",
+    "handleFetchRequest 全文：只在 FETCH 分支和 updateFollowerFetchState 卡里讲它对 purgatory 的作用",
+    "事务校验路径（handleProduceAppend 中 transactionalProducerInfo 非空时走 wrapAsyncCallback）：只在 handler 的回调分支讲机制，不画事务协调器",
+    "限流（ClientQuotaManager.throttle）：只在 sendResponseCallback 卡和 Processor 的 StartThrottling 分支提到",
+    "ConnectionQuotas、SocketServer 启动/重配置、KRaft 控制面",
+    "限流 mute 状态机（ChannelMuteState、ClientQuotaManager.throttle）、safeTryCompleteOrElse 内部、请求缓冲与 MemoryRecords 的内存归属：第二轮读者问到，但不影响线程/队列拓扑"
+   ],
+   "revisions": [
+    "截图 1：Processor 循环里字段连线（取/记/删）横穿整个圈和 run()，删掉这些边，字段用 note 说明谁读写；站名去掉自带的 ①②，模板已自动编号。",
+    "截图 1：发现挂在字段上的卡在模块层就开始变形、遮住字段名（字段框宽，morph 阈值按屏幕宽度算）。改为字段一律不挂卡：responseQueue 的 enqueue/dequeue 卡挂到“取响应”站；RequestChannel 改为 4 个部件（入队/取活/回调入队/回程投递）+ 3 个纯字段；purgatory 的 checkAndComplete 挂到“观察中”状态。",
+    "截图 1-2：多个字段名、sub 被截成“…”或在单词中间折行。调整模块宽高比（Acceptor、Processor、RM、Purgatory 改成竖长，使字段落到底部两列），sub 改成带空格的短语而不是长函数名（函数名在卡标题里）。",
+    "截图 2：Purgatory 状态机里“立即满足”和“到期”两条边在圆心交叉、标签重叠成“立到期足”；调换状态顺序（新建/观察中/超时/已完成），只剩一条横线。",
+    "截图 2：故事第 22 步把镜头带进空的“客户端”外部框，读者看不到任何东西；改落到 KafkaApis 的 FETCH 分支，并写明 F9 是另一个请求。",
+    "截图 3：ReplicaManager 横排 8 个节点太挤、字被截断；把“排检查动作”并进“写 leader 日志”（同一次调用里发生，卡做成两张），follower FETCH 卡移到 KafkaApis，模块改成竖排流程。",
+    "读者报告 1：补 handleProduceAppend、poll、checkEnoughReplicasReachOffset 三张卡和对应故事步；故事里补上 handle() finally 执行 actionQueue（HW 未变，P7 不受影响）这一步，说明两条唤醒路径的区别；第 2 步注明是回溯并解释 processors 下标与 Processor.id 的区别；说明 P7 的响应回调不经过 wrapAsyncCallback。",
+    "读者报告 1：修正一处错误——之前把 newConnections 容量写成可配置的默认值 20，实际是常量 Processor.CONNECTION_QUEUE_SIZE；把 request.timeout.ms 标为客户端配置；故事开头声明线程号、offset 等是示例值。",
+    "读者报告 1：故事一度涨到 39 步，合并/删掉 4 个不推进状态的步（在 requestQueue 里排队、match apiKey、加进时间轮、HW 前进→检查），回到 35 步。",
+    "读者报告 2：“HW = ISR 中 LEO 的最小值”缺代码支撑，把 maybeIncrementLeaderHW 的主干加进 updateFollowerFetchState 卡（ranges），故事那一步落到 1031 行；修正 DelayedProduce 构造卡里两个重叠的 block；补充 apis.tryCompleteActions 与 replicaManager.tryCompleteActions 是同一件事、processor id 跨 listener 唯一。",
+    "未改：读者报告 2 想看限流 mute 状态机、safeTryCompleteOrElse 内部锁、releaseBuffer 与 MemoryRecords 的内存关系——这些不改变“经过哪些线程和队列”的答案，按范围判断留作黑盒（已在 skipped / pitfalls 里点名）。",
+    "WARN 剩 7 条，全部是源码行超过 130 列（长签名、长参数调用），行首关键字可见，截掉的是尾部参数，故保留原文不改行段。"
+   ]
+  }
+ },
+ "layout": {
+  "colw": 330,
+  "rowh": 260,
+  "gap": 44
+ },
+ "groups": [
+  {
+   "title": "网络层 · 每 listener 1 个 Acceptor + num.network.threads 个 Processor",
+   "modules": [
+    "acceptor",
+    "proc"
+   ]
+  },
+  {
+   "title": "请求处理线程上执行 · num.io.threads",
+   "modules": [
+    "handler",
+    "apis",
+    "rm",
+    "purg"
+   ]
+  }
+ ],
+ "modules": [
+  {
+   "id": "clients",
+   "title": "客户端 / follower",
+   "kind": "external",
+   "pos": [
+    0,
+    1.9
+   ],
+   "span": [
+    0.55,
+    0.9
+   ],
+   "oneliner": "producer 发 PRODUCE；follower broker 发 FETCH，两者走同一条网络路径"
+  },
+  {
+   "id": "acceptor",
+   "title": "Acceptor 线程",
+   "kind": "thread",
+   "pos": [
+    0.62,
+    0
+   ],
+   "span": [
+    1.15,
+    1.5
+   ],
+   "oneliner": "accept 新连接，按轮询交给某个 Processor",
+   "anatomy": {
+    "primitive": "loop",
+    "center": {
+     "label": "run()",
+     "sub": "while(shouldRun)"
+    },
+    "items": [
+     {
+      "id": "sel",
+      "label": "等新连接",
+      "sub": "select(500)",
+      "card": "acc_new",
+      "short": "等"
+     },
+     {
+      "id": "quota",
+      "label": "配额检查",
+      "sub": "连接数 / 速率配额",
+      "card": "acc_accept",
+      "short": "配额"
+     },
+     {
+      "id": "assign",
+      "label": "交给 Processor",
+      "sub": "轮询 offer",
+      "card": "proc_accept",
+      "short": "分配"
+     },
+     {
+      "id": "thr",
+      "label": "关被限流的",
+      "sub": "到期才关闭",
+      "short": "限流关"
+     }
+    ],
+    "fields": [
+     {
+      "name": "throttledSockets",
+      "type": "PriorityQueue[DelayedCloseSocket]",
+      "shape": "queue",
+      "slots": 4,
+      "fill": 1,
+      "note": "超连接速率的 socket 延迟关闭"
+     }
+    ],
+    "edges": [
+     [
+      "quota",
+      "throttledSockets",
+      "限流",
+      "dash"
+     ]
+    ]
+   },
+   "info": {
+    "kicker": "kafka.network.Acceptor（SocketServer.scala）",
+    "role": "每个 listener 一个线程：在自己的 NIO selector 上等 OP_ACCEPT，accept 后做连接配额检查、设置 socket 选项，然后按轮询把 SocketChannel 放进某个 Processor 的 newConnections 队列并唤醒它。",
+    "not": "不是网络线程：它从不读写请求字节；连接一旦交出去，此后这条连接的所有 I/O 都只属于那个 Processor。",
+    "fields": [
+     [
+      "processors",
+      "ArrayBuffer[Processor]",
+      "本 listener 的网络线程"
+     ],
+     [
+      "throttledSockets",
+      "PriorityQueue",
+      "按到期时间排序的待关闭 socket"
+     ]
+    ],
+    "methods": [
+     [
+      "acceptNewConnections()",
+      "→ Unit",
+      "select(500) 后逐个 accept 并分配"
+     ],
+     [
+      "accept(key)",
+      "→ Option[SocketChannel]",
+      "配额检查，失败则关闭或延迟关闭"
+     ]
+    ],
+    "config": [
+     [
+      "max.connections.per.ip",
+      "Int.Max",
+      "超过则拒绝"
+     ],
+     [
+      "max.connection.creation.rate",
+      "Int.Max",
+      "超过则进 throttledSockets 延迟关闭"
+     ]
+    ],
+    "pitfalls": [
+     "所有 Processor 的 newConnections 都满时，最后一次尝试 mayBlock=true 会阻塞 Acceptor，此时整个 listener 不再接新连接（AcceptorBlockedPercent 指标）"
+    ]
+   }
+  },
+  {
+   "id": "proc",
+   "title": "Processor（网络线程）",
+   "kind": "thread",
+   "pos": [
+    0.62,
+    1.5
+   ],
+   "span": [
+    1.5,
+    1.8
+   ],
+   "oneliner": "selector 循环：收字节拼请求、入队、mute；取响应写回、unmute",
+   "anatomy": {
+    "primitive": "loop",
+    "center": {
+     "label": "run()",
+     "sub": "while(shouldRun)",
+     "card": "proc_run"
+    },
+    "items": [
+     {
+      "id": "p1",
+      "label": "接新连接",
+      "sub": "注册到 selector",
+      "card": "proc_cfg"
+     },
+     {
+      "id": "p2",
+      "label": "取响应",
+      "sub": "交给 selector 发送",
+      "card": [
+       "proc_enq",
+       "proc_newresp",
+       "proc_sendresp"
+      ]
+     },
+     {
+      "id": "p3",
+      "label": "poll 读写",
+      "sub": "selector.poll",
+      "card": "proc_poll"
+     },
+     {
+      "id": "p4",
+      "label": "收请求",
+      "sub": "入队 + mute",
+      "card": "proc_recv"
+     },
+     {
+      "id": "p5",
+      "label": "写完了",
+      "sub": "unmute 连接",
+      "card": "proc_sent"
+     },
+     {
+      "id": "p6",
+      "label": "断开",
+      "sub": "连接配额计数 -1"
+     },
+     {
+      "id": "p7",
+      "label": "超额关连接",
+      "sub": "关最低优先级连接"
+     }
+    ],
+    "fields": [
+     {
+      "name": "newConnections",
+      "type": "ArrayBlockingQueue[SocketChannel]",
+      "shape": "queue",
+      "slots": 5,
+      "fill": 1,
+      "note": "Acceptor 投递新连接"
+     },
+     {
+      "name": "responseQueue",
+      "type": "LinkedBlockingDeque[Response]",
+      "shape": "queue",
+      "slots": 5,
+      "fill": 2,
+      "note": "私有信箱：处理线程投递响应"
+     },
+     {
+      "name": "inflightResponses",
+      "type": "Map[connId, Response]",
+      "shape": "map",
+      "note": "已交给 selector 但未写完"
+     },
+     {
+      "name": "selector",
+      "type": "KSelector（channels + mute 状态）",
+      "shape": "map",
+      "note": "connId → KafkaChannel"
+     }
+    ],
+    "caption": "每圈 7 站（按代码顺序）；收请求后 mute 连接，写完才 unmute"
+   },
+   "info": {
+    "kicker": "kafka.network.Processor（SocketServer.scala）",
+    "role": "一个网络线程负责一批连接的全部 socket I/O。每圈：注册新连接 → 把响应交给 selector 发送 → poll 一次（真正读写字节）→ 把读满的请求包装成 Request 放进全局 requestQueue → 处理写完的响应 → 处理断开。",
+    "not": "不是请求处理线程：它只解析请求头（apiKey、版本），不解析请求体、不碰日志、不做鉴权。也不是 Acceptor：它不 accept，只接收 Acceptor 交来的已 accept 连接。",
+    "fields": [
+     [
+      "responseQueue",
+      "LinkedBlockingDeque[Response]",
+      "无界；任何线程都可以 put，只有本线程 poll"
+     ],
+     [
+      "inflightResponses",
+      "mutable.Map",
+      "只被本线程访问，不加锁"
+     ],
+     [
+      "newConnections",
+      "ArrayBlockingQueue",
+      "容量固定为 20，是代码常量（Processor 类），不可配置"
+     ]
+    ],
+    "methods": [
+     [
+      "processCompletedReceives()",
+      "→ Unit",
+      "构造 Request、sendRequest、mute 连接"
+     ],
+     [
+      "processNewResponses()",
+      "→ Unit",
+      "按响应类型：发送 / unmute / 关连接 / 限流"
+     ],
+     [
+      "processCompletedSends()",
+      "→ Unit",
+      "写完后 unmute，允许读下一个请求"
+     ],
+     [
+      "enqueueResponse(r)",
+      "→ Unit",
+      "跨线程入口：put + wakeup"
+     ]
+    ],
+    "config": [
+     [
+      "num.network.threads",
+      "3",
+      "每个 listener 的 Processor 数"
+     ],
+     [
+      "socket.request.max.bytes",
+      "100 MiB",
+      "单请求最大字节"
+     ]
+    ],
+    "pitfalls": [
+     "requestQueue 满时 sendRequest 的 put() 会阻塞整个网络线程——这条线程上的所有连接（包括写响应）一起停",
+     "mute 是按连接的：一个慢请求只挡住同一连接上的后续请求，不挡别的连接",
+     "acks=0 的请求同样会被 mute；处理完后 KafkaApis 发一个 NoOpResponse，Processor 收到后不写任何字节、直接 unmute（processNewResponses 的第一个分支）"
+    ]
+   }
+  },
+  {
+   "id": "rc",
+   "title": "RequestChannel",
+   "kind": "queue",
+   "pos": [
+    2.2,
+    1.5
+   ],
+   "span": [
+    1.25,
+    1.6
+   ],
+   "oneliner": "两种线程之间的信箱：requestQueue + 回程地址簿",
+   "anatomy": {
+    "primitive": "pipeline",
+    "fields": [
+     {
+      "name": "requestQueue",
+      "type": "ArrayBlockingQueue[BaseRequest]（queued.max.requests）",
+      "shape": "queue",
+      "slots": 6,
+      "fill": 3,
+      "note": "所有 Processor → 所有处理线程"
+     },
+     {
+      "name": "callbackQueue",
+      "type": "ArrayBlockingQueue[BaseRequest]",
+      "shape": "queue",
+      "slots": 6,
+      "fill": 0,
+      "note": "异步回调，优先于新请求"
+     },
+     {
+      "name": "processors",
+      "type": "ConcurrentHashMap[Int, Processor]",
+      "shape": "map",
+      "note": "回程：processor 编号 → 网络线程"
+     }
+    ],
+    "caption": "不是线程：调用者的线程在这里阻塞或投递",
+    "items": [
+     {
+      "id": "send",
+      "label": "入队",
+      "sub": "put，满则阻塞",
+      "card": "rc_send",
+      "short": "入"
+     },
+     {
+      "id": "recv",
+      "label": "取活",
+      "sub": "先回调，后请求",
+      "card": "rc_recv",
+      "short": "取"
+     },
+     {
+      "id": "cb",
+      "label": "回调入队",
+      "sub": "回调 + Wakeup",
+      "card": "rc_cb",
+      "short": "回调"
+     },
+     {
+      "id": "resp",
+      "label": "回程投递",
+      "sub": "按 processor 编号",
+      "card": "rc_sendresp",
+      "short": "回程"
+     }
+    ],
+    "edges": [
+     [
+      "send",
+      "requestQueue",
+      "",
+      "dash"
+     ],
+     [
+      "recv",
+      "requestQueue",
+      "",
+      "dash"
+     ],
+     [
+      "cb",
+      "callbackQueue",
+      "",
+      "dash"
+     ],
+     [
+      "resp",
+      "processors",
+      "",
+      "dash"
+     ]
+    ]
+   },
+   "info": {
+    "kicker": "kafka.network.RequestChannel",
+    "role": "去程：Processor 调 sendRequest 把 Request put 进全局有界 requestQueue；处理线程调 receiveRequest 取。回程：任何线程调 sendResponse，按 request.processor 在 processors 里找到原来的网络线程，投进它的 responseQueue。",
+    "not": "不是调度器：先进先出，不按 apiKey 或客户端排优先级（唯一的“优先”是 callbackQueue 先于 requestQueue）。也不存响应——响应队列在每个 Processor 里。",
+    "fields": [
+     [
+      "requestQueue",
+      "ArrayBlockingQueue",
+      "全局共享、有界（默认 500）"
+     ],
+     [
+      "callbackQueue",
+      "ArrayBlockingQueue",
+      "异步完成后要回到处理线程执行的回调"
+     ],
+     [
+      "processors",
+      "ConcurrentHashMap[Int, Processor]",
+      "key = Processor.id，由 SocketServer.nextProcessorId 跨所有 listener 唯一分配；Acceptor.addProcessors 创建时 addProcessor 填入"
+     ]
+    ],
+    "methods": [
+     [
+      "sendRequest(req)",
+      "→ Unit",
+      "put：满了就阻塞调用它的网络线程"
+     ],
+     [
+      "receiveRequest(300)",
+      "→ BaseRequest",
+      "先 poll callbackQueue，再 poll requestQueue 最多 300ms"
+     ],
+     [
+      "sendResponse(resp)",
+      "→ Unit",
+      "记时间戳，按 processor id 投递"
+     ]
+    ],
+    "config": [
+     [
+      "queued.max.requests",
+      "500",
+      "requestQueue 容量；满了反压到网络线程"
+     ]
+    ],
+    "pitfalls": [
+     "Processor 已被移除（缩容/关闭）时 processors.get 返回 null，响应被静默丢弃——连接本来也已关闭",
+     "sendCallbackRequest 往 requestQueue 塞 WakeupRequest 失败（队列满）也没关系：处理线程下一次 receiveRequest 先查 callbackQueue"
+    ]
+   }
+  },
+  {
+   "id": "handler",
+   "title": "KafkaRequestHandler × N",
+   "kind": "thread",
+   "pos": [
+    3.5,
+    1.5
+   ],
+   "span": [
+    1.2,
+    1.6
+   ],
+   "oneliner": "I/O 线程：从 requestQueue 取一件活，按类型分派",
+   "anatomy": {
+    "primitive": "dispatch",
+    "center": {
+     "label": "run()",
+     "sub": "receiveRequest(300) 后 match req",
+     "card": "h_run"
+    },
+    "items": [
+     {
+      "id": "req",
+      "label": "Request",
+      "sub": "apis.handle"
+     },
+     {
+      "id": "cb",
+      "label": "CallbackRequest",
+      "sub": "callback.fun()",
+      "card": [
+       "h_cb",
+       "h_wrap"
+      ]
+     },
+     {
+      "id": "shut",
+      "label": "ShutdownRequest",
+      "sub": "completeShutdown"
+     },
+     {
+      "id": "none",
+      "label": "null（超时）",
+      "sub": "再等一圈"
+     }
+    ],
+    "fields": [
+     {
+      "name": "threadCurrentRequest",
+      "type": "ThreadLocal[Request]",
+      "shape": "flag",
+      "note": "回调靠它判断是否同线程"
+     },
+     {
+      "name": "requestLocal",
+      "type": "RequestLocal",
+      "shape": "scalar",
+      "value": "每线程一份",
+      "note": "线程独占的缓冲缓存"
+     }
+    ],
+    "caption": "外面是 while(!stopped)；每次只处理一件活"
+   },
+   "info": {
+    "kicker": "kafka.server.KafkaRequestHandler / KafkaRequestHandlerPool",
+    "role": "num.io.threads 条线程共享同一个 requestQueue。每条线程循环：receiveRequest(300) 取一件活 → 如果是新 Request 就同步调用 KafkaApis.handle，结束后 releaseBuffer；如果是 CallbackRequest 就在本线程执行别处异步完成后排回来的回调。",
+    "not": "不是 KafkaApis：它不看 apiKey，只看“这件活是什么种类”。也不做网络 I/O：它产生的响应只会通过 RequestChannel.sendResponse 投给网络线程。",
+    "fields": [
+     [
+      "requestLocal",
+      "RequestLocal",
+      "线程封闭的 BufferSupplier，供解压/校验复用"
+     ],
+     [
+      "threadCurrentRequest",
+      "ThreadLocal",
+      "wrapAsyncCallback 用来判断回调是否在原线程"
+     ]
+    ],
+    "methods": [
+     [
+      "run()",
+      "→ Unit",
+      "取活、计空闲时间、分派"
+     ],
+     [
+      "wrapAsyncCallback(cb)",
+      "→ T => Unit",
+      "包装回调：同线程直接执行，否则排进 callbackQueue"
+     ]
+    ],
+    "config": [
+     [
+      "num.io.threads",
+      "8",
+      "处理线程数，可动态调整（resizeThreadPool）"
+     ]
+    ],
+    "pitfalls": [
+     "处理线程里任何阻塞（等锁、等磁盘）都直接占用一个池位；RequestHandlerAvgIdlePercent 低 = 池子忙",
+     "apis.handle 返回 ≠ 响应已发出：acks=-1 的 PRODUCE 在 handle 返回时还挂在 purgatory 里",
+     "wrapAsyncCallback 只用在“需要先异步做别的事再回到处理线程”的路径（如事务校验完成后再 append）。普通 PRODUCE 的响应回调不经过它：DelayedProduce 由谁完成，回调就在谁的线程上直接执行",
+     "CallbackRequest 分支末尾的 apis.tryCompleteActions() 就是 replicaManager.tryCompleteActions()（KafkaApis.scala:273-275），与 handle() finally 里的是同一件事"
+    ]
+   }
+  },
+  {
+   "id": "apis",
+   "title": "KafkaApis",
+   "kind": "api",
+   "pos": [
+    4.75,
+    1.5
+   ],
+   "span": [
+    1.15,
+    1.45
+   ],
+   "oneliner": "按 apiKey 分派；鉴权、构造“发响应”的回调",
+   "anatomy": {
+    "primitive": "dispatch",
+    "center": {
+     "label": "handle()",
+     "sub": "match header.apiKey",
+     "card": "api_handle"
+    },
+    "items": [
+     {
+      "id": "produce",
+      "label": "PRODUCE",
+      "sub": "handleProduceRequest",
+      "card": [
+       "api_produce",
+       "api_cb"
+      ]
+     },
+     {
+      "id": "fetch",
+      "label": "FETCH",
+      "sub": "follower 推进 HW",
+      "card": "rm_hw"
+     },
+     {
+      "id": "fwd",
+      "label": "转给 controller",
+      "sub": "forwardToController"
+     },
+     {
+      "id": "rest",
+      "label": "其余 50+ 种",
+      "sub": "handleXxx(request)"
+     }
+    ],
+    "caption": "在调用它的处理线程上同步执行"
+   },
+   "info": {
+    "kicker": "kafka.server.KafkaApis",
+    "role": "handle() 是一个大 match：每个 apiKey 一个 handleXxx。PRODUCE 分支逐分区做鉴权/存在性/格式校验，把合格的分区交给 ReplicaManager，同时把一个闭包 sendResponseCallback 交出去——谁调用这个闭包，谁就负责把响应投回网络线程。",
+    "not": "不是线程，也不等副本：它在 handle() 结束时可能还没有产生响应。决定“何时回响应”的是 ReplicaManager 和 purgatory，KafkaApis 只决定“回什么”。",
+    "methods": [
+     [
+      "handle(request, requestLocal)",
+      "→ Unit",
+      "分派；finally 里 tryCompleteActions"
+     ],
+     [
+      "handleProduceRequest",
+      "→ Unit",
+      "校验 + 交给 replicaManager.handleProduceAppend"
+     ],
+     [
+      "sendResponseCallback(status)",
+      "→ Unit",
+      "合并错误、算限流、按 acks 决定发/不发/关连接"
+     ]
+    ],
+    "config": [
+     [
+      "acks（客户端）",
+      "-1 / 1 / 0",
+      "0：不回响应（NoOpResponse）；1：写完 leader 即回；-1：等 ISR"
+     ]
+    ],
+    "pitfalls": [
+     "acks=0 出错时 broker 直接关连接（CloseConnectionResponse），这是 producer 得知出错的唯一方式",
+     "handle() 的 finally 会 replicaManager.tryCompleteActions()：别的请求挂在 purgatory 里的操作可能借这条线程完成",
+     "handle() finally 注释里的 ReplicaFetcherThread 是 follower broker 上的拉取线程——它发来的 FETCH 就是本图里的“follower FETCH”"
+    ]
+   }
+  },
+  {
+   "id": "rm",
+   "title": "ReplicaManager",
+   "kind": "component",
+   "pos": [
+    5.95,
+    1.5
+   ],
+   "span": [
+    1.2,
+    2.1
+   ],
+   "oneliner": "写本地日志，按 acks 决定当场回调或挂起",
+   "anatomy": {
+    "primitive": "flow",
+    "items": [
+     {
+      "id": "entry",
+      "label": "入口",
+      "sub": "非事务直接放行",
+      "short": "入口",
+      "card": "rm_entry"
+     },
+     {
+      "id": "app",
+      "label": "追加入口",
+      "sub": "appendRecords",
+      "card": "rm_append",
+      "short": "追加"
+     },
+     {
+      "id": "local",
+      "label": "写 leader 日志",
+      "sub": "然后排检查动作",
+      "card": [
+       "rm_local",
+       "rm_action"
+      ],
+      "short": "写日志"
+     },
+     {
+      "id": "need",
+      "label": "要等副本？",
+      "sub": "acks=-1 且有成功分区",
+      "kind": "decision",
+      "card": "rm_need",
+      "short": "acks?"
+     },
+     {
+      "id": "delay",
+      "label": "挂起等 ISR",
+      "sub": "建 DelayedProduce",
+      "card": "rm_delay",
+      "short": "挂起"
+     },
+     {
+      "id": "now",
+      "label": "立即回调",
+      "sub": "当场回调",
+      "short": "立即"
+     }
+    ],
+    "fields": [
+     {
+      "name": "defaultActionQueue",
+      "type": "DelayedActionQueue",
+      "shape": "queue",
+      "slots": 4,
+      "fill": 1,
+      "note": "HW 变了 → 稍后检查 purgatory"
+     }
+    ],
+    "edges": [
+     [
+      "entry",
+      "app",
+      ""
+     ],
+     [
+      "app",
+      "local",
+      ""
+     ],
+     [
+      "local",
+      "need",
+      ""
+     ],
+     [
+      "need",
+      "delay",
+      "是"
+     ],
+     [
+      "need",
+      "now",
+      "否"
+     ],
+     [
+      "local",
+      "defaultActionQueue",
+      "HW 变了才查",
+      "dash"
+     ]
+    ],
+    "caption": "另一个唤醒入口在 KafkaApis 的 FETCH 分支（follower 推进 HW）"
+   },
+   "info": {
+    "kicker": "kafka.server.ReplicaManager",
+    "role": "接过 KafkaApis 交来的分区→记录：handleProduceAppend（事务校验）→ appendRecords → appendRecordsToLeader → appendToLocalLog 逐分区调 Partition.appendRecordsToLeader 写本地日志，并把“HW 变了就检查 purgatory”排进 defaultActionQueue；然后 maybeAddDelayedProduce 调用 delayedProduceRequestRequired 判据：acks=-1 且至少一个分区写成功，就新建 DelayedProduce 挂进 purgatory；否则立刻调用响应回调。",
+    "not": "不发响应、不碰网络：它只决定“现在调回调”还是“把回调交给 DelayedProduce”。也不是复制引擎：follower 是自己来 FETCH 拉数据的，ReplicaManager 只在 FETCH 到来时记录 follower 的进度。",
+    "fields": [
+     [
+      "delayedProducePurgatory",
+      "DelayedOperationPurgatory[DelayedProduce]",
+      "等 ISR 的 PRODUCE"
+     ],
+     [
+      "defaultActionQueue",
+      "ActionQueue",
+      "延迟的“去检查 purgatory”动作，避免持锁检查"
+     ]
+    ],
+    "methods": [
+     [
+      "appendRecords(...)",
+      "→ Unit",
+      "写本地 → 判据 → 挂起或回调"
+     ],
+     [
+      "maybeAddDelayedProduce(...)",
+      "→ Unit",
+      "建 DelayedProduce，tryCompleteElseWatch"
+     ],
+     [
+      "Partition.updateFollowerFetchState",
+      "→ Unit",
+      "follower 进度前进 → HW 前进 → 检查 purgatory"
+     ]
+    ],
+    "config": [
+     [
+      "min.insync.replicas",
+      "1",
+      "HW 达到但 ISR 太小时返回 NOT_ENOUGH_REPLICAS_AFTER_APPEND"
+     ],
+     [
+      "PRODUCE 请求里的 timeout 字段",
+      "来自 producer 的 request.timeout.ms",
+      "DelayedProduce 的超时；这是客户端配置，broker 不能改"
+     ]
+    ],
+    "pitfalls": [
+     "acks=-1 的响应时间 ≈ 最慢 ISR follower 下一次 FETCH 的到达时间，而不是磁盘写入时间",
+     "两条唤醒 purgatory 的路：P7 自己追加日志时，处理线程可能还持有分区锁，所以只把“检查 purgatory”排进 defaultActionQueue，等 KafkaApis.handle() 的 finally 里 tryCompleteActions() 再执行；follower FETCH 推进 HW 时（updateFollowerFetchState）已不持锁，直接 tryCompleteDelayedRequests()",
+     "requiredOffset = 本次追加的 lastOffset + 1（buildProducePartitionStatus，ReplicaManager.scala:840）"
+    ]
+   }
+  },
+  {
+   "id": "purg",
+   "title": "Purgatory · DelayedProduce",
+   "kind": "state",
+   "pos": [
+    4.4,
+    3.4
+   ],
+   "span": [
+    1.45,
+    1.85
+   ],
+   "oneliner": "等 ISR 追上的请求停在这里；谁完成它，谁的线程发回响应",
+   "anatomy": {
+    "primitive": "statemachine",
+    "items": [
+     {
+      "id": "new",
+      "label": "新建",
+      "sub": "error 预设为超时",
+      "card": "dp_ctor"
+     },
+     {
+      "id": "watch",
+      "label": "观察中",
+      "sub": "tryCompleteElseWatch",
+      "card": [
+       "pg_watch",
+       "pg_check"
+      ]
+     },
+     {
+      "id": "exp",
+      "label": "超时",
+      "sub": "Reaper 调 run()",
+      "card": "op_force"
+     },
+     {
+      "id": "done",
+      "label": "已完成",
+      "sub": "onComplete → 回调",
+      "card": [
+       "dp_try",
+       "pc_check"
+      ]
+     }
+    ],
+    "fields": [
+     {
+      "name": "watchersByKey",
+      "type": "512 分片 × Map[分区, Watchers]",
+      "shape": "map",
+      "note": "按分区找到等它的操作"
+     },
+     {
+      "name": "timeoutTimer",
+      "type": "SystemTimer（时间轮）",
+      "shape": "wheel",
+      "note": "ExpirationReaper 每 200ms 推进"
+     }
+    ],
+    "edges": [
+     [
+      "new",
+      "watch",
+      "仍未满足"
+     ],
+     [
+      "new",
+      "done",
+      "立即满足"
+     ],
+     [
+      "watch",
+      "done",
+      "HW 前进"
+     ],
+     [
+      "watch",
+      "exp",
+      "到期"
+     ],
+     [
+      "exp",
+      "done",
+      "带超时错误"
+     ],
+     [
+      "watch",
+      "watchersByKey",
+      "",
+      "dash"
+     ],
+     [
+      "watch",
+      "timeoutTimer",
+      "",
+      "dash"
+     ]
+    ],
+    "caption": "完成它的线程 = 执行回调、发响应的线程"
+   },
+   "info": {
+    "kicker": "org.apache.kafka.server.purgatory.DelayedOperationPurgatory / DelayedProduce",
+    "role": "DelayedProduce 记录每个分区要达到的 offset。登记时同时挂在每个分区的 watcher 列表和时间轮上。之后两种事件之一完成它：(1) 某条处理线程处理 follower FETCH 让 HW 前进，调 checkAndComplete(分区) → tryComplete 发现全部满足 → onComplete；(2) 时间轮到期，ExpirationReaper 线程执行 run() → forceComplete。onComplete 调用的就是 KafkaApis 的 sendResponseCallback。",
+    "not": "不是队列：没有线程在“消费”它，它只在被事件戳到时检查条件。也不是重试机制：它从不重新写日志，只等待别人推进 HW。",
+    "fields": [
+     [
+      "watchersByKey",
+      "ConcurrentHashMap（512 片）",
+      "分区 → 等待中的操作"
+     ],
+     [
+      "timeoutTimer",
+      "SystemTimer",
+      "分层时间轮"
+     ],
+     [
+      "completed",
+      "volatile Boolean + lock",
+      "保证 onComplete 只执行一次"
+     ]
+    ],
+    "methods": [
+     [
+      "tryCompleteElseWatch(op, keys)",
+      "→ Boolean",
+      "持 op 锁：试一次 → 挂 watcher → 再试一次"
+     ],
+     [
+      "checkAndComplete(key)",
+      "→ Int",
+      "某分区有事件时，试完成等它的所有操作"
+     ],
+     [
+      "forceComplete()",
+      "→ Boolean",
+      "CAS 式只完成一次，取消定时器，调 onComplete"
+     ]
+    ],
+    "config": [
+     [
+      "producer.purgatory.purge.interval.requests",
+      "1000",
+      "已完成但仍挂在 watcher 上的条目超过此数时清理"
+     ]
+    ],
+    "pitfalls": [
+     "超时的 PRODUCE 返回 REQUEST_TIMED_OUT，但数据已经写进 leader 日志——客户端重试可能导致重复（除非幂等）",
+     "回调执行线程不固定：可能是处理 follower FETCH 的处理线程，也可能是 ExpirationReaper 线程",
+     "onComplete（即 sendResponseCallback）在操作自己的锁里执行；代码注释建议调用 checkAndComplete 时不要持有其他排他锁，以免与 tryCompleteElseWatch 形成锁环（DelayedOperationPurgatory.java:133-154）"
+    ]
+   }
+  },
+  {
+   "id": "log",
+   "title": "Partition / UnifiedLog",
+   "kind": "external",
+   "pos": [
+    7.25,
+    1.8
+   ],
+   "span": [
+    0.6,
+    0.75
+   ],
+   "oneliner": "leader 追加记录、维护 HW；黑盒"
+  }
+ ],
+ "channels": [
+  {
+   "from": "clients",
+   "to": "acceptor",
+   "label": "TCP 连接",
+   "kind": "flow",
+   "sides": "tl"
+  },
+  {
+   "from": "acceptor",
+   "to": "proc",
+   "label": "newConnections",
+   "kind": "queue",
+   "sides": "bt"
+  },
+  {
+   "from": "clients",
+   "to": "proc",
+   "label": "请求字节",
+   "kind": "flow"
+  },
+  {
+   "from": "proc",
+   "to": "rc",
+   "label": "sendRequest",
+   "kind": "queue"
+  },
+  {
+   "from": "rc",
+   "to": "handler",
+   "label": "receiveRequest",
+   "kind": "queue"
+  },
+  {
+   "from": "handler",
+   "to": "apis",
+   "label": "handle()",
+   "kind": "call"
+  },
+  {
+   "from": "apis",
+   "to": "rm",
+   "label": "handleProduceAppend",
+   "kind": "call"
+  },
+  {
+   "from": "rm",
+   "to": "log",
+   "label": "append",
+   "kind": "data",
+   "sides": "rl"
+  },
+  {
+   "from": "rm",
+   "to": "purg",
+   "label": "tryCompleteElseWatch",
+   "kind": "queue",
+   "sides": "br"
+  },
+  {
+   "from": "purg",
+   "to": "rc",
+   "label": "onComplete→sendResponse",
+   "kind": "return",
+   "sides": "lb"
+  },
+  {
+   "from": "apis",
+   "to": "rc",
+   "label": "acks=0/1 立即回",
+   "kind": "return",
+   "sides": "tt"
+  },
+  {
+   "from": "rc",
+   "to": "proc",
+   "label": "→ responseQueue",
+   "kind": "return",
+   "sides": "bb",
+   "dx1": -20,
+   "dx2": 40
+  },
+  {
+   "from": "proc",
+   "to": "clients",
+   "label": "响应字节",
+   "kind": "return",
+   "sides": "lr",
+   "dy1": 60,
+   "dy2": 60
+  }
+ ],
+ "cards": [
+  {
+   "id": "acc_new",
+   "title": "acceptNewConnections()",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    623,
+    658
+   ],
+   "blocks": [
+    [
+     624,
+     631,
+     "最多阻塞 500ms 等就绪的 accept 事件"
+    ],
+    [
+     633,
+     634,
+     "accept + 配额检查，失败返回 None"
+    ],
+    [
+     635,
+     649,
+     "轮询选 Processor：先非阻塞尝试每一个，都满时最后一次允许阻塞"
+    ],
+    [
+     651,
+     656,
+     "非 accept 事件是 bug；异常只记日志"
+    ]
+   ]
+  },
+  {
+   "id": "acc_accept",
+   "title": "accept()",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    663,
+    687
+   ],
+   "blocks": [
+    [
+     664,
+     666,
+     "从监听 socket 拿到新的 SocketChannel"
+    ],
+    [
+     667,
+     670,
+     "连接计数 +1（可能因配额抛异常），设非阻塞、TCP_NODELAY"
+    ],
+    [
+     672,
+     675,
+     "单 IP 连接数超限：立即关闭"
+    ],
+    [
+     676,
+     681,
+     "连接速率超限：不立即关，放进 throttledSockets 延迟关闭"
+    ],
+    [
+     682,
+     686,
+     "配置失败：关闭"
+    ]
+   ]
+  },
+  {
+   "id": "proc_accept",
+   "title": "Processor.accept()",
+   "name": "accept",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    1119,
+    1136
+   ],
+   "blocks": [
+    [
+     1122,
+     1124,
+     "非阻塞 offer 进 newConnections"
+    ],
+    [
+     1125,
+     1129,
+     "只有最后一次尝试才 put 阻塞，并把阻塞时长计入 AcceptorBlockedPercent"
+    ],
+    [
+     1133,
+     1135,
+     "成功就 wakeup 该 Processor 的 selector，让它尽快注册"
+    ]
+   ]
+  },
+  {
+   "id": "proc_run",
+   "title": "Processor.run()",
+   "name": "run",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    871,
+    898
+   ],
+   "blocks": [
+    [
+     873,
+     883,
+     "一圈 7 站，顺序固定：先发响应再 poll，poll 后立刻处理收到/写完/断开的事件"
+    ],
+    [
+     884,
+     892,
+     "任何异常都不让网络线程退出：一个线程挂掉会让它的所有连接失联"
+    ],
+    [
+     894,
+     897,
+     "退出时关闭所有连接和 selector"
+    ]
+   ]
+  },
+  {
+   "id": "proc_cfg",
+   "title": "configureNewConnections()",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    1143,
+    1160
+   ],
+   "blocks": [
+    [
+     1144,
+     1146,
+     "每圈最多取 connectionQueueSize 个，避免新连接饿死已有连接的 I/O"
+    ],
+    [
+     1147,
+     1150,
+     "生成 connectionId（含 processor 编号和自增序号）并注册到 selector"
+    ],
+    [
+     1151,
+     1158,
+     "注册失败必须关闭 socket，否则泄漏"
+    ]
+   ]
+  },
+  {
+   "id": "proc_newresp",
+   "title": "processNewResponses()",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    915,
+    951
+   ],
+   "blocks": [
+    [
+     916,
+     918,
+     "把 responseQueue 一次取空；用 request 里的 connectionId 找连接"
+    ],
+    [
+     921,
+     930,
+     "NoOpResponse（acks=0）：没东西要写，直接 unmute，让下一个请求可以读"
+    ],
+    [
+     932,
+     933,
+     "SendResponse：交给 selector 发送（真正写在下一次 poll）"
+    ],
+    [
+     934,
+     937,
+     "CloseConnectionResponse：主动关连接（acks=0 出错时）"
+    ],
+    [
+     938,
+     944,
+     "限流开始/结束：改变连接的 mute 状态"
+    ],
+    [
+     946,
+     949,
+     "单个连接出错只关这一个连接"
+    ]
+   ]
+  },
+  {
+   "id": "proc_sendresp",
+   "title": "Processor.sendResponse()",
+   "name": "sendResponse",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    954,
+    969
+   ],
+   "blocks": [
+    [
+     955,
+     961,
+     "连接可能已因空闲或对端关闭而消失：只记指标"
+    ],
+    [
+     965,
+     968,
+     "交给 selector 排队写出，并记进 inflightResponses 等待写完"
+    ]
+   ]
+  },
+  {
+   "id": "proc_recv",
+   "title": "processCompletedReceives()",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    982,
+    1039
+   ],
+   "blocks": [
+    [
+     983,
+     989,
+     "遍历本轮 poll 读满的每个请求，只解析请求头"
+    ],
+    [
+     990,
+     992,
+     "SASL 重认证握手走特殊路径"
+    ],
+    [
+     994,
+     1000,
+     "认证会话过期：关连接，不入队"
+    ],
+    [
+     1002,
+     1007,
+     "构造 RequestContext 和 Request；第一个参数 id 就是本 Processor 的编号——回程地址"
+    ],
+    [
+     1009,
+     1018,
+     "ApiVersions 在网络层顺手记下客户端软件名/版本"
+    ],
+    [
+     1019,
+     1021,
+     "入全局 requestQueue（满则阻塞本线程），然后 mute 连接：在响应发出前不再读它"
+    ],
+    [
+     1028,
+     1038,
+     "异常：没构造成 Request 就归还缓冲；关该连接"
+    ]
+   ]
+  },
+  {
+   "id": "proc_sent",
+   "title": "processCompletedSends()",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    1041,
+    1060
+   ],
+   "blocks": [
+    [
+     1042,
+     1046,
+     "selector 报告写完：从 inflightResponses 取出对应响应"
+    ],
+    [
+     1047,
+     1047,
+     "记录整条请求的耗时指标（排队、处理、发送…）"
+    ],
+    [
+     1049,
+     1053,
+     "RESPONSE_SENT 后 unmute：这条连接终于可以读下一个请求"
+    ],
+    [
+     1054,
+     1059,
+     "出错关连接；清空本轮已完成发送"
+    ]
+   ]
+  },
+  {
+   "id": "proc_enq",
+   "title": "enqueueResponse() / dequeueResponse()",
+   "name": "enqueueResponse",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    1184,
+    1194
+   ],
+   "blocks": [
+    [
+     1184,
+     1187,
+     "任何线程调用：put 进本 Processor 的 responseQueue，再 wakeup 打断它的 poll(300)"
+    ],
+    [
+     1189,
+     1194,
+     "只有本 Processor 线程调用：非阻塞取，记出队时间"
+    ]
+   ]
+  },
+  {
+   "id": "rc_send",
+   "title": "sendRequest()",
+   "file": "core/src/main/scala/kafka/network/RequestChannel.scala",
+   "lines": [
+    76,
+    79
+   ],
+   "blocks": [
+    [
+     76,
+     79,
+     "网络线程入队：put，满了就阻塞调用它的 Processor——这就是反压"
+    ]
+   ]
+  },
+  {
+   "id": "rc_recv",
+   "title": "receiveRequest()",
+   "file": "core/src/main/scala/kafka/network/RequestChannel.scala",
+   "lines": [
+    157,
+    175
+   ],
+   "blocks": [
+    [
+     157,
+     163,
+     "处理线程取活：先看 callbackQueue，已排过一次队的回调优先"
+    ],
+    [
+     164,
+     170,
+     "再在 requestQueue 上最多等 timeout；取到 WakeupRequest 说明有回调，转去取回调"
+    ],
+    [
+     173,
+     175,
+     "无超时版本（只在测试/关闭路径用）"
+    ]
+   ]
+  },
+  {
+   "id": "rc_cb",
+   "title": "sendCallbackRequest()",
+   "file": "core/src/main/scala/kafka/network/RequestChannel.scala",
+   "lines": [
+    195,
+    199
+   ],
+   "blocks": [
+    [
+     195,
+     196,
+     "回调放进 callbackQueue"
+    ],
+    [
+     197,
+     198,
+     "再往 requestQueue 塞一个 WakeupRequest 叫醒阻塞在 poll 上的处理线程；塞不进也无妨"
+    ]
+   ]
+  },
+  {
+   "id": "rc_sendresp",
+   "title": "RequestChannel.sendResponse()",
+   "name": "sendResponse",
+   "file": "core/src/main/scala/kafka/network/RequestChannel.scala",
+   "ranges": [
+    [
+     116,
+     116
+    ],
+    [
+     133,
+     155
+    ]
+   ],
+   "blocks": [
+    [
+     134,
+     146,
+     "会真正结束请求的三种响应记完成时间；限流开始/结束不算"
+    ],
+    [
+     149,
+     154,
+     "按 request.processor 找回原网络线程，投进它的 responseQueue；线程已不在就丢弃"
+    ]
+   ]
+  },
+  {
+   "id": "h_run",
+   "title": "KafkaRequestHandler.run()",
+   "name": "run",
+   "file": "core/src/main/scala/kafka/server/KafkaRequestHandler.scala",
+   "ranges": [
+    [
+     108,
+     130
+    ],
+    [
+     162,
+     186
+    ]
+   ],
+   "blocks": [
+    [
+     109,
+     109,
+     "把 requestChannel 记进 ThreadLocal，供 wrapAsyncCallback 使用"
+    ],
+    [
+     110,
+     123,
+     "最多等 300ms 取一件活；等待时长按线程数折算进空闲率指标"
+    ],
+    [
+     125,
+     129,
+     "ShutdownRequest：退出循环"
+    ],
+    [
+     162,
+     167,
+     "新请求：记出队时间，记下当前请求，同步调用 KafkaApis.handle"
+    ],
+    [
+     168,
+     176,
+     "致命错误退出进程，其他异常只记日志；无论如何释放请求缓冲"
+    ],
+    [
+     178,
+     185,
+     "WakeupRequest 本不该到这里；null 表示超时，再来一圈"
+    ]
+   ]
+  },
+  {
+   "id": "h_cb",
+   "title": "run() · CallbackRequest 分支",
+   "name": "CallbackRequest",
+   "file": "core/src/main/scala/kafka/server/KafkaRequestHandler.scala",
+   "lines": [
+    131,
+    160
+   ],
+   "blocks": [
+    [
+     131,
+     145,
+     "回调属于某个原始请求：维护回调的出队/完成时间，支持一个请求多次回调"
+    ],
+    [
+     147,
+     148,
+     "以原始请求的身份，用本线程的 RequestLocal 执行回调"
+    ],
+    [
+     149,
+     153,
+     "异常处理同新请求"
+    ],
+    [
+     154,
+     160,
+     "回调后也尝试完成积压的 delayed actions；记完成时间"
+    ]
+   ]
+  },
+  {
+   "id": "h_wrap",
+   "title": "wrapAsyncCallback()",
+   "file": "core/src/main/scala/kafka/server/KafkaRequestHandler.scala",
+   "lines": [
+    65,
+    85
+   ],
+   "blocks": [
+    [
+     65,
+     71,
+     "必须在处理线程上包装；测试可绕过"
+    ],
+    [
+     73,
+     77,
+     "回调若碰巧在同一处理线程、同一请求上执行，直接调用"
+    ],
+    [
+     78,
+     82,
+     "否则（例如在别的线程完成异步操作）把回调包成 CallbackRequest 排回处理线程池"
+    ]
+   ]
+  },
+  {
+   "id": "api_handle",
+   "title": "KafkaApis.handle()",
+   "name": "handle",
+   "file": "core/src/main/scala/kafka/server/KafkaApis.scala",
+   "ranges": [
+    [
+     157,
+     178
+    ],
+    [
+     256,
+     271
+    ]
+   ],
+   "blocks": [
+    [
+     157,
+     162,
+     "统一错误处理：生成该 API 的错误响应"
+    ],
+    [
+     164,
+     172,
+     "网络层已过滤未开放的 API，这里再断言一次"
+    ],
+    [
+     174,
+     178,
+     "按 apiKey 分派到 handleXxx（共 60 多支）"
+    ],
+    [
+     256,
+     260,
+     "未知 apiKey、异常都走 handleError"
+    ],
+    [
+     261,
+     270,
+     "finally：顺手执行积压的 delayed actions（可能完成别的请求），记本地处理完成时间"
+    ]
+   ]
+  },
+  {
+   "id": "api_produce",
+   "title": "handleProduceRequest()",
+   "file": "core/src/main/scala/kafka/server/KafkaApis.scala",
+   "ranges": [
+    [
+     401,
+     411
+    ],
+    [
+     436,
+     455
+    ],
+    [
+     542,
+     563
+    ]
+   ],
+   "blocks": [
+    [
+     401,
+     411,
+     "事务写入先校验 transactionalId 的 WRITE 权限，失败整体拒绝"
+    ],
+    [
+     436,
+     455,
+     "逐分区分拣：无权限 / 不存在 / 格式非法各进一张错误表，合格的进 authorizedRequestInfo"
+    ],
+    [
+     542,
+     543,
+     "没有合格分区：直接回响应"
+    ],
+    [
+     544,
+     557,
+     "否则交给 ReplicaManager，并把 sendResponseCallback 作为“完成时调用”的闭包交出去"
+    ],
+    [
+     559,
+     562,
+     "请求可能被 purgatory 引用很久，先清掉记录数据让 GC 回收"
+    ]
+   ]
+  },
+  {
+   "id": "api_cb",
+   "title": "sendResponseCallback()",
+   "file": "core/src/main/scala/kafka/server/KafkaApis.scala",
+   "ranges": [
+    [
+     462,
+     464
+    ],
+    [
+     492,
+     533
+    ]
+   ],
+   "blocks": [
+    [
+     462,
+     464,
+     "合并 ReplicaManager 返回的结果和前面分拣出的错误"
+    ],
+    [
+     492,
+     509,
+     "按字节配额和请求配额算限流时间，超限就让网络层 mute 连接一段时间"
+    ],
+    [
+     511,
+     530,
+     "acks=0：出错关连接，否则 NoOpResponse（不写任何字节，只 unmute）"
+    ],
+    [
+     531,
+     533,
+     "acks=1/-1：构造 ProduceResponse，经 RequestChannel 投回网络线程"
+    ]
+   ]
+  },
+  {
+   "id": "rm_append",
+   "title": "appendRecords()",
+   "file": "core/src/main/scala/kafka/server/ReplicaManager.scala",
+   "lines": [
+    638,
+    678
+   ],
+   "blocks": [
+    [
+     648,
+     651,
+     "acks 只允许 -1/0/1"
+    ],
+    [
+     653,
+     662,
+     "写 leader 本地日志（同步，在当前处理线程上）"
+    ],
+    [
+     664,
+     668,
+     "把每个分区的结果转成待回复状态（含 requiredOffset）"
+    ],
+    [
+     670,
+     677,
+     "交给判据：挂起等副本，或立即回调"
+    ]
+   ]
+  },
+  {
+   "id": "rm_local",
+   "title": "appendToLocalLog()",
+   "file": "core/src/main/scala/kafka/server/ReplicaManager.scala",
+   "ranges": [
+    [
+     1376,
+     1383
+    ],
+    [
+     1402,
+     1442
+    ]
+   ],
+   "blocks": [
+    [
+     1376,
+     1383,
+     "签名：每分区返回一个 LogAppendResult"
+    ],
+    [
+     1402,
+     1411,
+     "内部 topic 默认拒写"
+    ],
+    [
+     1413,
+     1429,
+     "找到本地 leader Partition 并追加；记字节/消息速率"
+    ],
+    [
+     1431,
+     1442,
+     "已知错误（不是 leader、太大、损坏…）记进结果，不抛出"
+    ]
+   ]
+  },
+  {
+   "id": "rm_need",
+   "title": "delayedProduceRequestRequired()",
+   "file": "core/src/main/scala/kafka/server/ReplicaManager.scala",
+   "lines": [
+    1356,
+    1367
+   ],
+   "blocks": [
+    [
+     1356,
+     1360,
+     "三个条件同时成立才需要等副本"
+    ],
+    [
+     1361,
+     1367,
+     "acks=-1、有数据、至少一个分区写成功"
+    ]
+   ]
+  },
+  {
+   "id": "rm_delay",
+   "title": "maybeAddDelayedProduce()",
+   "file": "core/src/main/scala/kafka/server/ReplicaManager.scala",
+   "lines": [
+    878,
+    918
+   ],
+   "blocks": [
+    [
+     886,
+     886,
+     "关键决定：要不要离开当前线程等副本"
+    ],
+    [
+     887,
+     901,
+     "完成判据委托：分区的 ISR 是否都追到 requiredOffset"
+    ],
+    [
+     903,
+     911,
+     "新建 DelayedProduce，以每个分区为 watch key，先试完成，不行就挂起"
+    ],
+    [
+     912,
+     917,
+     "不需要等：当场在本线程调用 sendResponseCallback"
+    ]
+   ]
+  },
+  {
+   "id": "rm_action",
+   "title": "addCompletePurgatoryAction()",
+   "file": "core/src/main/scala/kafka/server/ReplicaManager.scala",
+   "lines": [
+    853,
+    876
+   ],
+   "blocks": [
+    [
+     857,
+     859,
+     "不当场检查，而是排一个动作进 actionQueue（避免持分区锁去完成别的操作）"
+    ],
+    [
+     860,
+     867,
+     "HW 前进：可能解锁等待中的 PRODUCE / FETCH / DeleteRecords"
+    ],
+    [
+     868,
+     873,
+     "只是 LEO 变了：可能解锁等数据的 FETCH"
+    ]
+   ]
+  },
+  {
+   "id": "rm_hw",
+   "title": "updateFollowerFetchState() → maybeIncrementLeaderHW()",
+   "name": "updateFollowerFetchState",
+   "file": "core/src/main/scala/kafka/cluster/Partition.scala",
+   "blocks": [
+    [
+     777,
+     791,
+     "follower 的 FETCH 带来它的 LEO：更新这个副本的拉取进度"
+    ],
+    [
+     798,
+     799,
+     "追上了就加回 ISR"
+    ],
+    [
+     801,
+     811,
+     "follower LEO 变了：尝试推进 leader 的 HW"
+    ],
+    [
+     813,
+     815,
+     "HW 前进 → 检查本分区所有 purgatory：等它的 PRODUCE 可能就此完成"
+    ],
+    [
+     1013,
+     1017,
+     "ISR 小于 min.insync.replicas 时不推进 HW"
+    ],
+    [
+     1020,
+     1033,
+     "从 leader LEO 出发，遇到 ISR 内（或即将加入 ISR）LEO 更小的副本就取它的 LEO——即取最小值"
+    ],
+    [
+     1035,
+     1036,
+     "新值比旧 HW 大才真正推进"
+    ]
+   ],
+   "ranges": [
+    [
+     769,
+     791
+    ],
+    [
+     798,
+     819
+    ],
+    [
+     1013,
+     1036
+    ]
+   ]
+  },
+  {
+   "id": "dp_ctor",
+   "title": "DelayedProduce 构造",
+   "name": "DelayedProduce",
+   "file": "server/src/main/java/org/apache/kafka/server/purgatory/DelayedProduce.java",
+   "lines": [
+    100,
+    122
+   ],
+   "blocks": [
+    [
+     100,
+     108,
+     "记下每分区状态、完成判据、响应回调；delayMs 就是超时"
+    ],
+    [
+     110,
+     115,
+     "写成功的分区：先把错误预设成 REQUEST_TIMED_OUT，标记 acksPending——超时时不必再改"
+    ],
+    [
+     116,
+     118,
+     "写失败的分区：无需等待"
+    ]
+   ]
+  },
+  {
+   "id": "pg_watch",
+   "title": "tryCompleteElseWatch()",
+   "file": "server-common/src/main/java/org/apache/kafka/server/purgatory/DelayedOperationPurgatory.java",
+   "ranges": [
+    [
+     122,
+     131
+    ],
+    [
+     155,
+     176
+    ]
+   ],
+   "blocks": [
+    [
+     122,
+     131,
+     "先试一次；不行就挂到所有 key 上再试一次——保证不会错过挂起期间发生的事件"
+    ],
+    [
+     155,
+     164,
+     "持有操作自己的锁完成“试 → 挂 → 再试”"
+    ],
+    [
+     166,
+     174,
+     "仍未完成：加进时间轮；若刚好被别人完成就取消定时器"
+    ]
+   ]
+  },
+  {
+   "id": "pg_check",
+   "title": "checkAndComplete()",
+   "file": "server-common/src/main/java/org/apache/kafka/server/purgatory/DelayedOperationPurgatory.java",
+   "lines": [
+    184,
+    199
+   ],
+   "blocks": [
+    [
+     185,
+     192,
+     "按 key（分区）哈希到 512 个分片之一，取出等这个分区的 Watchers"
+    ],
+    [
+     193,
+     198,
+     "逐个试完成；调用它的线程就是执行回调的线程"
+    ]
+   ]
+  },
+  {
+   "id": "dp_try",
+   "title": "DelayedProduce.tryComplete() / onComplete()",
+   "name": "tryComplete",
+   "file": "server/src/main/java/org/apache/kafka/server/purgatory/DelayedProduce.java",
+   "ranges": [
+    [
+     139,
+     172
+    ],
+    [
+     187,
+     196
+    ]
+   ],
+   "blocks": [
+    [
+     141,
+     157,
+     "对仍在等的分区调委托判据：HW ≥ requiredOffset，或出错（不再是 leader）就算满足"
+    ],
+    [
+     159,
+     171,
+     "全部分区满足才 forceComplete"
+    ],
+    [
+     187,
+     196,
+     "onComplete：把每分区状态交给 KafkaApis 的 sendResponseCallback"
+    ]
+   ]
+  },
+  {
+   "id": "op_force",
+   "title": "forceComplete() / run()",
+   "name": "forceComplete",
+   "file": "server-common/src/main/java/org/apache/kafka/server/purgatory/DelayedOperation.java",
+   "ranges": [
+    [
+     60,
+     81
+    ],
+    [
+     145,
+     149
+    ]
+   ],
+   "blocks": [
+    [
+     60,
+     64,
+     "已完成就直接返回"
+    ],
+    [
+     65,
+     80,
+     "加锁再查一次：多个线程（FETCH 处理线程 / Reaper）抢着完成时只有一个赢，取消定时器后调 onComplete"
+    ],
+    [
+     145,
+     149,
+     "超时：时间轮到期由 ExpirationReaper 线程调用 run()，先 onComplete（错误已预设为超时）再记过期指标"
+    ]
+   ]
+  },
+  {
+   "id": "proc_poll",
+   "title": "poll()",
+   "file": "core/src/main/scala/kafka/network/SocketServer.scala",
+   "lines": [
+    971,
+    980
+   ],
+   "blocks": [
+    [
+     972,
+     972,
+     "有新连接等注册就不阻塞（0），否则最多阻塞 300ms；enqueueResponse/accept 的 wakeup 会提前打断"
+    ],
+    [
+     973,
+     979,
+     "真正的读写都在 selector.poll 里：读满的请求进 completedReceives，写完的进 completedSends；出错只记日志，本轮结果照常处理"
+    ]
+   ]
+  },
+  {
+   "id": "rm_entry",
+   "title": "handleProduceAppend()",
+   "file": "core/src/main/scala/kafka/server/ReplicaManager.scala",
+   "ranges": [
+    [
+     697,
+     719
+    ],
+    [
+     763,
+     786
+    ]
+   ],
+   "blocks": [
+    [
+     697,
+     705,
+     "KafkaApis 的入口：带着 sendResponseCallback"
+    ],
+    [
+     707,
+     718,
+     "找出事务批次；一个请求里只允许一个事务 producer"
+    ],
+    [
+     763,
+     777,
+     "postVerificationCallback：合并校验错误后调用 appendRecords"
+    ],
+    [
+     780,
+     786,
+     "非事务请求：不去协调器校验，直接在当前处理线程上调用 postVerificationCallback"
+    ]
+   ]
+  },
+  {
+   "id": "pc_check",
+   "title": "Partition.checkEnoughReplicasReachOffset()",
+   "name": "checkEnoughReplicasReachOffset",
+   "file": "core/src/main/scala/kafka/cluster/Partition.scala",
+   "ranges": [
+    [
+     949,
+     953
+    ],
+    [
+     970,
+     985
+    ]
+   ],
+   "blocks": [
+    [
+     949,
+     953,
+     "DelayedProduce 的完成判据（经 ReplicaManager 的 delegate 调到这里）"
+    ],
+    [
+     970,
+     979,
+     "HW 已到 requiredOffset 就算满足；此时 ISR 若小于 min.insync.replicas，仍然完成但带 NOT_ENOUGH_REPLICAS_AFTER_APPEND"
+    ],
+    [
+     980,
+     985,
+     "HW 未到：继续等；本 broker 已不是 leader：以错误完成"
+    ]
+   ]
+  }
+ ],
+ "stories": [
+  {
+   "title": "一个 acks=-1 的 PRODUCE 请求 P7",
+   "token": "P7",
+   "steps": [
+    {
+     "at": {
+      "module": "clients"
+     },
+     "text": "producer-1 已经和 broker 建好连接，现在发出 P7：PRODUCE，写 orders-0，acks=-1，correlationId=7。（本故事里的线程号、offset、连接 id、队列长度都是示例值，用来让读者跟踪；代码行是真实的。）",
+     "value": "acks=-1, topic=orders-0"
+    },
+    {
+     "at": {
+      "card": "acc_new",
+      "line": 645,
+      "line2": 646
+     },
+     "text": "回溯（早于 P7，连接建立时）：Acceptor 线程按轮询取 processors 数组下标 1 的 Processor。它的 id 由 nextProcessorId 全局分配，这里设为 1（示例）。此后这条连接的所有 I/O 都归它。",
+     "value": "processors(1).id = 1"
+    },
+    {
+     "at": {
+      "card": "proc_accept",
+      "line": 1123
+     },
+     "text": "连接被 offer 进 Processor 1 的 newConnections，并 wakeup 它。仍在 Acceptor 线程上。"
+    },
+    {
+     "at": {
+      "card": "proc_cfg",
+      "line": 1149
+     },
+     "text": "Processor 1 在 ① 站把连接注册到自己的 selector，得到 connectionId。",
+     "value": "connId = 10.0.0.5:9092-10.0.0.9:51234-3"
+    },
+    {
+     "at": {
+      "item": "proc/p3"
+     },
+     "text": "P7 的字节到达。Processor 1 在 ③ 站 poll()，KSelector 读满一个完整的请求帧，放进 completedReceives。"
+    },
+    {
+     "at": {
+      "card": "proc_recv",
+      "line": 989
+     },
+     "text": "④ 站：只解析请求头——知道是 PRODUCE v12、correlationId=7。请求体还是原始字节。"
+    },
+    {
+     "at": {
+      "card": "proc_recv",
+      "line": 1007
+     },
+     "text": "new Request(id, …)：第一个参数是本 Processor 的编号 1，这是 P7 回程的地址。",
+     "value": "P7.processor = 1"
+    },
+    {
+     "at": {
+      "card": "proc_recv",
+      "line": 1019,
+      "line2": 1021
+     },
+     "text": "放进全局 requestQueue，然后 mute 这条连接：在 P7 的响应写出之前，这条连接上的下一个请求不会被读。",
+     "value": "requestQueue 3/500；conn muted"
+    },
+    {
+     "at": {
+      "card": "rc_recv",
+      "line": 161,
+      "line2": 165
+     },
+     "text": "处理线程 #4 调 receiveRequest(300)：callbackQueue 空，于是从 requestQueue 取到 P7。",
+     "value": "thread = data-plane-kafka-request-handler-4"
+    },
+    {
+     "at": {
+      "card": "h_run",
+      "line": 166,
+      "line2": 167
+     },
+     "text": "#4 记下当前请求 = P7，同步调用 KafkaApis.handle。从这里到 handle 返回，都在线程 #4 上。"
+    },
+    {
+     "at": {
+      "card": "api_produce",
+      "line": 443,
+      "line2": 450
+     },
+     "text": "逐分区分拣：orders-0 有 WRITE 权限、存在、格式合法 → 进 authorizedRequestInfo。"
+    },
+    {
+     "at": {
+      "card": "api_produce",
+      "line": 548,
+      "line2": 554
+     },
+     "text": "交给 ReplicaManager，同时交出 sendResponseCallback 闭包：谁调用它，谁就发出 P7 的响应。"
+    },
+    {
+     "at": {
+      "card": "rm_entry",
+      "line": 780,
+      "line2": 785
+     },
+     "text": "进入 ReplicaManager.handleProduceAppend：P7 不是事务请求，不需要去协调器校验，直接在线程 #4 上调用 postVerificationCallback → appendRecords。",
+     "value": "transactionalProducerInfo 为空"
+    },
+    {
+     "at": {
+      "card": "rm_local",
+      "line": 1415
+     },
+     "text": "仍在线程 #4：把记录追加到 orders-0 的 leader 日志。",
+     "value": "LEO 1000 → 1005；requiredOffset = 1005"
+    },
+    {
+     "at": {
+      "card": "rm_append",
+      "line": 664
+     },
+     "text": "把每个分区的追加结果变成待回复状态；requiredOffset = 追加的 lastOffset + 1。",
+     "value": "requiredOffset = 1004 + 1 = 1005"
+    },
+    {
+     "at": {
+      "card": "rm_need",
+      "line": 1364,
+      "line2": 1366
+     },
+     "text": "判据：acks=-1、有数据、分区写成功 → 需要等 ISR。",
+     "value": "true"
+    },
+    {
+     "at": {
+      "card": "rm_delay",
+      "line": 903
+     },
+     "text": "新建 DelayedProduce，watch key = orders-0。"
+    },
+    {
+     "at": {
+      "card": "dp_ctor",
+      "line": 114,
+      "line2": 115
+     },
+     "text": "orders-0 先被标成 acksPending，错误预设为 REQUEST_TIMED_OUT。",
+     "value": "acksPending=true, error=REQUEST_TIMED_OUT"
+    },
+    {
+     "at": {
+      "card": "pg_watch",
+      "line": 155,
+      "line2": 169
+     },
+     "text": "试一次：HW=1000 < 1005，没满足 → 挂到 orders-0 的 watcher 上，再试一次仍不满足。 于是加进时间轮（timeout=30000ms，示例），返回 false。"
+    },
+    {
+     "at": {
+      "card": "api_handle",
+      "line": 266
+     },
+     "text": "回到 KafkaApis.handle() 的 finally：执行 P7 追加时排进 actionQueue 的检查。follower 还没拉取，HW 没变（LeaderHwChange.SAME），只检查 fetch purgatory；P7 仍挂着。",
+     "value": "HW = 1000"
+    },
+    {
+     "at": {
+      "card": "h_run",
+      "line": 174,
+      "line2": 175
+     },
+     "text": "调用链一路返回，线程 #4 释放请求缓冲，回去取下一件活。P7 此刻不属于任何线程：它只挂在 purgatory 里。",
+     "value": "P7 ∈ watchers[orders-0]"
+    },
+    {
+     "at": {
+      "item": "apis/fetch"
+     },
+     "text": "与此同时，另一个请求出场：follower broker 2 的 FETCH F9（fetchOffset=1005）。它走的是和 P7 完全相同的路：Processor → requestQueue → 处理线程 #6 → KafkaApis 的 FETCH 分支 → ReplicaManager。",
+     "value": "F9 ≠ P7；P7 仍在 purgatory"
+    },
+    {
+     "at": {
+      "card": "rm_hw",
+      "line": 784
+     },
+     "text": "F9 在线程 #6 上经 ReplicaManager.fetchMessages → Partition.fetchRecords（这几层未画卡）来到 updateFollowerFetchState：记下 follower 2 的 LEO。",
+     "value": "replica 2 LEO = 1005"
+    },
+    {
+     "at": {
+      "card": "rm_hw",
+      "line": 1031
+     },
+     "text": "maybeIncrementLeaderHW：从 leader LEO 出发，ISR 里谁的 LEO 更小就取谁的——新 HW 是 ISR 中 LEO 的最小值。ISR = {1, 2}（示例），两者都到 1005 → HW 前进。",
+     "value": "HW 1000 → 1005"
+    },
+    {
+     "at": {
+      "card": "pg_check",
+      "line": 189,
+      "line2": 193
+     },
+     "text": "HW 前进 → tryCompleteDelayedRequests → checkAndComplete(orders-0)：在线程 #6 上找到等 orders-0 的 Watchers，逐个试完成——其中就有 P7。"
+    },
+    {
+     "at": {
+      "card": "dp_try",
+      "line": 148,
+      "line2": 155
+     },
+     "text": "HW 1005 ≥ requiredOffset 1005 → orders-0 满足，错误改回 NONE。",
+     "value": "acksPending=false, error=NONE"
+    },
+    {
+     "at": {
+      "card": "pc_check",
+      "line": 971,
+      "line2": 977
+     },
+     "text": "判据的真正实现在 Partition：HW ≥ requiredOffset，且 ISR 大小 ≥ min.insync.replicas → (true, NONE)。",
+     "value": "(true, NONE)"
+    },
+    {
+     "at": {
+      "card": "op_force",
+      "line": 69,
+      "line2": 73
+     },
+     "text": "抢到锁、标记 completed、取消定时器、调用 onComplete。"
+    },
+    {
+     "at": {
+      "card": "dp_try",
+      "line": 195
+     },
+     "text": "onComplete 调用当初 KafkaApis 交出的 sendResponseCallback——执行它的是线程 #6，不是处理 P7 的线程 #4。这个回调没有经过 wrapAsyncCallback：谁完成 DelayedProduce，谁就直接执行它。",
+     "kind": "return",
+     "value": "thread = handler-6"
+    },
+    {
+     "at": {
+      "card": "api_cb",
+      "line": 532
+     },
+     "text": "acks=-1：构造 ProduceResponse，交给 RequestChannel。",
+     "kind": "return"
+    },
+    {
+     "at": {
+      "card": "rc_sendresp",
+      "line": 149,
+      "line2": 153
+     },
+     "text": "按 P7.processor = 1 找到 Processor 1，投进它的 responseQueue。",
+     "kind": "return",
+     "value": "processors.get(1)"
+    },
+    {
+     "at": {
+      "card": "proc_enq",
+      "line": 1185,
+      "line2": 1186
+     },
+     "text": "put + wakeup：打断 Processor 1 正在进行的 poll(300)。",
+     "kind": "return"
+    },
+    {
+     "at": {
+      "card": "proc_newresp",
+      "line": 932,
+      "line2": 933
+     },
+     "text": "Processor 1 下一圈 ② 站取到 SendResponse，交给 selector 并记进 inflightResponses。",
+     "kind": "return"
+    },
+    {
+     "at": {
+      "card": "proc_sent",
+      "line": 1044
+     },
+     "text": "③ poll 把字节写完；⑤ 站从 inflightResponses 取出 P7 的响应，记录全程耗时。",
+     "kind": "return"
+    },
+    {
+     "at": {
+      "card": "proc_sent",
+      "line": 1052,
+      "line2": 1053
+     },
+     "text": "unmute 连接：producer-1 的下一个请求现在可以被读了。P7 的一生结束。",
+     "kind": "return",
+     "value": "conn unmuted"
+    }
+   ]
+  }
+ ]
+}

@@ -237,6 +237,20 @@ def maybe_rerender(html_path: Path) -> None:
     """画布 html 是模板快照：若旁边有 json 且 html 比模板旧，自动重渲染。"""
     sib = html_path.with_suffix(".json")
     tpl = SKILL_DIR / "template" / "canvas.html"
+    try:  # 逻辑线图 / 旧缩放画布：hub 里的 json 已含代码，模板更新后直接重新注入
+        mode = (json.loads(sib.read_text(encoding="utf-8")).get("meta") or {}).get("mode") if sib.exists() else None
+    except Exception:
+        mode = None
+    if mode in ("flow", "zoom"):
+        ztpl = SKILL_DIR / "template" / (mode + ".html")
+        mark = "/*FLOW_DATA*/null" if mode == "flow" else "/*ZOOM_DATA*/null"
+        if ztpl.exists() and html_path.stat().st_mtime < ztpl.stat().st_mtime:
+            try:
+                data = sib.read_text(encoding="utf-8").replace("</", "<\\/")
+                html_path.write_text(ztpl.read_text(encoding="utf-8").replace(mark, data, 1), encoding="utf-8")
+            except Exception:
+                pass
+        return
     if not (sib.exists() and tpl.exists()):
         return
     if html_path.stat().st_mtime >= tpl.stat().st_mtime:
@@ -568,7 +582,7 @@ def upgrade_gaps(d: dict) -> list:
 
 
 def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
-                   engine: str = "claude", model: str = "", upgrade: bool = False) -> dict:
+                   engine: str = "claude", model: str = "", upgrade: bool = False, zoom: bool = False) -> dict:
     """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。
     入库由服务端做：agent 只在工作目录产出 canvas.json，收尾时服务端嵌上下文、
     核依据、过 validate，全过才写进画布库（任务 done ⇔ 画布已入库）。
@@ -581,7 +595,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     meta_f = jd / (job_id + ".meta.json")
     workdir = jd / job_id
     workdir.mkdir(exist_ok=True)
-    wj = workdir / "canvas.json"
+    wj = workdir / ("zoom.json" if zoom else "canvas.json")
     hj, hh = ARGS.hub / (name + ".json"), ARGS.hub / (name + ".html")
     if upgrade:
         shutil.copyfile(str(hj), str(wj))
@@ -595,6 +609,14 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         """服务端入库（不信任 agent 守规程）。rc：3 升级被拒 / 4 validate 未过 /
         5 agent 没产出 canvas.json / 6 渲染失败。"""
         lg = q(log_f)
+        if zoom:  # 缩放画布（动画场景在最上层）：build_zoom 读代码+校验+重放场景+渲染，填好代码的数据存进库
+            rec = ({"git_url": src["git_url"]} if src["kind"] == "git" else {"repo": src["repo"]})
+            sidecar = "printf '%s' {j} > {sf}; ".format(j=q(json.dumps(rec, ensure_ascii=False)),
+                                                        sf=q(ARGS.hub / (name + ".src.json")))
+            return ('if [ "$rc" -eq 0 ]; then if [ -f {w} ]; then '
+                    'if {bz} {w} --repo {r} --out {hh} --dump {hj} >> {lg} 2>&1; then {{ {sidecar}:; }}; '
+                    'else rc=4; fi; else rc=5; fi; fi; ').format(
+                        w=q(wj), bz=tool("build_zoom.py"), r=q(repo_dir), hh=q(hh), hj=q(hj), lg=lg, sidecar=sidecar)
         refs = ("{chk} {w} {r} >> {lg} 2>&1; ".format(chk=tool("check_refs.py"), w=q(wj), r=q(repo_dir), lg=lg)
                 if repo_dir else "")
         if upgrade:
@@ -634,18 +656,33 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)),
                post="{post}")
     has_repo = src["kind"] != "code"
-    tail = ("步骤：1) 产出 {w}；"
-            + ("2) python3 {skill}/embed_context.py {w} <仓库根>（上下文全文靠它）；"
-               "3) python3 {skill}/check_refs.py {w} <仓库根>（依据核不过的要修正，不要留给服务端剔除）；\n"
-               if has_repo else "")
-            + "事实可信层必写（SKILL 4d / preview-spec）：gaps 待核实清单、objects、ev 证据分级、"
-            "trace 步卡（深潜至少一半的步，预览每条路线步）——它们和代码卡一样是交付物。"
-            "深潜画布每个故事步必写 read 逐段带读（SKILL 第 6 步），并写 boxes 黑盒与 scenarios 情境推演（SKILL 6b）。\n"
-            "接着 python3 {skill}/validate.py {w} 清零 ERROR（warn 逐条自查）；"
-            "python3 {skill}/render.py {w} {work}/canvas.html 渲染并截图自检。\n"
+    tail = ("交付：{w}（canvas JSON）。\n"
+            "SKILL 第 6 节的交付契约不可商量：validate.py 无 ERROR、"
+            + ("check_refs.py <仓库根> 全过、embed_context.py <仓库根> 嵌入上下文、" if has_repo else "")
+            + "卡内代码是原文、meta.judgment 写实话（每条判断带理由）。\n"
+            "其余怎么做由你判断。完成的标准是 SKILL 第 1 节：一位第一次接触这个代码库的读者只看画布就能做到那六条。"
+            "用 render.py 渲染到 {work}/canvas.html、截图自己看，并用 reader_check.py 让新读者挑错，"
+            "读者做不到的地方回去改。\n"
             "**不要写入画布库**——入库由服务端完成：收尾时它会嵌上下文、核依据、过 validate，全过才入库。"
             "完成后打印 DONE。").format(skill=SKILL_DIR, w=wj, work=workdir)
-    head = "阅读 {skill}/SKILL.md 并严格按其管线执行（规模闸门、验证器、截图自检都算数）。\n".format(skill=SKILL_DIR)
+    head = ("阅读 {skill}/SKILL.md。它不是一条要逐步执行的管线：它给出判断标准、你必须自己做出的判断、"
+            "可用的工具，以及不可商量的交付契约。\n").format(skill=SKILL_DIR)
+    if zoom:
+        head = ("阅读 {skill}/SKILL.md 的第 1、2 节（判断标准、你必须自己做的判断）、{skill}/zoom-spec.md（缩放画布，含最后的"
+                "伪代码一节）和 {skill}/scene-spec.md（动画场景，画布的最上层）。再读一个场景例子 {skill}/scenes/kafka.json。"
+                "它们不是逐步执行的管线：给出的是判断标准、可选的表达原语、工具和不可商量的交付契约。\n").format(skill=SKILL_DIR)
+        tail = ("交付（都在 {work}/）：\n"
+                "1. zoom.json —— 模块、通道、每个模块的内部结构、函数卡；每张超过 12 行的卡带英文伪代码 steps + omitted。\n"
+                "2. scene.json —— 动画场景：最上层。实体带 module，每一步带 at 指向卡和行。\n"
+                "契约：python3 {skill}/build_zoom.py {w} --repo <仓库根> --out {work}/zoom.html 0 ERROR（WARN 逐条看）；"
+                "代码由脚本从仓库读，你只写 file + 行段，行段必须对准真实函数；伪代码和场景的每一步都要对着真实源码写，"
+                "不凭印象；meta.judgment 写实话。\n"
+                "自查：node {skill}/zoom_shot.js {work}/zoom.html {work}/shots 截图并逐张看（Read 图片）：场景每一步的画面"
+                "（s-step-N.png）、每个模块的结构图、函数卡。有重叠、压线、token 停错地方、文字和画面不一致就改了再构建，至少两轮。\n"
+                "完成的标准：一位第一次接触这个代码库的读者，看完动画能说出主角经过了哪些执行者和队列；放大任何一个实体"
+                "能看到它内部怎么运转；到最后一层能对着伪代码读懂源码。\n"
+                "**不要写入画布库**——服务端收尾时重新构建并入库。完成后打印 DONE。").format(
+                    skill=SKILL_DIR, w=wj, work=workdir)
     if upgrade:
         cur = json.loads(hj.read_text(encoding="utf-8"))
         spec = "preview-spec.md" if (cur.get("meta") or {}).get("mode") == "preview" else "SKILL.md"
@@ -671,6 +708,8 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                     "核心文件），分区是逻辑组不是目录，highlights 必须核实真实存在，"
                     "3-6 条故事线路且每条 step 带 ask（深潜点单句）。读者关注点：{a}\n").format(
                         w=where, skill=SKILL_DIR, a=ask)
+        if zoom:
+            return "任务：为仓库 {w} 生成一张完整的缩放画布（动画场景在最上层），读者关注点：{a}\n".format(w=where, a=ask)
         return "任务：为仓库 {w} 生成一张 Code Canvas，主题/关注点：{a}\n".format(w=where, a=ask)
 
     if src["kind"] == "git":
@@ -723,7 +762,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     prompt_f.write_text(prompt, encoding="utf-8")
     proc = subprocess.Popen(["bash", "-c", script], cwd=cwd, start_new_session=True)
     meta = {"id": job_id, "name": name, "ask": ask, "source": source_desc,
-            "mode": "upgrade" if upgrade else "preview" if preview else "deep", "pid": proc.pid,
+            "mode": "upgrade" if upgrade else "zoom" if zoom else "preview" if preview else "deep", "pid": proc.pid,
             "engine": engine, "model": model or "",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
     if src["kind"] == "git":
@@ -797,6 +836,7 @@ GEN_FORM = """
   <div class=row id=ctype-row>
     <label><input type=radio name=ctype value=deep checked> 深潜画布（代码细讲）</label>
     <label><input type=radio name=ctype value=preview> 预览地图（陌生仓库的第一张图）</label>
+    <label><input type=radio name=ctype value=zoom> 动画缩放图（最上层是会动的系统图，每步带代码；放大进到模块结构、函数卡、伪代码对照源码）</label>
   </div>
   <div class=row>
     <label><input type=radio name=eng value=claude checked> Claude（默认 opus-5.5）</label>
@@ -820,15 +860,15 @@ document.querySelectorAll('input[name=kind]').forEach(r=>r.onchange=()=>{
   if(k!=='code')$('g-src').placeholder=srcPH[k];
   // 粘贴片段没有"陌生仓库"可预览
   const pv=document.querySelector('input[name=ctype][value=preview]');
-  pv.disabled=k==='code';
+  pv.disabled=k==='code';document.querySelector('input[name=ctype][value=zoom]').disabled=k==='code';
   if(k==='code')document.querySelector('input[name=ctype][value=deep]').checked=true;
 });
 document.querySelectorAll('input[name=eng]').forEach(r=>r.onchange=()=>{
   $('g-model').style.display=document.querySelector('input[name=eng]:checked').value==='codex'?'block':'none';
 });
 document.querySelectorAll('input[name=ctype]').forEach(r=>r.onchange=()=>{
-  const p=document.querySelector('input[name=ctype]:checked').value==='preview';
-  $('g-ask').placeholder=p?'关注点（例：第一次接触，想知道推理请求怎么流过整个系统）'
+  const cv=document.querySelector('input[name=ctype]:checked').value;const p=cv==='preview';
+  $('g-ask').placeholder=cv==='zoom'?'你的问题（例：一个请求从进来到返回，中间经过了什么）':p?'关注点（例：第一次接触，想知道推理请求怎么流过整个系统）'
     :'主题 / 关注点（例：讲讲调度器怎么工作）';
 });
 $('g-go').onclick=async()=>{
@@ -838,6 +878,7 @@ $('g-go').onclick=async()=>{
   if(k==='path')body.repo=$('g-src').value.trim();
   if(k==='code')body.code=$('g-code').value;
   if(document.querySelector('input[name=ctype]:checked').value==='preview')body.preview=true;
+  if(document.querySelector('input[name=ctype]:checked').value==='zoom')body.zoom=true;
   const eng=document.querySelector('input[name=eng]:checked').value;
   if(eng!=='claude')body.engine=eng;
   if($('g-model').value.trim())body.model=$('g-model').value.trim();
@@ -1097,6 +1138,11 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     return self._json(400, {"ok": False, "error": "git_url / repo / code 三选一"})
                 preview = bool(req.get("preview"))
+                zoom = bool(req.get("zoom"))
+                if zoom and src["kind"] == "code":
+                    return self._json(400, {"ok": False, "error": "动画缩放图需要 git 地址或盒子路径（要从仓库读代码）"})
+                if zoom and not req.get("name"):
+                    default += "-flow"
                 if preview and src["kind"] == "code":
                     return self._json(400, {"ok": False,
                                             "error": "粘贴片段没有\"陌生仓库\"可预览——预览地图需要 git 地址或盒子路径"})
@@ -1112,7 +1158,7 @@ class Handler(BaseHTTPRequestHandler):
                 if model and not re.match(r"^[A-Za-z0-9._-]{1,64}$", model):
                     return self._json(400, {"ok": False, "error": "model 只允许 [A-Za-z0-9._-]"})
                 with SPAWN_LOCK:  # 缓存取用模式的判定+meta 落盘要原子，防同仓并发单互踩
-                    job = spawn_generate(src, ask, name, preview, engine, model)
+                    job = spawn_generate(src, ask, name, preview and not zoom, engine, model, zoom=zoom)
                 return self._json(200, {"ok": True, "job": job})
             return self._json(404, {"ok": False, "error": "not found"})
         if self.path.startswith("/ask"):

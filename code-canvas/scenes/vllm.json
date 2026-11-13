@@ -1,0 +1,1005 @@
+{
+ "title": "vLLM：请求 C 的三拍",
+ "subtitle": "每一拍 schedule() 怎样分一份 token 预算：没轮到 → 被接纳 → 被抢占",
+ "intro": "vLLM 的调度器每一拍做同一件事：拿一份 token 预算，先分给已经在跑的请求，剩下的再接纳新请求。running 里已有 A（在逐个生成 token）和 B（一个 4000 token 的长 prompt，才算了 1000）。按 ▶ 跟着新请求 C 走三拍。",
+ "tokens": {
+  "A": {
+   "label": "A",
+   "kind": "req",
+   "color": "c2"
+  },
+  "B": {
+   "label": "B",
+   "kind": "req",
+   "color": "c4"
+  },
+  "C": {
+   "label": "C",
+   "kind": "req",
+   "color": "c1"
+  }
+ },
+ "entities": [
+  {
+   "id": "g_api",
+   "type": "group",
+   "x": 15,
+   "y": 150,
+   "w": 180,
+   "h": 185,
+   "title": "API server 进程"
+  },
+  {
+   "id": "g_core",
+   "type": "group",
+   "x": 230,
+   "y": 40,
+   "w": 940,
+   "h": 590,
+   "title": "EngineCore 进程"
+  },
+  {
+   "id": "fe",
+   "type": "ext",
+   "kind": "frontend",
+   "x": 30,
+   "y": 175,
+   "w": 150,
+   "h": 135,
+   "title": "AsyncLLM",
+   "sub": "前端"
+  },
+  {
+   "id": "inq",
+   "type": "queue",
+   "x": 255,
+   "y": 220,
+   "w": 170,
+   "h": 50,
+   "title": "input_queue",
+   "sub": "跨进程（ZMQ）",
+   "count": false,
+   "module": "eng"
+  },
+  {
+   "id": "eng",
+   "type": "thread",
+   "kind": "main loop",
+   "x": 250,
+   "y": 385,
+   "w": 190,
+   "h": 135,
+   "title": "EngineCore 主循环",
+   "sub": "schedule → GPU → 回写",
+   "state": "run",
+   "vars": {
+    "拍": "N − 1"
+   },
+   "module": "eng"
+  },
+  {
+   "id": "waiting",
+   "type": "queue",
+   "dir": "v",
+   "x": 495,
+   "y": 110,
+   "w": 180,
+   "h": 150,
+   "title": "waiting",
+   "sub": "FCFS，队首在上",
+   "module": "q"
+  },
+  {
+   "id": "running",
+   "type": "queue",
+   "dir": "v",
+   "x": 495,
+   "y": 370,
+   "w": 180,
+   "h": 190,
+   "title": "running",
+   "sub": "每格：已算的 / 应有的 token",
+   "module": "run"
+  },
+  {
+   "id": "budget",
+   "type": "bar",
+   "x": 810,
+   "y": 110,
+   "w": 330,
+   "h": 30,
+   "total": 2048,
+   "title": "token_budget",
+   "sub": "每拍重置为 max_num_batched_tokens",
+   "module": "sched"
+  },
+  {
+   "id": "gpu",
+   "type": "grid",
+   "kind": "gpu batch",
+   "x": 810,
+   "y": 245,
+   "w": 330,
+   "h": 92,
+   "cols": 16,
+   "rowsN": 4,
+   "title": "本拍送进 GPU 的批次",
+   "sub": "1 格 = 32 个 token",
+   "count": false
+  },
+  {
+   "id": "pool",
+   "type": "grid",
+   "kind": "block pool",
+   "x": 810,
+   "y": 435,
+   "w": 330,
+   "h": 120,
+   "cols": 16,
+   "rowsN": 6,
+   "title": "BlockPool（KV 块）",
+   "sub": "示意：1 格 ≈ 4 块，每块 16 token；斜线 = 带 hash 的缓存块",
+   "module": "pool"
+  }
+ ],
+ "wires": [
+  {
+   "id": "w_ipc",
+   "a": [
+    "fe",
+    "r",
+    0.5
+   ],
+   "b": [
+    "inq",
+    "l"
+   ],
+   "kind": "ipc",
+   "label": "请求"
+  },
+  {
+   "id": "w_in",
+   "a": [
+    "inq",
+    "b"
+   ],
+   "b": [
+    "eng",
+    "t"
+   ],
+   "kind": "queue",
+   "label": "取请求"
+  },
+  {
+   "id": "w_add",
+   "a": [
+    "eng",
+    "r",
+    0.2
+   ],
+   "b": [
+    "waiting",
+    "l",
+    0.6
+   ],
+   "kind": "call",
+   "label": "add_request"
+  },
+  {
+   "id": "w_adm",
+   "a": [
+    "waiting",
+    "b",
+    0.35
+   ],
+   "b": [
+    "running",
+    "t",
+    0.35
+   ],
+   "kind": "queue",
+   "label": "接纳",
+   "lt": 0.5
+  },
+  {
+   "id": "w_pre",
+   "a": [
+    "running",
+    "t",
+    0.75
+   ],
+   "b": [
+    "waiting",
+    "b",
+    0.75
+   ],
+   "kind": "ret",
+   "label": "抢占 → 队首",
+   "lt": 0.5
+  },
+  {
+   "id": "w_hit",
+   "a": [
+    "waiting",
+    "r",
+    0.6
+   ],
+   "b": [
+    "pool",
+    "l",
+    0.2
+   ],
+   "kind": "call",
+   "label": "查前缀缓存",
+   "lt": 0.3
+  },
+  {
+   "id": "w_kv",
+   "a": [
+    "running",
+    "r",
+    0.7
+   ],
+   "b": [
+    "pool",
+    "l",
+    0.6
+   ],
+   "kind": "call",
+   "label": "allocate_slots"
+  },
+  {
+   "id": "w_bat",
+   "a": [
+    "running",
+    "r",
+    0.25
+   ],
+   "b": [
+    "gpu",
+    "l",
+    0.6
+   ],
+   "kind": "data",
+   "label": "SchedulerOutput"
+  }
+ ],
+ "setup": [
+  {
+   "op": "spawn",
+   "tok": "A",
+   "at": [
+    "running"
+   ]
+  },
+  {
+   "op": "tok",
+   "tok": "A",
+   "set": {
+    "done": 318,
+    "total": 319
+   }
+  },
+  {
+   "op": "spawn",
+   "tok": "B",
+   "at": [
+    "running"
+   ]
+  },
+  {
+   "op": "tok",
+   "tok": "B",
+   "set": {
+    "done": 1000,
+    "total": 4000
+   }
+  },
+  {
+   "op": "alloc",
+   "ent": "pool",
+   "who": "A",
+   "n": 5
+  },
+  {
+   "op": "alloc",
+   "ent": "pool",
+   "who": "B",
+   "n": 16
+  },
+  {
+   "op": "alloc",
+   "ent": "pool",
+   "who": "tmp",
+   "n": 8,
+   "hash": true
+  },
+  {
+   "op": "free",
+   "ent": "pool",
+   "who": "tmp"
+  }
+ ],
+ "steps": [
+  {
+   "text": "前端发来请求 C：prompt 1000 个 token，其中前 480 个和以前某个请求相同。请求穿过进程边界，进到 EngineCore 的 input_queue。",
+   "value": "C.prompt = 1000",
+   "focus": [
+    "fe",
+    "inq"
+   ],
+   "beats": [
+    [
+     {
+      "op": "spawn",
+      "tok": "C",
+      "at": [
+       "fe"
+      ]
+     },
+     {
+      "op": "tok",
+      "tok": "C",
+      "set": {
+       "done": 0,
+       "total": 1000
+      }
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "C",
+      "to": [
+       "inq"
+      ],
+      "via": "w_ipc"
+     }
+    ]
+   ]
+  },
+  {
+   "text": "主循环收下 C，交给 scheduler.add_request。C 还没持有任何 KV 块，落进 waiting 队列。",
+   "value": "waiting = [C]",
+   "focus": [
+    "inq",
+    "eng",
+    "waiting"
+   ],
+   "beats": [
+    [
+     {
+      "op": "move",
+      "tok": "C",
+      "to": [
+       "eng"
+      ],
+      "via": "w_in"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "C",
+      "to": [
+       "waiting"
+      ],
+      "via": "w_add"
+     }
+    ]
+   ],
+   "at": {
+    "card": "enqueue",
+    "line": 2788
+   }
+  },
+  {
+   "tick": "第 N 拍",
+   "text": "第 N 拍开始，开预算：这一拍总共只能算 2048 个 token。调度器不分 prefill 和 decode，只做一件事：让每个请求“已算的”追上“应有的”。",
+   "value": "token_budget = 2048",
+   "focus": [
+    "eng",
+    "budget",
+    "running"
+   ],
+   "beats": [
+    [
+     {
+      "op": "var",
+      "ent": "eng",
+      "k": "拍",
+      "v": "N"
+     },
+     {
+      "op": "flash",
+      "ent": "budget",
+      "color": null
+     }
+    ]
+   ],
+   "at": {
+    "card": "sched_head",
+    "line": 735
+   }
+  },
+  {
+   "tick": "第 N 拍",
+   "text": "① 先照顾 running，按顺序来。A 差 319 − 318 = 1：decode 请求就是只差 1 的请求。B 差 3000，被夹到剩余预算 2047，这就是 chunked prefill。B 要的 KV 块池里够，直接拿到。",
+   "value": "2048 − 1 − 2047 = 0",
+   "focus": [
+    "running",
+    "budget",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "segs",
+      "ent": "budget",
+      "segs": [
+       [
+        "A",
+        1
+       ]
+      ]
+     }
+    ],
+    [
+     {
+      "op": "segs",
+      "ent": "budget",
+      "segs": [
+       [
+        "A",
+        1
+       ],
+       [
+        "B",
+        2047
+       ]
+      ]
+     },
+     {
+      "op": "pulse",
+      "wire": "w_kv",
+      "back": true
+     }
+    ],
+    [
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "B",
+      "n": 32
+     }
+    ]
+   ],
+   "at": {
+    "card": "run_count",
+    "line": 862,
+    "line2": 864
+   }
+  },
+  {
+   "tick": "第 N 拍",
+   "text": "② 再看 waiting：预算已经是 0。C 这一拍一个 token 也没分到。预算总是先给已经在跑的请求。",
+   "value": "C 仍在 waiting",
+   "focus": [
+    "waiting",
+    "budget"
+   ],
+   "beats": [
+    [
+     {
+      "op": "flash",
+      "ent": "waiting",
+      "color": "c5"
+     }
+    ]
+   ],
+   "at": {
+    "card": "wait_pick",
+    "line": 1095,
+    "line2": 1096
+   }
+  },
+  {
+   "tick": "第 N 拍",
+   "text": "打包发给 GPU。注意顺序：GPU 还没跑完，调度器就先把“已算的”记上去了，A → 319，B → 3047。",
+   "value": "B.computed = 3047",
+   "focus": [
+    "running",
+    "gpu"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_bat",
+      "back": false
+     },
+     {
+      "op": "batch",
+      "ent": "gpu",
+      "segs": [
+       [
+        "A",
+        1
+       ],
+       [
+        "B",
+        63
+       ]
+      ]
+     }
+    ],
+    [
+     {
+      "op": "tok",
+      "tok": "A",
+      "set": {
+       "done": 319
+      }
+     },
+     {
+      "op": "tok",
+      "tok": "B",
+      "set": {
+       "done": 3047
+      }
+     }
+    ],
+    [
+     {
+      "op": "run",
+      "ent": "gpu"
+     }
+    ]
+   ],
+   "at": {
+    "card": "after",
+    "line": 1912
+   }
+  },
+  {
+   "tick": "第 N 拍",
+   "text": "结果回写：A 采样出 1 个新 token，“应有的”变成 320，于是下一拍它又差 1。B 的 prompt 还没算完，没有输出。",
+   "value": "A.num_tokens = 320",
+   "focus": [
+    "gpu",
+    "running"
+   ],
+   "beats": [
+    [
+     {
+      "op": "tok",
+      "tok": "A",
+      "set": {
+       "total": 320
+      }
+     }
+    ]
+   ],
+   "at": {
+    "card": "upd_append",
+    "line": 2886
+   }
+  },
+  {
+   "tick": "第 N+1 拍",
+   "text": "第 N+1 拍，预算重置。A 差 1；B 差 4000 − 3047 = 953，这次一口气算完。还剩 1094。",
+   "value": "2048 − 1 − 953 = 1094",
+   "focus": [
+    "running",
+    "budget",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "var",
+      "ent": "eng",
+      "k": "拍",
+      "v": "N + 1"
+     },
+     {
+      "op": "segs",
+      "ent": "budget",
+      "segs": []
+     },
+     {
+      "op": "batch",
+      "ent": "gpu",
+      "segs": []
+     }
+    ],
+    [
+     {
+      "op": "segs",
+      "ent": "budget",
+      "segs": [
+       [
+        "A",
+        1
+       ],
+       [
+        "B",
+        953
+       ]
+      ]
+     },
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "B",
+      "n": 15
+     }
+    ]
+   ],
+   "at": {
+    "card": "run_count",
+    "line": 855,
+    "line2": 859
+   }
+  },
+  {
+   "tick": "第 N+1 拍",
+   "text": "② 这次有预算了。看 waiting 队首的 C：先查前缀缓存，按块的 hash 命中 30 个满块，也就是 480 个 token。这些块被 C 直接挂上，不用重算。",
+   "value": "命中 30 块 × 16 = 480",
+   "focus": [
+    "waiting",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_hit",
+      "back": true
+     }
+    ],
+    [
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "C",
+      "n": 8,
+      "hashed": true
+     },
+     {
+      "op": "tok",
+      "tok": "C",
+      "set": {
+       "done": 480
+      }
+     }
+    ]
+   ],
+   "at": {
+    "card": "kv_hit",
+    "line": 324
+   }
+  },
+  {
+   "tick": "第 N+1 拍",
+   "text": "C 还差 1000 − 480 = 520，预算放得下；再新分配 33 块。C 出队，进 running 的末尾。",
+   "value": "1094 − 520 = 574",
+   "focus": [
+    "waiting",
+    "running",
+    "budget",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "C",
+      "n": 8
+     },
+     {
+      "op": "segs",
+      "ent": "budget",
+      "segs": [
+       [
+        "A",
+        1
+       ],
+       [
+        "B",
+        953
+       ],
+       [
+        "C",
+        520
+       ]
+      ]
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "C",
+      "to": [
+       "running"
+      ],
+      "via": "w_adm"
+     }
+    ]
+   ],
+   "at": {
+    "card": "wait_admit",
+    "line": 1609,
+    "line2": 1611
+   }
+  },
+  {
+   "tick": "第 N+1 拍",
+   "text": "这一拍 A、B、C 一起上 GPU：1 + 953 + 520 = 1474 个 token。跑完后三个请求各采样出 1 个 token，“应有的”各加 1。",
+   "value": "total = 1474",
+   "focus": [
+    "running",
+    "gpu"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_bat",
+      "back": false
+     },
+     {
+      "op": "batch",
+      "ent": "gpu",
+      "segs": [
+       [
+        "A",
+        1
+       ],
+       [
+        "B",
+        30
+       ],
+       [
+        "C",
+        16
+       ]
+      ]
+     }
+    ],
+    [
+     {
+      "op": "tok",
+      "tok": "A",
+      "set": {
+       "done": 320
+      }
+     },
+     {
+      "op": "tok",
+      "tok": "B",
+      "set": {
+       "done": 4000
+      }
+     },
+     {
+      "op": "tok",
+      "tok": "C",
+      "set": {
+       "done": 1000
+      }
+     }
+    ],
+    [
+     {
+      "op": "run",
+      "ent": "gpu"
+     }
+    ],
+    [
+     {
+      "op": "tok",
+      "tok": "A",
+      "set": {
+       "total": 321
+      }
+     },
+     {
+      "op": "tok",
+      "tok": "B",
+      "set": {
+       "total": 4001
+      }
+     },
+     {
+      "op": "tok",
+      "tok": "C",
+      "set": {
+       "total": 1001
+      }
+     },
+     {
+      "op": "hash",
+      "ent": "pool",
+      "who": "C"
+     }
+    ]
+   ],
+   "at": {
+    "card": "sched_pack",
+    "line": 1692
+   }
+  },
+  {
+   "tick": "第 N+2 拍",
+   "text": "第 N+2 拍。为了演示，假设块池此刻被别的请求占满了（这是设定，不是代码事实）。A 要算第 321 个 token，需要一个新块，要不到。",
+   "value": "free = 0",
+   "focus": [
+    "running",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "var",
+      "ent": "eng",
+      "k": "拍",
+      "v": "N + 2"
+     },
+     {
+      "op": "segs",
+      "ent": "budget",
+      "segs": []
+     },
+     {
+      "op": "batch",
+      "ent": "gpu",
+      "segs": []
+     }
+    ],
+    [
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "other",
+      "n": 99
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_kv",
+      "back": true
+     }
+    ],
+    [
+     {
+      "op": "flash",
+      "ent": "pool",
+      "color": "c5"
+     }
+    ]
+   ],
+   "at": {
+    "card": "run_alloc",
+    "line": 930,
+    "line2": 938
+   }
+  },
+  {
+   "tick": "第 N+2 拍",
+   "text": "要不到块就抢占：FCFS 下受害者是 running 的最后一个，也就是 C。C 的块全部还回池子，“已算的”清零，状态改成 PREEMPTED，回到 waiting 的队首，而不是队尾。",
+   "value": "victim = C",
+   "focus": [
+    "running",
+    "waiting",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "tok",
+      "tok": "C",
+      "set": {
+       "tag": "PREEMPTED"
+      }
+     }
+    ],
+    [
+     {
+      "op": "free",
+      "ent": "pool",
+      "who": "C"
+     },
+     {
+      "op": "tok",
+      "tok": "C",
+      "set": {
+       "done": 0
+      }
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "C",
+      "to": [
+       "waiting"
+      ],
+      "via": "w_pre",
+      "front": true
+     }
+    ]
+   ],
+   "at": {
+    "card": "preempt",
+    "line": 1875,
+    "line2": 1876
+   }
+  },
+  {
+   "tick": "第 N+2 拍",
+   "text": "A 重试，拿到了块；B 也照常分到 1 个 token。还有一条规则：这一拍抢占过人，② 整轮跳过，刚被踢出去的 C 不会在同一拍被接回来。",
+   "value": "preempted_reqs = [C]",
+   "focus": [
+    "running",
+    "waiting",
+    "pool",
+    "budget"
+   ],
+   "beats": [
+    [
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "A",
+      "n": 1
+     },
+     {
+      "op": "segs",
+      "ent": "budget",
+      "segs": [
+       [
+        "A",
+        1
+       ],
+       [
+        "B",
+        1
+       ]
+      ]
+     }
+    ],
+    [
+     {
+      "op": "flash",
+      "ent": "waiting",
+      "color": "c5"
+     }
+    ]
+   ],
+   "at": {
+    "card": "wait_pick",
+    "line": 1066
+   }
+  },
+  {
+   "tick": "之后",
+   "text": "之后某一拍，C 会从队首被重新接纳，走同一条路，重新查前缀缓存。它还回去的满块带着 hash 留在空闲链表里（图中带斜线的空格），只要没被别人挤掉，大部分前缀还能再命中。",
+   "focus": [
+    "waiting",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "flash",
+      "ent": "pool",
+      "color": "c4"
+     }
+    ]
+   ]
+  }
+ ]
+}
