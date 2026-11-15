@@ -1,0 +1,30 @@
+id	repo	module	unit	shape	mode	executor	handoff	repeat	select	cursor	verdict	fix
+1	xv6	proc 表 + p->state	data	M	M	-	-	-	-	-	fixed	C
+2	xv6	scheduler()	flow	-	-	M	J	M	M	J	ok	
+3	xv6	pipe	both	M	-	J	J	M	-	M	fixed	B
+4	xv6	bio 缓冲区缓存	both	M	-	J	J	M	-	J	fixed	B,E
+5	xv6	kalloc 空闲页链	both	M	-	J	J	-	-	M	fixed	B
+6	xv6	syscall()	flow	-	-	J	-	-	M	-	fixed	A
+7	xv6	log begin_op/end_op	both	J	J	J	J	M	M	-	fixed	B
+8	chibicc	tokenize()	flow	M	-	-	-	M	M	M	fixed	D
+9	chibicc	expand_macro / preprocess2	flow	M	-	-	-	M	M	J	fixed	D,G
+10	chibicc	parse 递归下降	flow	M	-	-	-	M	M	M	fixed	D
+11	chibicc	gen_expr / gen_stmt	flow	M	-	-	-	M	M	J	fixed	A,D
+12	chibicc	hashmap	data	M	J	-	-	M	M	M	fixed	E
+13	raft	cm.state	data	-	M	-	-	-	-	-	ok	
+14	raft	log + commitIndex/lastApplied/nextIndex	data	M	-	-	-	-	-	J	ok	
+15	raft	runElectionTimer()	flow	-	-	M	M	M	M	-	ok	
+16	raft	startLeader 心跳循环	flow	-	-	M	M	M	M	-	ok	
+17	raft	leaderSendAEs()	flow	-	-	M	J	M	M	-	ok	
+18	raft	commitChanSender()	flow	-	-	M	M	M	-	J	ok	
+19	nanoGPT	CausalSelfAttention.forward	flow	J	-	-	-	-	-	-	miss	G
+20	nanoGPT	GPT.generate	flow	J	-	-	-	M	M	J	fixed	D
+21	nanoGPT	train.py 训练循环	flow	J	J	-	-	M	M	-	ok	
+22	nanoGPT	get_batch	flow	J	-	-	-	M	M	J	fixed	D
+23	django	ArticleViewSet	flow	X	-	X	X	-	X	-	miss	F
+24	django	JWTAuthentication.authenticate	flow	-	-	J	-	-	M	-	ok	
+25	django	pre_save 信号 slug	flow	-	-	J	M	M	M	-	ok	
+26	react	App	both	J	J	X	M	M	M	-	fixed	A,F
+27	react	Todo	both	M	M	X	M	-	M	-	ok	F
+28	sortedcontainers	SortedList 数据布局	data	J	-	-	-	-	-	J	fixed	E
+29	sortedcontainers	_expand / _loc	flow	-	-	-	-	M	M	J	ok	
