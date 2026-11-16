@@ -296,8 +296,12 @@ def main():
         else:
             ov = meta.get("overview") or []
             ov = ov if isinstance(ov, list) else [ov]
+            sha = ((json.loads(a.spec.with_name("research.json").read_text(encoding="utf-8")).get("repo") or {})
+                   .get("commit") or "")[:10]
+            if sha:
+                meta["commit"] = sha
             if not (ov and str(ov[0]).startswith("【范围】")):
-                meta["overview"] = ["【范围】" + note] + ov
+                meta["overview"] = ["【范围】" + note + ("（行号对应提交 {}）".format(sha) if sha else "")] + ov
     sc = spec.get("scene")
     if sc:
         mods = {m["id"] for m in spec.get("modules") or []}

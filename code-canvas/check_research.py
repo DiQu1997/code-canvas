@@ -30,6 +30,7 @@ PATTERNS = {
     "log": ["append", "cursors"],
     "thread": ["runs", "blocks_on"],
     "coroutine": ["suspend", "resume", "state"],
+    "switch": ["saved", "swap", "fresh"],
     "loop": ["stations", "exit"],
     "pipeline": ["stages"],
     "dispatch": ["on", "branches"],
