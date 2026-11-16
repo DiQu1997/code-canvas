@@ -82,11 +82,11 @@ description: Turns code reading, change planning, or diff review into an interac
 4. **画**：写 canvas.json，跑验证工具（第 5 节），渲染并截图，**自己看图**。
 5. **让新读者挑错**（强烈建议至少一轮）：
    ```bash
-   python3 reader_check.py canvas.json --out reader_report.md
+   python3 reader_check.py canvas.json --ask "<读者的原话>" --audience "<读者是谁>" --out findings.json
    ```
-   它会起一个**没有任何上下文、看不到仓库**的读者，只读这张画布，复述主角的一生、
-   每个部件的职责，并列出读不懂、可疑、矛盾的地方。对照第 1 节逐条看他哪里做不到，
-   回去补；补完可以再测一轮。把每轮发现了什么、你改了什么记进 judgment.reader_rounds。
+   它会起一个**没有任何上下文、看不到仓库**的读者，带着读者的提问只读这张画布，交回一份**问题清单**
+   （不打分）：每条写明位置、类别、原话、哪里不对、需要什么、归谁改、有多严重，外加他对主角一生的复述。
+   逐条给出下落：改了 / 用代码依据反驳 / 说明理由不改，记进 judgment.reader_rounds。
    读者说错的地方往往不是他笨，而是画布没讲清。
 
 ## 4. 表达工具箱（按需选用，不是清单）
@@ -119,7 +119,7 @@ python3 validate.py canvas.json            # 机械错误 + 预算超限；ERROR
 python3 check_refs.py canvas.json <仓库根>  # 每条依据 [文件, 行号, 符号] 必须核过
 python3 embed_context.py canvas.json <仓库根>  # 嵌入引用文件全文（卡内可展开上下文），并修正行漂移
 python3 render.py canvas.json out.html     # 渲染
-python3 reader_check.py canvas.json        # 新读者挑错（第 3 节）
+python3 reader_check.py canvas.json --ask "<提问>"   # 新读者交回问题清单（第 3 节）
 ```
 
 截图自查（有 headless chromium 时）：总览 + 每步各一张；`#s2` 直达步骤，

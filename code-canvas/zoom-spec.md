@@ -150,7 +150,7 @@
 ```bash
 python3 build_zoom.py zoom.json --repo <仓库根> --out zoom.html      # 填代码 + 校验 + 渲染；0 ERROR 才算过
 node zoom_shot.js zoom.html shots/                                    # 系统层 / 每个模块 / 几张卡 / 代码层 截图
-python3 reader_check.py zoom.data.json --zoom --out reader_report.md  # 新读者只看画布能不能懂
+python3 reader_check.py zoom.data.json --zoom --ask "<读者的原话>" --out findings.json  # 新读者交回问题清单
 ```
 
 `build_zoom.py` 会写出 `zoom.data.json`（代码已填好），给 reader_check 用。
