@@ -18,6 +18,7 @@ const path = require('path'), fs = require('fs');
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/ERR_|net::/.test(m.text())) errs.push(m.text()) });
   await p.goto('file://' + path.resolve(file));
+  if (opt('--scheme', 'light') === 'dark') await p.evaluate(() => { document.documentElement.dataset.theme = 'dark' });
   await p.waitForTimeout(900);
   const idle = async () => { for (let i = 0; i < 60; i++) { if (!(await p.evaluate(() => __zoom.busy()))) break; await p.waitForTimeout(60) } await p.waitForTimeout(120) };
   const shot = async n => { await idle(); await p.screenshot({path: path.join(out, n)}); console.log(n) };

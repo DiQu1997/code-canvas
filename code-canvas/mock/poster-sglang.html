@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>海报风样稿 · SGLang RadixCache</title>
+<style>
+/* Hand-made style study: the scene's top level drawn as a poster (tinted panels, numbered badges, dashed arrows, a strip of snapshots). */
+body{margin:0;background:#f7f6f2;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+svg{display:block;width:100%;height:auto;max-width:1200px;margin:0 auto}
+.title{font-size:30px;font-weight:700;fill:#1f2328}
+.sub{font-size:16px;fill:#5b6470}
+.ph{font-size:19px;font-weight:700;fill:#1f2328}
+.t{font-size:14px;fill:#1f2328}
+.s{font-size:12.5px;fill:#5b6470}
+.b{font-size:14px;font-weight:700}
+.num{font-size:14px;font-weight:700;fill:#1f2328}
+.arrow{fill:none;stroke:#3a4048;stroke-width:1.8;stroke-dasharray:6 5;stroke-linecap:round}
+</style></head><body>
+<svg id="p" viewBox="0 0 1200 850" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" fill="#3a4048"/></marker></defs>
+</svg>
+<script>
+const NS = 'http://www.w3.org/2000/svg', svg = document.getElementById('p');
+const el = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.appendChild(e); return e };
+const txt = (x, y, s, cls, anchor) => el('text', {x, y, class: cls, 'text-anchor': anchor || 'start', 'dominant-baseline': 'central'}, s);
+// one hue per role: [panel fill, border, chip fill]
+const HUE = {
+  blue:   ['#eaf2fd', '#7aa7e6', '#cfe1fb'],
+  purple: ['#f1ecfc', '#a08ae0', '#ddd3f8'],
+  orange: ['#fdf1e3', '#e3a35c', '#fbdcb6'],
+  teal:   ['#e4f5ef', '#56b497', '#bfe8da'],
+  green:  ['#eef6e2', '#8fba58', '#d5e9b8'],
+  slate:  ['#eceff3', '#8d99a8', '#d5dbe3'],
+  yellow: ['#fff8d6', '#d9bd4a', '#f6e79a'],
+  gray:   ['#f0efea', '#b9b6aa', '#dedbd0'],
+};
+function panel(x, y, w, h, hue, n, title) {
+  const [fill, stroke] = HUE[hue];
+  el('rect', {x: x + 4, y: y + 5, width: w, height: h, rx: 16, fill: stroke, opacity: .28});
+  el('rect', {x, y, width: w, height: h, rx: 16, fill, stroke, 'stroke-width': 2});
+  if (n) { el('circle', {cx: x + 26, cy: y + 28, r: 14, fill: '#fff', stroke, 'stroke-width': 2}); txt(x + 26, y + 28, n, 'num', 'middle') }
+  txt(x + (n ? 50 : 18), y + 28, title, 'ph');
+}
+function chip(x, y, w, label, hue, sub) {
+  const [, stroke, fill] = HUE[hue];
+  el('rect', {x, y, width: w, height: 28, rx: 7, fill, stroke, 'stroke-width': 1.5});
+  txt(x + w / 2, y + 14, label, 't b', 'middle');
+  if (sub) txt(x + w + 10, y + 14, sub, 's');
+}
+function node(x, y, w, h, hue, label, sub, dashed) {
+  const [, stroke, fill] = HUE[hue];
+  el('rect', {x, y, width: w, height: h, rx: 10, fill: dashed ? 'none' : '#fff', stroke, 'stroke-width': 2, 'stroke-dasharray': dashed ? '6 5' : ''});
+  if (!dashed) el('rect', {x, y, width: 8, height: h, rx: 4, fill: stroke});
+  txt(x + w / 2 + 2, y + (sub ? h / 2 - 9 : h / 2), label, 't b', 'middle');
+  if (sub) txt(x + w / 2 + 2, y + h / 2 + 10, sub, 's', 'middle');
+}
+const arrow = (d, solid) => el('path', {d, class: 'arrow', 'marker-end': 'url(#ah)', 'stroke-dasharray': solid ? '' : '6 5'});
+const edge = (x1, y1, x2, y2, hue, dashed) => el('line', {x1, y1, x2, y2, stroke: HUE[hue][1], 'stroke-width': 2.2, 'stroke-dasharray': dashed ? '6 5' : ''});
+
+// title
+txt(40, 52, '请求 B 怎样借用 A 算过的 KV？', 'title');
+txt(40, 88, 'SGLang RadixCache：一棵存 KV 槽号的前缀树 · 讲的是 radix_cache.py，线上默认是同算法的 UnifiedRadixCache', 'sub');
+
+// 1 requests
+panel(40, 130, 240, 180, 'blue', '1', '请求到达');
+chip(64, 180, 34, 'A', 'gray', '11 ‥ 18 · 已完成');
+chip(64, 220, 34, 'B', 'orange', '11 ‥ 15, 21, 22');
+txt(64, 276, '前 5 个 token 和 A 一样', 's');
+
+// 2 queue
+panel(340, 130, 230, 110, 'purple', '2', '等待队列');
+chip(364, 186, 34, 'B', 'orange', '等待 prefill');
+
+// 3 scheduler
+panel(340, 300, 230, 200, 'orange', '3', 'Scheduler');
+[['查最长前缀', 'match_prefix'], ['收下并加锁', 'lock'], ['分配槽，不够先淘汰', 'evict']].forEach(([a, b], i) => {
+  el('rect', {x: 358, y: 348 + i * 46, width: 194, height: 38, rx: 9, fill: '#fff', stroke: HUE.orange[1], 'stroke-width': 1.5});
+  txt(370, 360 + i * 46, a, 't b'); txt(370, 377 + i * 46, b, 's');
+});
+
+// 4 tree
+panel(630, 130, 330, 370, 'teal', '4', 'RadixCache');
+el('circle', {cx: 795, cy: 208, r: 16, fill: '#fff', stroke: HUE.teal[1], 'stroke-width': 2}); txt(795, 208, '根', 's', 'middle');
+edge(795, 224, 795, 254, 'teal');
+node(720, 254, 150, 54, 'teal', 'N1 · 11 ‥ 15', '槽 0–4 · 被 B 锁住');
+edge(760, 308, 715, 356, 'teal'); edge(830, 308, 875, 356, 'teal', true);
+node(650, 356, 130, 54, 'teal', 'N2 · 16 ‥ 18', '槽 5–7 · 可淘汰');
+node(810, 356, 130, 54, 'orange', 'B 的新叶子', '结束时插入', true);
+txt(795, 448, '边是一段 token，节点存这段的槽号', 's', 'middle');
+txt(795, 470, '命中停在节点中间 → 先把节点劈成两段', 's', 'middle');
+
+// 5 pool
+panel(1010, 130, 160, 200, 'green', '5', 'KV 槽池');
+const owner = i => i < 8 ? 'teal' : i < 10 ? 'orange' : 'slate';
+for (let i = 0; i < 16; i++) { const [, st, fl] = HUE[owner(i)]; el('rect', {x: 1030 + (i % 4) * 31, y: 176 + Math.floor(i / 4) * 31, width: 25, height: 25, rx: 5, fill: fl, stroke: st, 'stroke-width': 1.5}) }
+txt(1030, 312, '青=树 橙=B 灰=别人', 's');
+
+// 6 gpu
+panel(1010, 380, 160, 120, 'slate', '6', 'GPU 前向');
+txt(1030, 438, '只算 21、22', 't b'); txt(1030, 462, '前 5 个直接读旧 KV', 's');
+
+// sticky note
+panel(40, 350, 240, 150, 'yellow', '', '三句话');
+['复用 = 抄槽号，不复制数据', '锁 = 计数，不是线程锁', '淘汰 = 只删没锁的叶子'].forEach((s, i) => txt(58, 408 + i * 28, s, 't'));
+
+// arrows
+arrow('M282 210 C305 210 312 185 336 185');
+arrow('M455 242 L455 296');
+arrow('M572 380 C596 380 602 320 626 320');
+arrow('M962 230 L1006 230');
+arrow('M1090 332 L1090 376');
+arrow('M455 502 C455 562 1090 562 1090 506');
+txt(772, 526, '只把没命中的 2 个 token 送去算', 's', 'middle');
+
+// snapshot strip
+el('rect', {x: 40, y: 580, width: 1130, height: 240, rx: 16, fill: '#fff', stroke: '#d6d3c8', 'stroke-width': 2});
+txt(64, 612, '树在每一步的样子', 'ph');
+const shots = [
+  ['匹配前', [['11 ‥ 18', 'teal']]],
+  ['分裂 + 加锁', [['11 ‥ 15 · 锁 1', 'teal'], ['16 ‥ 18', 'teal']]],
+  ['淘汰后', [['11 ‥ 15 · 锁 1', 'teal'], ['16 ‥ 18 已删', 'gray', true]]],
+  ['B 结束，写回', [['11 ‥ 15', 'teal'], ['21, 22', 'orange'], ['31', 'orange']]],
+];
+shots.forEach(([name, nodes], i) => {
+  const x = 64 + i * 278, w = 250;
+  el('rect', {x, y: 636, width: w, height: 164, rx: 12, fill: '#f7f6f2', stroke: '#d6d3c8', 'stroke-width': 1.5});
+  el('circle', {cx: x + 22, cy: 658, r: 12, fill: '#fff', stroke: '#8d99a8', 'stroke-width': 1.5}); txt(x + 22, 658, String(i + 1), 's', 'middle');
+  txt(x + 42, 658, name, 't b');
+  nodes.forEach(([label, hue, ghost], k) => {
+    const ny = 684 + k * 38, nx = x + 40 + k * 22;
+    if (k) edge(nx - 8, ny - 8, nx + 10, ny, hue, ghost);
+    const [, st, fl] = HUE[hue];
+    el('rect', {x: nx, y: ny, width: 150, height: 28, rx: 8, fill: ghost ? 'none' : fl, stroke: st, 'stroke-width': 1.5, 'stroke-dasharray': ghost ? '5 4' : ''});
+    txt(nx + 75, ny + 14, label, 's', 'middle');
+  });
+  if (i < 3) arrow(`M${x + w + 4} 718 L${x + w + 24} 718`, true);
+});
+</script>
+</body></html>

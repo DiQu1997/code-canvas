@@ -9,21 +9,17 @@
    Zooming into a box reveals its anatomy (loop / pipeline / dispatch / state machine / flow / layers / grid + data-structure glyphs);
    anatomy parts morph into function cards; card block bars dissolve into real source lines. */
 :root{
-  --bg:#0d1015; --panel:#141920; --panel2:#1a2029; --ink:#e6e9ee; --muted:#8d96a3; --faint:#5d6672; --line:#2a313b;
-  --hot:#e6c25c; --c1:#e9a03b; --c2:#5ea8f0; --c3:#b29cf5; --c4:#3cc3b3; --c5:#f06c6c; --c6:#56c48a;
-  --kw:#c792ea; --str:#a5d6a7; --com:#6b7686; --num:#f6a96b; --ty:#7fc8f8;
+  --bg:#f7f6f2; --panel:#ffffff; --panel2:#f1f0ea; --ink:#1f2328; --muted:#5b6470; --faint:#9aa2ad; --line:#d6d3c8;
+  --hot:#b8860b; --c1:#d07f12; --c2:#2f78d6; --c3:#7b62d6; --c4:#0d8d82; --c5:#d13f3f; --c6:#1f9a5c;
+  --kw:#8a3fc9; --str:#2e7d32; --com:#8a94a0; --num:#c25e00; --ty:#1565c0;
   --sans:"IBM Plex Sans","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
-  color-scheme:dark;
+  color-scheme:light;
 }
-@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
-  --bg:#f3f4f6; --panel:#ffffff; --panel2:#f0f2f5; --ink:#1a1e24; --muted:#5f6772; --faint:#9aa2ad; --line:#d6dbe2;
-  --hot:#b8860b; --c1:#d07f12; --c2:#2f78d6; --c3:#7b62d6; --c4:#0d8d82; --c5:#d13f3f; --c6:#1f9a5c;
-  --kw:#8a3fc9; --str:#2e7d32; --com:#8a94a0; --num:#c25e00; --ty:#1565c0; color-scheme:light}}
-:root[data-theme="light"]{
-  --bg:#f3f4f6; --panel:#ffffff; --panel2:#f0f2f5; --ink:#1a1e24; --muted:#5f6772; --faint:#9aa2ad; --line:#d6dbe2;
-  --hot:#b8860b; --c1:#d07f12; --c2:#2f78d6; --c3:#7b62d6; --c4:#0d8d82; --c5:#d13f3f; --c6:#1f9a5c;
-  --kw:#8a3fc9; --str:#2e7d32; --com:#8a94a0; --num:#c25e00; --ty:#1565c0; color-scheme:light}
+:root[data-theme="dark"]{
+  --bg:#0d1015; --panel:#141920; --panel2:#1a2029; --ink:#e6e9ee; --muted:#8d96a3; --faint:#5d6672; --line:#2a313b;
+  --hot:#e6c25c; --c1:#e9a03b; --c2:#5ea8f0; --c3:#b29cf5; --c4:#3cc3b3; --c5:#f06c6c; --c6:#56c48a;
+  --kw:#c792ea; --str:#a5d6a7; --com:#6b7686; --num:#f6a96b; --ty:#7fc8f8; color-scheme:dark}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;overflow:hidden}
@@ -290,6 +286,27 @@ body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
 .peek .pt{--ind:2ch}
 .zin{width:100%;margin:2px 0 4px;border-color:var(--hot);color:var(--hot);font-weight:600}
 .peekh{font-size:11.5px;color:var(--muted);margin:10px 0 0;display:flex;justify-content:space-between;gap:8px}.peekh code{font-size:11px}
+/* Poster look. Every module has one hue (--h): the scene entities that zoom into it, its module page and its cards all carry it,
+   so the colour tells the reader where they are. Things with no module (outside actors) stay neutral. */
+#stage{background-image:none}
+.scn .box{fill:color-mix(in srgb,var(--h,var(--muted)) 11%,var(--panel));stroke:var(--h,var(--faint));stroke-width:2}
+.scn .st-run .box,.scn .st-blocked .box{stroke:var(--h,var(--faint))}
+.scn .shadow{fill:var(--h,var(--muted));opacity:.24}
+.scn .pipe{fill:var(--panel);stroke:color-mix(in srgb,var(--h,var(--muted)) 70%,var(--line));stroke-width:1.6}
+.scn .slot{fill:var(--panel);stroke:color-mix(in srgb,var(--h,var(--muted)) 60%,var(--line))}
+.scn .rowl{stroke:color-mix(in srgb,var(--h,var(--muted)) 35%,var(--line))}
+.scn .et{font-weight:700}
+.scn .kind{fill:color-mix(in srgb,var(--h,var(--muted)) 50%,var(--muted))}
+.scn .badge circle{fill:var(--panel);stroke:var(--h,var(--faint));stroke-width:2}
+.scn .badge text{font-size:12.5px;font-weight:700}
+.scn .wire{stroke-width:2;stroke-linecap:round}
+.mbg{fill:color-mix(in srgb,var(--h,var(--muted)) 11%,var(--panel));stroke:var(--h,var(--line));stroke-width:2}
+.mbg.ext{fill:var(--panel2);stroke:var(--faint)}
+.frame{fill:color-mix(in srgb,var(--h,var(--muted)) 9%,var(--panel));stroke:var(--h,var(--hot));stroke-opacity:1;stroke-width:2}
+.ab{fill:var(--panel);stroke:color-mix(in srgb,var(--h,var(--muted)) 60%,var(--line));stroke-width:1.5}
+.ab.ctr{fill:color-mix(in srgb,var(--h,var(--muted)) 18%,var(--panel))}
+.cd{border:2px solid var(--h,var(--line))}
+.cdh{background:color-mix(in srgb,var(--h,var(--muted)) 11%,var(--panel))}
 </style>
 </head>
 <body>
@@ -338,6 +355,10 @@ const COLW=D.layout?.colw||330,ROWH=D.layout?.rowh||260,GAP=D.layout?.gap||44;
 const MODS=(D.modules||[]).map(m=>({...m}));const MOD={};
 MODS.forEach(M=>{MOD[M.id]=M;const ext=M.kind==='external'||!M.anatomy;const [c,r]=M.pos||[0,0];const [sw,sh]=M.span||(ext?[.55,.5]:[1,1]);M.box={x:c*COLW,y:r*ROWH,w:sw*COLW-GAP,h:sh*ROWH-GAP};M.ext=ext});
 const bnd=(()=>{if(!MODS.length)return {x:0,y:0,w:100,h:100};let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const M of MODS){const b=M.box;x0=Math.min(x0,b.x);y0=Math.min(y0,b.y);x1=Math.max(x1,b.x+b.w);y1=Math.max(y1,b.y+b.h)}return {x:x0-36,y:y0-52,w:x1-x0+72,h:y1-y0+84}})();
+// one hue per module, by position in the spec
+const HUES=['#e3a35c','#56b497','#7aa7e6','#a08ae0','#8fba58','#d98aa8','#d9bd4a','#5fb3c9'];
+{let i=0;for(const M of MODS)M.hue=M.ext?null:HUES[i++%HUES.length]}
+const hueOf=id=>(MOD[id]&&MOD[id].hue)||null;
 let bx0=bnd.x,by0=bnd.y,bx1=bnd.x+bnd.w,by1=bnd.y+bnd.h;
 const side=(b,s)=>s==='r'?[b.x+b.w,b.y+b.h/2]:s==='l'?[b.x,b.y+b.h/2]:s==='t'?[b.x+b.w/2,b.y]:[b.x+b.w/2,b.y+b.h];const pairN={};const ROUTES=[];
   (D.channels||[]).forEach(c=>{const A=MOD[c.from],B=MOD[c.to];if(!A||!B)return;const a2=A.box,b=B.box;let sa,sb;const acy=a2.y+a2.h/2,bcy=b.y+b.h/2;
@@ -512,7 +533,11 @@ const TS={w:52,h:26};                                   // plain token size
 function tokSize(id){const d=TOKD[id]||{};if(d.kind==='req')return {w:150,h:38};if(d.kind==='gray')return {w:30,h:22};return {w:Math.max(46,tw(d.label||id)*8.4+20),h:26}}
 function buildEnt(e){ENT[e.id]=e;const g=e.g=E('g',{class:'ent st-'+(e.state||'idle'),transform:`translate(${e.x},${e.y})`},e.type==='group'?LG:LE);const w=e.w,h=e.h;
   if(e.type==='group'){E('rect',{width:w,height:h,rx:16,class:'grp'},g);E('text',{x:14,y:-7,class:'grpt'},g,e.title);return}
-  if(e.type==='thread'||e.type==='ext'){E('rect',{width:w,height:h,rx:12,class:'box','stroke-dasharray':e.type==='ext'?'5 5':null},g);E('text',{x:14,y:17,class:'kind'},g,e.type==='ext'?(e.kind||'external'):(e.kind||'thread'));
+  // queue / grid / bar draw their title above the shape and their caption below it: the panel wraps all three
+  const P=e.pad=(e.type==='queue'||e.type==='grid'||e.type==='bar')?{l:16,t:40,r:Math.max(16,tw(e.sub||'')*11.5-w+14),b:(e.sub?30:8)+(e.cap?8:0)}:{l:0,t:0,r:0,b:0};
+  E('rect',{x:4-P.l,y:5-P.t,width:w+P.l+P.r,height:h+P.t+P.b,rx:14,class:'shadow'},g);
+  if(P.t)E('rect',{x:-P.l,y:-P.t,width:w+P.l+P.r,height:h+P.t+P.b,rx:14,class:'box'},g);
+  if(e.type==='thread'||e.type==='ext'){E('rect',{width:w,height:h,rx:14,class:'box','stroke-dasharray':e.type==='ext'?'6 5':null},g);E('text',{x:14,y:17,class:'kind'},g,e.type==='ext'?(e.kind||'external'):(e.kind||'thread'));
     E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
     if(e.type==='thread'){E('path',{d:`M14 ${h-16}H${w-14}`,class:'lane'},g);const c=E('g',{class:'chip'},g);e.chipR=E('rect',{x:w/2,y:h-10,width:10,height:20},c);e.chipT=E('text',{x:w/2,y:h+4,'text-anchor':'middle'},c,'')}
     E('rect',{x:w/2-34,y:h-62,width:68,height:34,rx:8,class:'slot'},g)}
@@ -521,13 +546,13 @@ function buildEnt(e){ENT[e.id]=e;const g=e.g=E('g',{class:'ent st-'+(e.state||'i
     if(e.cap){E('rect',{x:10,y:h+6,width:w-20,height:4,rx:2,fill:'var(--line)'},g);e.fill=E('rect',{x:10,y:h+6,width:0,height:4,rx:2,class:'fillbar'},g)}
     if(e.sub)E('text',{x:0,y:h+(e.cap?26:18),class:'es'},g,e.sub);
     if(!v){E('path',{d:`M${w+4} ${h/2-6}l8 6l-8 6`,fill:'none',stroke:'var(--faint)','stroke-width':1.6},g);E('path',{d:`M-12 ${h/2-6}l8 6l-8 6`,fill:'none',stroke:'var(--faint)','stroke-width':1.6},g)}}
-  if(e.type==='store'){E('rect',{width:w,height:h,rx:12,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'store');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
+  if(e.type==='store'){E('rect',{width:w,height:h,rx:14,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'store');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
     const top=e.sub?62:48,rh=(h-top-8)/e.rows.length;e.rowY={};e.rows.forEach((r,i)=>{const y=top+i*rh;E('path',{d:`M10 ${y}H${w-10}`,class:'rowl'},g);E('text',{x:14,y:y+rh/2+4,class:'rowk'},g,r.label);e.rowY[r.id]={y:y+rh/2,x:14+tw(r.label.trimEnd())*11.6+12}})}
-  if(e.type==='log'){E('rect',{width:w,height:h,rx:12,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'log');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
+  if(e.type==='log'){E('rect',{width:w,height:h,rx:14,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'log');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
     e.ty=h/2+22;E('path',{d:`M22 ${e.ty}H${w-22}`,class:'track'},g);e.mk={};
     (e.markers||[]).forEach((m,i)=>{const up=m.side!=='b';const mg=E('g',{class:'mk'},g);E('path',{d:up?'M0 -5l-6 -9h12z':'M0 5l-6 9h12z',fill:col(m.color)},mg);const t=E('text',{y:up?-19:28,'text-anchor':'middle',fill:col(m.color)},mg,'');e.mk[m.id]={g:mg,t,label:m.label,v:null}})}
   if(e.type==='grid'){E('text',{x:0,y:-22,class:'kind'},g,e.kind||'pool');E('text',{x:0,y:-6,class:'et'},g,e.title);e.cntT=E('text',{x:w,y:-6,'text-anchor':'end',class:'cnt'},g,'');
-    E('rect',{x:-6,y:-2,width:w+12,height:h+4,rx:8,class:'box'},g);const cw=w/e.cols,ch=h/e.rowsN;e.cells=[];e.hashes=[];
+    E('rect',{x:-6,y:-4,width:w+12,height:h+8,rx:8,class:'pipe'},g);const cw=w/e.cols,ch=h/e.rowsN;e.cells=[];e.hashes=[];
     for(let i=0;i<e.cols*e.rowsN;i++){const cx=(i%e.cols)*cw,cy=Math.floor(i/e.cols)*ch;e.cells.push(E('rect',{x:cx+1,y:cy+1,width:cw-2,height:ch-2,rx:2.5,class:'cell',fill:'var(--panel2)'},g));
       e.hashes.push(E('path',{d:`M${cx+cw*.3} ${cy+ch*.7}L${cx+cw*.7} ${cy+ch*.3}`,class:'hash',opacity:0},g))}
     if(e.sub)E('text',{x:0,y:h+18,class:'es'},g,e.sub)}
@@ -594,7 +619,7 @@ function renderEnt(st,animate){for(const e of S.entities){const x=st.ent[e.id];i
     if(e.type==='queue'){const n=(st.loc[e.id+'/hand']||[]).length;e.cntT.textContent=e.cap?`${n+(x.vars._base||0)} / ${e.cap}`:(e.count===false?'':`${n}`);if(e.fill)e.fill.setAttribute('width',Math.max(n?4:0,(e.w-20)*clamp((n+(x.vars._base||0))/(e.capShow||e.cap),0,1)))}
     // vars
     const ks=Object.keys(x.vars).filter(k=>!k.startsWith('_'));ks.forEach((k,i)=>{let v=e.varEl[k];if(!v){const vg=E('g',{class:'var'},e.varG);v=e.varEl[k]={g:vg,k:E('text',{class:'k'},vg,k),v:E('text',{class:'v'},vg,''),val:null}}
-      const by=(e.type==='queue'||e.type==='grid'||e.type==='bar')?e.h+(e.sub?36:20)+(e.cap?8:0):e.h+(e.type==='thread'?30:18);v.g.setAttribute('transform',`translate(${e.varX||4},${by+i*17})`);v.v.setAttribute('x',tw(k)*11.6+9);
+      const by=(e.type==='queue'||e.type==='grid'||e.type==='bar')?e.h+(e.sub?46:26)+(e.cap?8:0):e.h+(e.type==='thread'?30:20);v.g.setAttribute('transform',`translate(${e.varX||4},${by+i*17})`);v.v.setAttribute('x',tw(k)*11.6+9);
       if(v.val!==x.vars[k]){roll(v,v.val,x.vars[k],animate);v.val=x.vars[k]}});
     for(const k in e.varEl)if(!(k in x.vars)){e.varEl[k].g.remove();delete e.varEl[k]}
     if(e.type==='log')for(const m of e.markers){const M=e.mk[m.id];const v=x.mk[m.id];if(M.v===null||!animate){M.v=v;placeMk(e,M)}else if(M.v!==v)tween(700,t=>{M.cur=lerp(M.from,v,ease(t));placeMk(e,M,M.cur)},()=>{M.v=v},M.from=M.v)}
@@ -644,8 +669,8 @@ async function go(n,animate){n=clamp(n,-1,STEPS.length-1);const my=++token;const
   for(const b of STEPS[si].beats||[]){const ops=[].concat(b);for(const o of ops)apply(st,o);const ms=ops.find(o=>o.ms)?.ms||780;await animateTo(st,ops,ms);if(my!==token)return;await wait(RM?0:160);if(my!==token)return}
   busy=false}
 /* ---------------- camera ---------------- */
-function bbox(ids){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const e of S.entities){if(ids&&!ids.includes(e.id))continue;if(ids&&e.type==='group')continue;const top=(e.type==='queue'||e.type==='grid'||e.type==='bar')?34:(e.type==='group'?22:0);
-    x0=Math.min(x0,e.x-14);y0=Math.min(y0,e.y-top);x1=Math.max(x1,e.x+e.w+14);y1=Math.max(y1,e.y+e.h+44)}return {x:x0,y:y0,w:x1-x0,h:y1-y0}}
+function bbox(ids){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const e of S.entities){if(ids&&!ids.includes(e.id))continue;if(ids&&e.type==='group')continue;const top=(e.type==='queue'||e.type==='grid'||e.type==='bar')?46:(e.type==='group'?22:12);
+    x0=Math.min(x0,e.x-22);y0=Math.min(y0,e.y-top);x1=Math.max(x1,e.x+e.w+22);y1=Math.max(y1,e.y+e.h+44)}return {x:x0,y:y0,w:x1-x0,h:y1-y0}}
 function frame(focus){const r0=getArea();const r={width:r0.w,height:r0.h};const all=bbox(null);let b=all;const phone=r.width<760;const narrow=phone||Math.min(r.width/all.w,r.height/all.h)<.85;   // the whole scene would be too small to read: follow the focus instead
   if(narrow&&focus&&focus.length){b=bbox(focus);const minW=Math.min(all.w,r.width/(phone?0.78:1.05));if(b.w<minW){b.x-=(minW-b.w)/2;b.w=minW}}
   const pad=phone?10:26;const k=Math.min((r.width-pad*2)/b.w,(r.height-pad*2)/b.h,phone?1.15:1.6);
@@ -654,6 +679,9 @@ function frame(focus){const r0=getArea();const r={width:r0.w,height:r0.h};const 
 
 /* ---------------- boot ---------------- */
 for(const e of S.entities)buildEnt(e);for(const w of S.wires||[])buildWire(w);
+// numbered badges: the order in which the walk first lights each entity up
+{let n=0;const seen=new Set();for(const s of STEPS)for(const id of s.focus||[]){const e=ENT[id];if(!e||e.type==='group'||seen.has(id))continue;seen.add(id);
+    const b=E('g',{class:'badge',transform:`translate(${-e.pad.l},${-e.pad.t})`},e.g);E('circle',{r:11},b);E('text',{y:4.5,'text-anchor':'middle'},b,++n)}}
 
 go(-1,false);
 return {go,n:STEPS.length,steps:STEPS,busy:()=>busy,si:()=>si,ents:S.entities,reframe:()=>frame(si<0?null:STEPS[si].focus),
@@ -685,11 +713,11 @@ function pageSys(){const a=area();const el=HT('div','layer',stage);const svg=E('
     const p=E('path',{d:`M${x1} ${y1} C${c1} ${c2} ${x2} ${y2}`,class:'ch '+kind,stroke:col,'marker-end':`url(#ar-${kind})`},Lch);const L=p.getTotalLength?0:0;
     CH.push({...c,p,col,kind,ph:Math.random()})});
   const boxes={};
-  for(const M of MODS){const b=M.box;const g=E('g',{},Lm);const col=MODC[M.kind]||'var(--c2)';const r=E('rect',{x:b.x,y:b.y,width:b.w,height:b.h,rx:10,class:'mbg'+(M.ext?' ext':'')},g);if(!M.ext)r.dataset.key='mod:'+M.id;boxes[M.id]=r;
+  for(const M of MODS){const b=M.box;const g=E('g',{},Lm);const col=M.hue||MODC[M.kind]||'var(--c2)';if(M.hue)g.style.setProperty('--h',M.hue);const r=E('rect',{x:b.x,y:b.y,width:b.w,height:b.h,rx:10,class:'mbg'+(M.ext?' ext':'')},g);if(!M.ext)r.dataset.key='mod:'+M.id;boxes[M.id]=r;
     if(!M.ext)E('rect',{x:b.x,y:b.y+10,width:3,height:Math.min(28,b.h-20),rx:1.5,fill:col},g);
     const tF=Math.min(13.5/k,(b.w-24)/Math.max(4,tw(M.title||M.id)),24),sF=Math.min(11/k,tF*.82);E('text',{x:b.x+12,y:b.y+8+tF,class:'mttl','font-size':tF},g,M.title||M.id);
     const lines=wrap(M.oneliner||'',(b.w-24)/sF,M.ext?4:2);lines.forEach((s,i)=>E('text',{x:b.x+12,y:b.y+8+tF*1.2+sF*(1.1+i*1.25),class:'msub','font-size':sF},g,s));
-    if(M.ext)continue;const HB=8+tF*1.2+sF*(.5+lines.length*1.25)+6;const c=drawAnat(Lz,M,b.x+8,b.y+HB,b.w-16,Math.max(40,b.h-HB-8),{mini:true});c.g.style.pointerEvents='none';c.gAT.style.display='none';
+    if(M.ext)continue;const HB=8+tF*1.2+sF*(.5+lines.length*1.25)+6;const c=drawAnat(Lz,M,b.x+8,b.y+HB,b.w-16,Math.max(40,b.h-HB-8),{mini:true});c.g.style.pointerEvents='none';if(M.hue)c.g.style.setProperty('--h',M.hue);c.gAT.style.display='none';
     const fs=10.5/(c.s*k);for(const l of c.l0){let f=l.mh?Math.min(fs,l.mh*.62):fs;if(tw(l.t)*f>l.mw){if(tw(l.t)*f*.85<=l.mw)f*=.85;else continue}E('text',{x:l.x,y:l.y,'font-size':f,'text-anchor':l.anc,'dominant-baseline':l.base,class:'al'},c.gL0,l.t)}}
   // channel labels after layout (needs the svg in the document)
   for(const c of CH){c.L=c.p.getTotalLength();if(c.label){const mid=c.p.getPointAtLength(c.L/2);E('text',{x:mid.x,y:mid.y-5,'text-anchor':'middle',class:'chl',fill:c.col,'font-size':clamp(11/k,7,26)},Lch,c.label)}}
@@ -702,7 +730,7 @@ function pageSys(){const a=area();const el=HT('div','layer',stage);const svg=E('
   return {type:'sys',el,frame:toS(bnd),dots,k,Lfx,pan:big?(dx=>setPan(ox+dx,oy)):null,rectOf:key=>{const M=MOD[key.slice(4)];return M?toS(M.box):null},
     targetAt(x,y){let best=null,bd=1e9;for(const M of MODS){if(M.ext)continue;const r=toS(M.box);const dx=Math.max(r.x-x,0,x-r.x-r.w),dy=Math.max(r.y-y,0,y-r.y-r.h),d=Math.hypot(dx,dy);if(d<bd){bd=d;best=M}}return best?{type:'mod',id:best.id}:null},
     mark(key,val){Lfx.innerHTML='';const M=MOD[key];if(!M)return;const b=M.box;if(big){const r=toS(b);if(r.x<a.x||r.x+r.w>a.x+a.w)setPan(ox+(a.x+a.w/2)-(r.x+r.w/2),oy)}E('rect',{x:b.x-4,y:b.y-4,width:b.w+8,height:b.h+8,rx:13,class:'pulse','vector-effect':'non-scaling-stroke'},Lfx);if(val)E('text',{x:b.x+b.w/2,y:b.y-10/k,'text-anchor':'middle',class:'vtag','font-size':12/k},Lfx,val)}}}
-function pageMod(id){const M=MOD[id];const a=area();const el=HT('div','layer',stage);const svg=E('svg',{},el);defsInto(svg);const col=MODC[M.kind]||'var(--c2)';
+function pageMod(id){const M=MOD[id];const a=area();const el=HT('div','layer',stage);const svg=E('svg',{},el);defsInto(svg);const col=M.hue||MODC[M.kind]||'var(--c2)';if(M.hue)svg.style.setProperty('--h',M.hue);
   const F=rc(a.x,a.y,a.w,a.h);E('rect',{x:F.x,y:F.y,width:F.w,height:F.h,rx:16,class:'frame'},svg);E('rect',{x:F.x,y:F.y+16,width:4,height:34,rx:2,fill:col},svg);
   const tF=phone()?17:21;E('text',{x:F.x+18,y:F.y+14+tF,class:'mttl','font-size':tF},svg,M.title);const sF=phone()?12:13.5;const sub=wrap(M.oneliner||'',(F.w-36)/sF,2);sub.forEach((s,i)=>E('text',{x:F.x+18,y:F.y+14+tF+sF*(1.5+i*1.3),class:'msub','font-size':sF},svg,s));
   const HB=14+tF+sF*(1+sub.length*1.3)+12;const modCard=M.card&&CARDS[M.card]?M.card:null;const CHIP=modCard?52:0;
@@ -721,7 +749,7 @@ function segsOf(C){const lines=C.cd.code||[];const nums=lines.filter(l=>l[0]).ma
 const PK={step:'·',decision:'◇',loop:'↻',write:'✎',wait:'‖',return:'↩',call:'→'};
 const cardLines=C=>(C.cd.code||[]).length;
 const isShort=ids=>{const a=area();return ids.reduce((n,id)=>n+cardLines(CARDS[id])+4,0)*20.5<=a.h-20};
-function pageCard(ids,mod){const a=area();const el=HT('div','layer',stage);const pg=HT('div','cardpg',el);Object.assign(pg.style,{left:a.x+'px',top:a.y+'px',width:a.w+'px',height:a.h+'px'});pg.style.overflow='hidden';
+function pageCard(ids,mod){const a=area();const el=HT('div','layer',stage);const pg=HT('div','cardpg',el);if(hueOf(mod))pg.style.setProperty('--h',hueOf(mod));Object.assign(pg.style,{left:a.x+'px',top:a.y+'px',width:a.w+'px',height:a.h+'px'});pg.style.overflow='hidden';
   for(const id of ids){const C=CARDS[id];const first=(C.cd.code||[]).find(l=>l[0]);const cd=HT('div','cd',pg);cd.dataset.card=id;HT('div','cdh',cd,`<b>${esc(C.cd.title)}</b><span>${esc(String(C.cd.file).split('/').slice(-2).join('/'))}:${first?first[0]:''}</span>`);const b=HT('div','cdb',cd);
     for(const s of segsOf(C)){const row=HT('div','brow'+(s.gap?' gap':''),b);row.style.flexGrow=String(s.gap?Math.max(.3,s.lines.length*.25):1+s.lines.length*.35);
       const mm=HT('div','mm',row);const code=s.lines.filter(l=>l[0]);const step=Math.max(1,Math.ceil(code.length/14));code.filter((_,i)=>i%step===0).forEach(([ln,t])=>{const ind=Math.min(40,t.length-t.trimStart().length),len=Math.min(90-ind,t.trim().length);const i=HT('i','',mm);i.style.marginLeft=ind+'%';i.style.width=Math.max(2,len*.55)+'%';i.style.marginLeft=(ind*.6)+'%'});
@@ -731,7 +759,7 @@ function pageCard(ids,mod){const a=area();const el=HT('div','layer',stage);const
     targetAt(x,y){let best=null,bd=1e9;pg.querySelectorAll('.brow[data-key]').forEach(e=>{const r=e.getBoundingClientRect();const d=Math.hypot(Math.max(r.left-x,0,x-r.right),Math.max(r.top-y,0,y-r.bottom));if(d<bd){bd=d;best=e}});
       if(!best)return {type:'code',ids,mod,card:ids[0]};const [,cid,ln]=best.dataset.key.split(':');return {type:'code',ids,mod,card:cid,line:+ln}},
     mark(key,val,line){pg.querySelectorAll('.brow.on').forEach(e=>e.classList.remove('on'));const C=CARDS[key];if(!C)return;const s=segsOf(C).find(q=>!q.gap&&line>=q.a&&line<=q.b);if(s){const e=pg.querySelector(`[data-key="blk:${key}:${s.a}"]`);if(e)e.classList.add('on')}}}}
-function pageCode(ids,mod,card,line){const a=area();const el=HT('div','layer',stage);const pg=HT('div','cardpg',el);Object.assign(pg.style,{left:a.x+'px',top:a.y+'px',width:a.w+'px',height:a.h+'px'});
+function pageCode(ids,mod,card,line){const a=area();const el=HT('div','layer',stage);const pg=HT('div','cardpg',el);if(hueOf(mod))pg.style.setProperty('--h',hueOf(mod));Object.assign(pg.style,{left:a.x+'px',top:a.y+'px',width:a.w+'px',height:a.h+'px'});
   let maxC=40;for(const id of ids)for(const [,t] of CARDS[id].cd.code||[])maxC=Math.max(maxC,Math.min(t.length,120));const fs=clamp((a.w-90)/(maxC*.602),phone()?11:11.5,14);pg.style.setProperty('--cfs',fs+'px');let anyPs=false;
   for(const id of ids){const C=CARDS[id];const lang=EXT(C.cd.file);const first=(C.cd.code||[]).find(l=>l[0]);const cd=HT('div','cd read'+((C.cd.steps||[]).length?' hasps':''),pg);cd.dataset.card=id;HT('div','cdh',cd,`<b>${esc(C.cd.title)}</b><span>${esc(C.cd.file)}:${first?first[0]:''}</span>`);
     const st={};let h='';for(const s of segsOf(C)){if(!s.gap)h+=`<div class="bh" data-a="${s.a}"><span>${esc(s.lab)}</span><small>L${s.a}${s.b!==s.a?'–'+s.b:''}</small></div>`;
@@ -774,7 +802,7 @@ function pageCode(ids,mod,card,line){const a=area();const el=HT('div','layer',st
 let sceneSi=-1;
 // The animated scene is the top level when the canvas has one: its entities are the things you zoom into.
 function pageScene(){const a=area();const el=HT('div','layer',stage);const svg=E('svg',{class:'scn'},el);const sc=makeScene(JSON.parse(JSON.stringify(D.scene)),svg,()=>area(),null);sc.go(sceneSi,false);
-  const zoomable=e=>e.module&&MOD[e.module]&&!MOD[e.module].ext;for(const e of sc.ents)if(zoomable(e))e.g.dataset.key='mod:'+e.module;
+  const zoomable=e=>e.module&&MOD[e.module]&&!MOD[e.module].ext;for(const e of sc.ents)if(zoomable(e)){e.g.dataset.key='mod:'+e.module;e.g.style.setProperty('--h',hueOf(e.module))}
   return {type:'sys',scene:sc,el,frame:rc(a.x,a.y,a.w,a.h),dots:[],
     rectOf:key=>{const ids=sc.ents.filter(e=>e.module===key.slice(4)).map(e=>e.id);return ids.length?sc.rectOf(ids):null},
     targetAt(x,y){let best=null,bd=1e9;for(const e of sc.ents){if(!zoomable(e))continue;const r=sc.rectOf([e.id]);const d=Math.hypot(Math.max(r.x-x,0,x-r.x-r.w),Math.max(r.y-y,0,y-r.y-r.h));if(d<bd){bd=d;best=e}}return best?{type:'mod',id:best.module}:null},
