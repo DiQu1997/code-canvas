@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """新读者挑错：起一个没有上下文、看不到仓库的读者，只读这张画布，报告读不懂的地方。
 
-Usage: python3 reader_check.py canvas.json [--out reader_report.md] [--model sonnet]
+Usage: python3 reader_check.py canvas.json [--out reader_report.md] [--model opus]
+                              [--ask "读者的原话"] [--audience "读者是谁"]
+
+给了 --ask，读者先带着这个问题读，报告开头多一节：这张画布回答了提问吗。
 
 读者拿到的是去掉 files（上下文全文）的 canvas.json——和真实读者在画布上看到的内容一致。
 输出是一份 markdown 报告：他复述的主角一生、部件职责，以及读不懂/可疑/矛盾的清单。
@@ -34,6 +37,20 @@ overview/scenarios/boxes/objects/gaps 是辅助说明）。**不要读任何其�
 最后一行单独写：自评理解度 X/10。
 """
 
+ASK = """
+你是带着一个问题来读这张画布的：
+
+  {ask}
+
+{aud}报告最前面加一节：
+
+## 0. 它回答了我的问题吗
+逐条写：问题里问到的每一件事，画布在哪里回答了（卡 id / 步序号）、答得够不够；哪些没回答或答偏了；
+画布讲的是不是我问的那个东西本身（而不是它旁边的东西）；有没有说清它讲的范围和实际运行的代码是不是同一份。
+
+倒数第二行单独写：回答提问 X/10。
+"""
+
 
 ZOOM_FIELDS = """当前目录下的 canvas.json 是一张"缩放图"的数据（字段含义：modules 是系统层的模块方框，
 anatomy 是每个模块放大后的内部结构——primitive 是形状，items 是部件，fields 是它持有的数据结构；
@@ -51,7 +68,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("canvas", type=Path)
     ap.add_argument("--out", type=Path, default=Path("reader_report.md"))
-    ap.add_argument("--model", default=os.environ.get("READER_MODEL", "sonnet"))
+    ap.add_argument("--model", default=os.environ.get("READER_MODEL", "opus"))
+    ap.add_argument("--ask", default="", help="the reader's question: the report then starts with whether the canvas answers it")
+    ap.add_argument("--audience", default="", help="who the reader is (replaces the default experienced engineer)")
     ap.add_argument("--cli", default=os.environ.get("READER_CLI", "claude"))
     ap.add_argument("--zoom", action="store_true", help="canvas is a zoom-mode spec (build_zoom.py --dump output)")
     a = ap.parse_args()
@@ -66,6 +85,10 @@ def main() -> None:
         prompt = PROMPT.split("当前目录下的 canvas.json")[0] + ZOOM_FIELDS + "。**不要读任何其他文件" + PROMPT.split("。**不要读任何其他文件", 1)[1]
     if (data.get("meta") or {}).get("mode") == "flow":
         prompt = PROMPT.split("当前目录下的 canvas.json")[0] + FLOW_FIELDS + "。**不要读任何其他文件" + PROMPT.split("。**不要读任何其他文件", 1)[1]
+    if a.audience:
+        prompt = prompt.replace("你是一位有经验的工程师，第一次接触这个代码库。", "你是这样一位读者：{}。第一次接触这个代码库。".format(a.audience), 1)
+    if a.ask:
+        prompt += ASK.format(ask=a.ask, aud="")
     cmd = [a.cli, "-p", prompt, "--model", a.model, "--allowedTools", "Read", "--output-format", "text"]
     r = subprocess.run(cmd, cwd=td, capture_output=True, text=True, timeout=900)
     out = r.stdout.strip() or ("(读者没有输出) " + r.stderr[-2000:])

@@ -286,6 +286,18 @@ def main():
         spec["scene"] = json.loads(sib.read_text(encoding="utf-8"))
     fill_code(spec, a.repo, R)
     validate(spec, R)
+    # built from a research (research.json beside the spec): what the canvas covers, and what runs by default,
+    # is the first thing the reader sees
+    if a.spec.with_name("research.json").exists():
+        meta = spec.setdefault("meta", {})
+        note = str(meta.get("scope_note") or "").strip()
+        if not note:
+            R.e("meta.scope_note missing: one or two sentences from the research's scope (what this covers, what runs by default)")
+        else:
+            ov = meta.get("overview") or []
+            ov = ov if isinstance(ov, list) else [ov]
+            if not (ov and str(ov[0]).startswith("【范围】")):
+                meta["overview"] = ["【范围】" + note] + ov
     sc = spec.get("scene")
     if sc:
         mods = {m["id"] for m in spec.get("modules") or []}

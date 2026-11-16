@@ -459,6 +459,9 @@ def list_jobs() -> list:
             env = read_result_envelope(mp.with_name(mp.name.replace(".meta.json", ".result.json")))
             if env:
                 meta["metrics"] = parse_claude_metrics(env)
+            renv = read_result_envelope(mp.with_name(mp.name.replace(".meta.json", ".research.result.json")))
+            if renv:
+                meta["metrics_research"] = parse_claude_metrics(renv)
         except Exception:
             pass
         out.append(meta)
@@ -510,6 +513,8 @@ def job_monitor(job_id: str):
     stages = []
     if meta.get("cache"):
         stages.append(("仓库缓存", Path(str(meta["cache"]) + ".ready").exists()))
+    if meta.get("mode") == "zoom":
+        stages.append(("调研", (work / "research.json").exists()))
     stages += [
         ("结构层", bool(list(work.glob("structure*.json")))),
         ("画布 JSON", (work / "canvas.json").exists()),
@@ -521,8 +526,9 @@ def job_monitor(job_id: str):
     stages.append(("入库", lib.exists() and lib.stat().st_mtime >= t0 - 1))
 
     turns, actions = 0, []
-    rf = jd / (job_id + ".result.json")
-    if rf.exists():
+    for rf in (jd / (job_id + ".research.result.json"), jd / (job_id + ".result.json")):
+        if not rf.exists():
+            continue
         try:
             with rf.open(encoding="utf-8", errors="replace") as f:
                 for ln in f:
@@ -582,12 +588,16 @@ def upgrade_gaps(d: dict) -> list:
 
 
 def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
-                   engine: str = "claude", model: str = "", upgrade: bool = False, zoom: bool = False) -> dict:
+                   engine: str = "claude", model: str = "", upgrade: bool = False, zoom: bool = False,
+                   research_from: str = "") -> dict:
     """src: {"kind": "git"|"path"|"code", ...}。返回 job meta。
     入库由服务端做：agent 只在工作目录产出 canvas.json，收尾时服务端嵌上下文、
     核依据、过 validate，全过才写进画布库（任务 done ⇔ 画布已入库）。
     upgrade=True：把已有画布升级到最新规程——agent 改工作目录里的副本，
-    merge_upgrade.py 机械锁死事实层再写回。"""
+    merge_upgrade.py 机械锁死事实层再写回。
+    zoom=True 分两段：调研 agent 写 research.json → check_research.py 机械核对 → 呈现 agent 只拿这份
+    调研去设计画布。核过的调研存进画布库（<name>.research.json），research_from 指定一张已有画布
+    的调研时跳过调研段直接复用。"""
     # 毫秒后缀去重：同一秒下多单会共享 id，prompt/status/workdir 互相踩（实案）
     job_id = time.strftime("j%Y%m%d-%H%M%S") + "-{:03d}".format(int(time.time() * 1000) % 1000)
     jd = jobs_dir()
@@ -607,7 +617,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
 
     def post_pass(repo_dir) -> str:
         """服务端入库（不信任 agent 守规程）。rc：3 升级被拒 / 4 validate 未过 /
-        5 agent 没产出 canvas.json / 6 渲染失败。"""
+        5 agent 没产出 canvas.json / 6 渲染失败 / 7 调研没过 check_research。"""
         lg = q(log_f)
         if zoom:  # 缩放画布（动画场景在最上层）：build_zoom 读代码+校验+重放场景+渲染，填好代码的数据存进库
             rec = ({"git_url": src["git_url"]} if src["kind"] == "git" else {"repo": src["repo"]})
@@ -640,21 +650,37 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     #   claude：stream-json 事件流（监视器读活动，尾行 result 事件=指标信封）
     #   codex ：codex exec --json（事件格式不同——指标/轮数解析不适用，只有分段计时）
     mflag_c = " --model " + shlex.quote(model or DEFAULT_CLAUDE_MODEL)
-    if engine == "codex":
-        core = "{cx} exec --dangerously-bypass-approvals-and-sandbox{m} --json \"$(cat {pf})\"".format(
-            cx=shlex.quote(ARGS.codex_bin or "codex"),
-            m=(" -m " + shlex.quote(model)) if model else "", pf=shlex.quote(str(prompt_f)))
-    else:
-        core = ("{cli} -p{m} \"$(cat {pf})\" --output-format stream-json --verbose "
+
+    def agent_cmd(pf) -> str:
+        if engine == "codex":
+            return "{cx} exec --dangerously-bypass-approvals-and-sandbox{m} --json \"$(cat {pf})\"".format(
+                cx=shlex.quote(ARGS.codex_bin or "codex"),
+                m=(" -m " + shlex.quote(model)) if model else "", pf=shlex.quote(str(pf)))
+        return ("{cli} -p{m} \"$(cat {pf})\" --output-format stream-json --verbose "
                 "--dangerously-skip-permissions").format(
-                    cli=shlex.quote(ARGS.cli_bin or "claude"), m=mflag_c,
-                    pf=shlex.quote(str(prompt_f)))
-    gen = ('T1=$(date +%s); ' + core + ' > {res} 2>> {log}; rc=$?; T2=$(date +%s); '
-           'printf \'{{"clone_s": %s, "claude_s": %s}}\' "$((T1-T0))" "$((T2-T1))" > {tm}; '
+                    cli=shlex.quote(ARGS.cli_bin or "claude"), m=mflag_c, pf=shlex.quote(str(pf)))
+
+    core = agent_cmd(prompt_f)
+    # 缩放图先调研：{repo} 和 {post} 一样，等确定了仓库目录再填
+    rprompt_f, rresult_f = jd / (job_id + ".research.prompt"), jd / (job_id + ".research.result.json")
+    wr, lib_r = workdir / "research.json", ARGS.hub / (name + ".research.json")
+    gate = "{chk} {wr} --repo {{repo}} >> {lg} 2>&1".format(chk=tool("check_research.py"), wr=q(wr), lg=q(log_f))
+    if not zoom:
+        research = ""
+    elif research_from:
+        research = "( cp {src} {wr} && {gate} ) || rc=7; ".format(
+            src=q(ARGS.hub / (research_from + ".research.json")), wr=q(wr), gate=gate)
+    else:
+        research = ('{core} > {res} 2>> {lg}; rc=$?; '
+                    'if [ "$rc" -eq 0 ]; then ( {gate} && cp {wr} {lib} ) || rc=7; fi; ').format(
+                        core=agent_cmd(rprompt_f), res=q(rresult_f), lg=q(log_f), gate=gate, wr=q(wr), lib=q(lib_r))
+    gen = ('T1=$(date +%s); rc=0; ' + research + 'TR=$(date +%s); '
+           'if [ "$rc" -eq 0 ]; then ' + core + ' > {res} 2>> {log}; rc=$?; fi; T2=$(date +%s); '
+           'printf \'{{"clone_s": %s, "research_s": %s, "claude_s": %s}}\' "$((T1-T0))" "$((TR-T1))" "$((T2-TR))" > {tm}; '
            '{post}echo $rc > {st}').format(
                res=shlex.quote(str(result_f)),
                log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)),
-               post="{post}")
+               post="{post}", repo="{repo}")
     has_repo = src["kind"] != "code"
     tail = ("交付：{w}（canvas JSON）。\n"
             "SKILL 第 6 节的交付契约不可商量：validate.py 无 ERROR、"
@@ -670,7 +696,12 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     if zoom:
         head = ("阅读 {skill}/SKILL.md 的第 1、2 节（判断标准、你必须自己做的判断）、{skill}/zoom-spec.md（缩放画布，含最后的"
                 "伪代码一节）和 {skill}/scene-spec.md（动画场景，画布的最上层）。再读一个场景例子 {skill}/scenes/kafka.json。"
-                "它们不是逐步执行的管线：给出的是判断标准、可选的表达原语、工具和不可商量的交付契约。\n").format(skill=SKILL_DIR)
+                "它们不是逐步执行的管线：给出的是判断标准、可选的表达原语、工具和不可商量的交付契约。\n"
+                "**调研已经做完并通过了机械核对：{wr}**（格式见 {skill}/research-spec.md）。你是呈现方：范围、模块、"
+                "机制、主路径、例子的数值都以这份调研为准，不要重新调研这个仓库。写行段和伪代码时，读它列出的那些文件和行。"
+                "调研缺了你需要的东西才去读别的代码，并把缺了什么记进 meta.judgment.research_gaps。"
+                "把调研的 scope（讲的是哪份代码、线上默认实际运行的是什么）写成一两句放进 meta.scope_note——"
+                "它会显示在画布说明的最前面；构建脚本缺这一项报 ERROR。\n").format(skill=SKILL_DIR, wr=wr)
         tail = ("交付（都在 {work}/）：\n"
                 "1. zoom.json —— 模块、通道、每个模块的内部结构、函数卡；每张超过 12 行的卡带英文伪代码 steps + omitted。\n"
                 "2. scene.json —— 动画场景：最上层。实体带 module，每一步带 at 指向卡和行。\n"
@@ -697,6 +728,16 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                 "python3 {skill}/validate.py {w} 清零 ERROR。不要写入画布库，合并由服务端做。"
                 "完成后打印 DONE。").format(w=wj, skill=SKILL_DIR)
 
+    def research_prompt(where: str) -> str:
+        return ("阅读 {skill}/research-spec.md。你是调研方：只负责读懂代码，把事实写成 research.json；"
+                "不设计画布，不考虑怎么呈现——那是下一位（呈现方）的事，他只拿你这份文件，不重读仓库。\n"
+                "任务：调研仓库 {w}，回答读者的问题：{a}\n"
+                "交付：{wr}。\n"
+                "契约：python3 {skill}/check_research.py {wr} --repo <仓库根> 0 ERROR（WARN 逐条看）；"
+                "每条结论带依据 [文件, 行号, 符号]，对着真实源码写，不凭印象；scope.default_path 必须去找实例化的地方核实；"
+                "没查清的写进 open_questions，不要用猜测填空。\n"
+                "完成后打印 DONE。").format(skill=SKILL_DIR, w=where, a=ask, wr=wr)
+
     def task_line(where: str) -> str:
         if upgrade:
             return ("任务：把已有画布「{name}」升级到最新规程。先读画布副本 {w}（它的卡/块/步就是你"
@@ -719,21 +760,36 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         cache = repo_cache_dir(src["git_url"])
         ready = cache.parent / (cache.name + ".ready")
         g, d, rd = shlex.quote(ARGS.git_bin or "git"), shlex.quote(str(cache)), shlex.quote(str(ready))
+        rev = "HEAD"   # 复用调研：取调研时钉住的那个提交，呈现方读到的才是同一份代码（取不到时闸门会重新核对依据）
+        if research_from:
+            try:
+                sha = (json.loads((ARGS.hub / (research_from + ".research.json")).read_text(encoding="utf-8"))
+                       .get("repo") or {}).get("commit", "")
+                if re.match(r"^[0-9a-f]{40}$", sha):
+                    rev = sha
+            except (OSError, ValueError):
+                pass
         if ready.exists():
             if _running_git_job(src["git_url"]):
                 prep = "touch {rd}".format(rd=rd)  # 有同仓任务在跑：照用，不折腾
             else:
-                prep = ("rm -f {rd}; ({g} -C {d} fetch --depth 1 origin HEAD && "
+                prep = ("rm -f {rd}; ({g} -C {d} fetch --depth 1 origin {rev} && "
                         "{g} -C {d} reset --hard FETCH_HEAD && {g} -C {d} clean -fdx) "
-                        "|| echo '[cache] 刷新失败，用旧缓存'; touch {rd}").format(g=g, d=d, rd=rd)
+                        "|| echo '[cache] 刷新失败，用旧缓存'; touch {rd}").format(g=g, d=d, rd=rd, rev=rev)
         elif _running_git_job(src["git_url"]):
             # 别的任务正在 clone 同一仓库：等它的 .ready（最多 30 分钟）
             prep = "for i in $(seq 1 900); do [ -f {rd} ] && break; sleep 2; done; [ -f {rd} ]".format(rd=rd)
         else:
             prep = "rm -rf {d}; {g} clone --depth 1 {u} {d} && touch {rd}".format(
                 g=g, d=d, u=shlex.quote(src["git_url"]), rd=rd)
-        gen = gen.replace("{post}", post_pass(cache))
-        prompt = head + task_line("{d}（共享缓存，clone 自 {u}）".format(d=cache, u=src["git_url"])) + tail
+            if rev != "HEAD":
+                prep += " && ({g} -C {d} fetch --depth 1 origin {rev} && {g} -C {d} reset --hard FETCH_HEAD || true)".format(
+                    g=g, d=d, rev=rev)
+        gen = gen.replace("{post}", post_pass(cache)).replace("{repo}", q(cache))
+        where = "{d}（共享缓存，clone 自 {u}）".format(d=cache, u=src["git_url"])
+        prompt = head + task_line(where) + tail
+        if zoom:
+            rprompt_f.write_text(research_prompt(where), encoding="utf-8")
         # 缓存取用失败：跳过 claude，status 记非零码，timing 只有 clone 段。
         # gen 是分号串，必须包成 {} 命令组，否则 && 只约束它第一条命令，
         # 取缓存失败后 agent 照样在错误目录开跑（存量 bug，测试抓出）
@@ -746,8 +802,10 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         cwd = str(ARGS.hub)
         source_desc = src["git_url"]
     elif src["kind"] == "path":
-        gen = gen.replace("{post}", post_pass(src["repo"]))
+        gen = gen.replace("{post}", post_pass(src["repo"])).replace("{repo}", q(src["repo"]))
         prompt = head + task_line(src["repo"]) + tail
+        if zoom:
+            rprompt_f.write_text(research_prompt(src["repo"]), encoding="utf-8")
         script, cwd, source_desc = "T0=$(date +%s); " + gen, src["repo"], src["repo"]
     else:  # code：粘贴的代码片段（无仓库：不嵌上下文、不核依据，照样过 validate 才入库）
         gen = gen.replace("{post}", post_pass(None))
@@ -765,6 +823,8 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             "mode": "upgrade" if upgrade else "zoom" if zoom else "preview" if preview else "deep", "pid": proc.pid,
             "engine": engine, "model": model or "",
             "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    if research_from:
+        meta["research_from"] = research_from
     if src["kind"] == "git":
         meta["cache"] = str(cache)
     meta_f.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
@@ -1157,8 +1217,13 @@ class Handler(BaseHTTPRequestHandler):
                 model = (req.get("model") or "").strip()
                 if model and not re.match(r"^[A-Za-z0-9._-]{1,64}$", model):
                     return self._json(400, {"ok": False, "error": "model 只允许 [A-Za-z0-9._-]"})
+                research_from = (req.get("research_from") or "").strip()
+                if research_from and not (zoom and NAME_RE.match(research_from)
+                                          and (ARGS.hub / (research_from + ".research.json")).exists()):
+                    return self._json(400, {"ok": False, "error": "research_from：只有缩放图能复用调研，且画布库里要有 {}.research.json".format(research_from)})
                 with SPAWN_LOCK:  # 缓存取用模式的判定+meta 落盘要原子，防同仓并发单互踩
-                    job = spawn_generate(src, ask, name, preview and not zoom, engine, model, zoom=zoom)
+                    job = spawn_generate(src, ask, name, preview and not zoom, engine, model, zoom=zoom,
+                                         research_from=research_from)
                 return self._json(200, {"ok": True, "job": job})
             return self._json(404, {"ok": False, "error": "not found"})
         if self.path.startswith("/ask"):
@@ -1187,7 +1252,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(403, {"ok": False, "error": "示例画布是质量基准，不可删除"})
             return self._json(404, {"ok": False, "error": "画布不存在"})
         removed = []
-        for f in (p, p.with_suffix(".json"), p.with_suffix(".src.json"),
+        for f in (p, p.with_suffix(".json"), p.with_suffix(".src.json"), p.with_suffix(".research.json"),
                   p.with_suffix(p.suffix + ".qa.json")):
             if f.exists():
                 f.unlink()
