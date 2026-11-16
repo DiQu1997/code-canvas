@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Screenshot every level of a zoom canvas for self-review.
 // Usage: node zoom_shot.js zoom.html outdir [--w 1400 --h 860] [--mobile] [--scheme dark|light] [--all]
-// Writes: 0-system.png, 1-mod-<id>.png, 2-card-<id>.png (first card of each module; every card with --all),
-//         3-code-<id>.png, t-*.png (frames in the middle of a zoom transition), s-step-N.png (story steps).
+// Writes: 0-system.png, 1-mod-<id>.png, 2-card-<id>.png (the card folded; first card of each module, every card with --all),
+//         3-one-<id>.png (one block open), 3-code-<id>.png (every block open), t-*.png (frames in the middle of a zoom transition), s-step-N.png (story steps).
 const {chromium} = require('playwright');
 const path = require('path'), fs = require('fs');
 (async () => {
@@ -36,7 +36,8 @@ const path = require('path'), fs = require('fs');
     for (const c of (cards[m] || []).slice(0, all ? 99 : 1)) {
       await p.evaluate(([id, m]) => __zoom.goto({type: 'card', ids: [id], mod: m}), [c, m]); await shot(`2-card-${c}.png`);
       const short = await p.evaluate(() => !!__zoom.cur().short);
-      if (!short) { await p.evaluate(([id, m]) => __zoom.goto({type: 'code', ids: [id], mod: m, card: id}), [c, m]); await shot(`3-code-${c}.png`) }
+      if (!short) { await p.evaluate(() => { const b = document.querySelector('.sg:not(.gap) > .bh'); if (b) __zoom.cur().toggle(b.parentNode) }); await shot(`3-one-${c}.png`);
+        await p.evaluate(() => __zoom.cur().setAll(true)); await shot(`3-code-${c}.png`) }
       await p.evaluate(id => __zoom.goto({type: 'mod', id}), m); await idle();
     }
   }
