@@ -164,6 +164,7 @@ def main() -> int:
     ap.add_argument("--ask", required=True)
     ap.add_argument("--model", default="claude-opus-5-5")
     a = ap.parse_args()
+    sys.stdout.reconfigure(line_buffering=True)   # progress goes to the job log as it happens
     work, repo = a.work.resolve(), a.repo.resolve()
     rj, zj, sj, data = work / "research.json", work / "zoom.json", work / "scene.json", work / "zoom.data.json"
     build = [HERE / "build_zoom.py", zj, "--repo", repo, "--out", work / "zoom.html"]
