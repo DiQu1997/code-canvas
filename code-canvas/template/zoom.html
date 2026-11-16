@@ -810,7 +810,8 @@ function pageScene(){const a=area();const el=HT('div','layer',stage);const svg=E
 function build(p){return p.type==='sys'?(D.scene?pageScene():pageSys()):p.type==='mod'?pageMod(p.id):p.type==='card'?(isShort(p.ids)?Object.assign(pageCode(p.ids,p.mod,null,null),{type:'card',short:true,ids:p.ids,mod:p.mod}):pageCard(p.ids,p.mod)):pageCode(p.ids,p.mod,p.card,p.line)}
 const levelOf=p=>p.type==='sys'?0:p.type==='mod'?1:p.type==='card'?(p.short?3:2):3;
 function parentOf(p){if(p.type==='sys')return null;if(p.type==='mod')return {type:'sys'};if(p.type==='card')return {type:'mod',id:p.mod};return isShort(p.ids)?{type:'mod',id:p.mod}:{type:'card',ids:p.ids,mod:p.mod}}
-const keyIn=(parent,child)=>parent.type==='sys'?'mod:'+child.id:parent.type==='mod'?'cards:'+child.ids.join(','):`blk:${child.card}:${child.line}`;
+// a function card and its code are the same box: the card stays where it is and its body changes from summary rows to code
+const keyIn=(parent,child)=>parent.type==='sys'?'mod:'+child.id:parent.type==='mod'?'cards:'+child.ids.join(','):`card:${child.card||child.ids[0]}`;
 
 /* ====================== shared-element zoom between two pages ====================== */
 // t = 0: the outer (shallower) page fills the screen. t = 1: the inner page does. In between, the element `r` of the outer page
