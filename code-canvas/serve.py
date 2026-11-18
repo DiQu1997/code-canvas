@@ -627,7 +627,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             sidecar = "printf '%s' {j} > {sf}; ".format(j=q(json.dumps(rec, ensure_ascii=False)),
                                                         sf=q(ARGS.hub / (name + ".src.json")))
             sidecar += "".join("cp {a} {b} 2>/dev/null; ".format(a=q(workdir / f), b=q(ARGS.hub / (name + "." + f)))
-                               for f in ("findings.json", "findings2.json", "review.json"))
+                               for f in ("findings.json", "findings2.json", "findings3.json", "review.json"))
             return ('if [ "$rc" -eq 0 ]; then if [ -f {w} ]; then '
                     'if {bz} {w} --repo {r} --out {hh} --dump {hj} >> {lg} 2>&1; then {{ {sidecar}:; }}; '
                     'else rc=4; fi; else rc=5; fi; fi; ').format(
@@ -1264,7 +1264,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(404, {"ok": False, "error": "画布不存在"})
         removed = []
         for f in (p, p.with_suffix(".json"), p.with_suffix(".src.json"), p.with_suffix(".research.json"),
-                  p.with_suffix(".findings.json"), p.with_suffix(".findings2.json"), p.with_suffix(".review.json"),
+                  p.with_suffix(".findings.json"), p.with_suffix(".findings2.json"), p.with_suffix(".findings3.json"),
+                  p.with_suffix(".review.json"),
                   p.with_suffix(p.suffix + ".qa.json")):
             if f.exists():
                 f.unlink()

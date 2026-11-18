@@ -81,4 +81,59 @@ check("a second reading must rule on every earlier finding", reader_check.clean(
 md = reader_check.to_md(dict(second, findings=[dict(finding("r2-1"), check={"verdict": "canvas_wrong", "fact": "f"}, resolution={"status": "fixed", "note": "n"})]), "问")
 check("the markdown shows the earlier findings, the check and the resolution", "解决了 1 条" in md and "canvas_wrong" in md and "fixed" in md)
 
+
+# the loop: a finding the second reading says is still open goes round again; nits alone stop the loop
+def run_loop(readings):
+    """Drive review.main() with canned readers. `readings` is the list of reader answers, in order."""
+    with tempfile.TemporaryDirectory() as td:
+        work = Path(td)
+        for n in ("research.json", "zoom.json", "scene.json", "zoom.data.json"):
+            (work / n).write_text(json.dumps({"audience": "新手"}), encoding="utf-8")
+        calls = {"read": 0, "fix": 0}
+
+        def fake_read(canvas, ask, audience, model, zoom=False, previous=None, round_no=1):
+            d = json.loads(json.dumps(readings[calls["read"]]))
+            calls["read"] += 1
+            for i, f in enumerate(d["findings"], 1):
+                f["id"] = "r{}-{}".format(round_no, i)
+            return d, 1.0
+
+        def fake_agent(prompt, cwd, model, tools="r", add_dirs=(), timeout=0, cli=None):
+            calls["fix"] += 1
+            ids = [l.split("（")[0][2:] for l in prompt.split("\n") if l.startswith("- r")]
+            (work / "resolutions.present.json").write_text(json.dumps([{"id": i, "status": "fixed", "note": "改了"} for i in ids]), encoding="utf-8")
+            return "DONE", 2.0
+        saved = (reader_check.read, agent_cli.run, review.run_check, review.tool_ok, sys.argv)
+        reader_check.read, agent_cli.run, review.run_check, review.tool_ok = fake_read, fake_agent, lambda *x: 0.0, lambda *x: True
+        sys.argv = ["review.py", "--work", str(work), "--repo", str(work), "--ask", "问"]
+        try:
+            rc = review.main()
+        finally:
+            reader_check.read, agent_cli.run, review.run_check, review.tool_ok, sys.argv = saved
+        return rc, calls, json.loads((work / "review.json").read_text(encoding="utf-8"))
+
+
+import contextlib, io  # noqa: E402
+quiet = contextlib.redirect_stdout(io.StringIO())
+with quiet:
+    rc, calls, r = run_loop([{"retell": [], "findings": [finding("", sev="minor"), finding("", sev="minor")]}])
+check("only nits: nothing is sent back and nobody reads twice", rc == 0 and calls == {"read": 1, "fix": 0} and r["rounds"][0]["todo"] == 0)
+
+with quiet:
+    rc, calls, r = run_loop([
+        {"retell": [], "findings": [finding("", sev="misleads"), finding("", sev="minor")]},
+        {"retell": [], "findings": [finding("", sev="minor")], "previous": [{"id": "r1-1", "resolved": True, "note": "ok"}]}])
+check("one serious finding, solved: one round of fixes, two readings, then stop on nits",
+      calls == {"read": 2, "fix": 1} and r["rounds"][0]["resolved"] == 1 and r["rounds"][1]["todo"] == 0)
+
+with quiet:
+    rc, calls, r = run_loop([
+        {"retell": [], "findings": [finding("", sev="misleads")]},
+        {"retell": [], "findings": [finding("", sev="blocks")], "previous": [{"id": "r1-1", "resolved": False, "note": "还有两处没改"}]},
+        {"retell": [], "findings": [finding("", sev="misleads")], "previous": [{"id": "r1-1", "resolved": True, "note": "ok"}, {"id": "r2-1", "resolved": True, "note": "ok"}]}])
+check("a finding still open goes round again together with the new serious one",
+      calls == {"read": 3, "fix": 2} and r["rounds"][0]["still_open"] == ["r1-1"] and r["rounds"][1]["todo"] == 2 and r["rounds"][1]["carried_over"] == 1)
+check("after two rounds it stops and says what is left", r["rounds"][-1]["round"] == "left" and r["rounds"][-1]["serious"] == ["r3-1"])
+check("the cost of every agent is added up", r["cost_usd"] == 3 * 1.0 + 2 * 2.0)
+
 sys.exit(1 if FAILS else 0)

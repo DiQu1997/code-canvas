@@ -8,13 +8,15 @@ review.py --work <工作目录> --repo <仓库根> --ask "读者的原话" [--mo
   2. 核查者（能看仓库）把读者只能怀疑的那几条对着代码判定真假     → 每条的 check
   3. 归调研方的问题：一个调研 agent 回到代码里查清，更新 research.json（过 check_research）
   4. 归呈现方的问题 + 核查判定画布错了的：一个呈现 agent 改 zoom.json / scene.json（过 build_zoom）
-  5. 读者复核：上一轮每条是否真的解决，再列新问题                → review.json
+  5. 读者复核：上一轮每条是否真的解决，再列新问题                → findings2.json
+  6. 还有没改干净的、或者新的严重问题：再走一遍 2–5（最多两轮）。只剩小瑕疵就停  → review.json
 
 每条问题都有下落（resolution）：fixed 改了 / rebutted 用代码依据反驳 / wontfix 说明理由不改 / unaddressed 没人管。
 改坏了（闸门或构建不过）就恢复改之前的文件。每个 agent 都是新起的，只读交接文件和它需要的那几行代码。
 exit 0：检查跑完（不管发现多少问题）；1：参数错或读者没交回清单。
 """
 import argparse
+import functools
 import json
 import shutil
 import subprocess
@@ -26,8 +28,10 @@ import reader_check
 from check_refs import ref_ok
 
 HERE = Path(__file__).resolve().parent
+print = functools.partial(print, flush=True)   # progress goes to the job log as it happens
 VERDICTS = ("canvas_wrong", "canvas_right", "cannot_tell")
 STATUSES = ("fixed", "rebutted", "wontfix")
+MAX_ROUNDS = 2   # 改一轮、复核；还有严重问题或没改干净的，再改一轮
 
 CHECK = """你是核查者。当前目录是仓库。一位只看得到画布、看不到仓库的读者，对画布里的几处说法起了疑心；
 你的任务是对着真实代码，逐条判定谁对。画布的数据在 {canvas}（cards[].code 是它收录的源码）。
@@ -70,7 +74,11 @@ FIX_PRESENT = """阅读 {skill}/zoom-spec.md 和 {skill}/scene-spec.md。你是�
 {items}
 
 逐条改画布。核查者判定 canvas_wrong 的，按它给的事实改；判定 canvas_right 的，把它给的理由补进画布，让下一个读者不再起疑。
-故事里前后矛盾的地方，对着代码把顺序和数值重新理一遍，不要只改措辞。只动和这些问题有关的部分。
+故事里前后矛盾的地方，对着代码把顺序和数值重新理一遍，不要只改措辞。
+**同一个说法在画布里通常不止出现一次**：overview、模块的 oneliner / info（role、not、fields、methods、pitfalls）、anatomy 里部件的
+label 和 sub、channels 的 label、卡的 blocks 和伪代码 steps、scene 的 intro 和每一步的 text / value，都可能写着同一句话。
+每改一条之前，先在 zoom.json 和 scene.json 里把这个说法的所有出现位置搜出来（按关键词 grep，不要只找被点名的那一处），一起改掉；
+下落的 note 里列出你改了哪几处。只动和这些问题有关的部分。
 改完跑 python3 {skill}/build_zoom.py {work}/zoom.json --repo . --out {work}/zoom.html 到 0 ERROR；改过画面的步骤，
 用 node {skill}/zoom_shot.js {work}/zoom.html {work}/shots 截图看一眼。
 
@@ -88,6 +96,8 @@ def item_text(f: dict) -> str:
     r = f.get("resolution")
     if r:
         s += "\n  调研方的下落：{} —— {}".format(r["status"], r.get("note", ""))
+    if f.get("reopened"):
+        s += "\n  上一轮改过，但读者复核说没解决：{}".format(f["reopened"])
     return s
 
 
@@ -164,7 +174,6 @@ def main() -> int:
     ap.add_argument("--ask", required=True)
     ap.add_argument("--model", default="claude-opus-5-5")
     a = ap.parse_args()
-    sys.stdout.reconfigure(line_buffering=True)   # progress goes to the job log as it happens
     work, repo = a.work.resolve(), a.repo.resolve()
     rj, zj, sj, data = work / "research.json", work / "zoom.json", work / "scene.json", work / "zoom.data.json"
     build = [HERE / "build_zoom.py", zj, "--repo", repo, "--out", work / "zoom.html"]
@@ -177,56 +186,64 @@ def main() -> int:
     audience = str(json.loads(rj.read_text(encoding="utf-8")).get("audience") or "有经验的工程师")
     costs = {}
 
-    # 1. the reader
+    # the reader
     try:
         d, costs["reader"] = reader_check.read(data, a.ask, audience, a.model, zoom=True)
     except (ValueError, RuntimeError) as e:
         print("读者没交回清单：", e)
         return 1
-    F = d["findings"]
-    print("reader: {} findings".format(len(F)))
+    (work / "findings.json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    fresh, carried, rounds = d["findings"], [], []
+    serious = lambda f: f["severity"] != "minor" or (f.get("check") or {}).get("verdict") in ("canvas_wrong", "canvas_right")
+    sev = lambda fs: {s: sum(1 for f in fs if f["severity"] == s) for s in reader_check.SEVERITY}
 
-    # 2. the checker
-    try:
-        costs["checker"] = run_check(F, data, repo, a.model)
-    except (ValueError, RuntimeError) as e:
-        print("checker failed:", str(e)[:300])
-    for f in F:
-        c = f.get("check")
-        if c and c["verdict"] == "canvas_wrong":   # a confirmed error is never a nit
-            f["severity"] = "misleads"
-    print("checker: " + ", ".join("{} {}".format(v, sum(1 for f in F if (f.get("check") or {}).get("verdict") == v)) for v in VERDICTS))
+    for n in range(1, MAX_ROUNDS + 1):
+        # the checker rules on what the reader could only suspect
+        try:
+            costs["checker%d" % n] = run_check(fresh, data, repo, a.model)
+        except (ValueError, RuntimeError) as e:
+            print("checker failed:", str(e)[:300])
+        for f in fresh:
+            if (f.get("check") or {}).get("verdict") == "canvas_wrong":   # a confirmed error is never a nit
+                f["severity"] = "misleads"
+        R = {"round": n, "new_findings": len(fresh), "severity": sev(fresh), "carried_over": len(carried),
+             "checked": {v: sum(1 for f in fresh if (f.get("check") or {}).get("verdict") == v) for v in VERDICTS}}
+        rounds.append(R)
+        print("round {}: {} new findings {}, {} carried over, checker {}".format(n, len(fresh), R["severity"], len(carried), R["checked"]))
 
-    # what has to be dealt with: everything that is not a nit, and everything the checker ruled on
-    todo = [f for f in F if f["severity"] != "minor" or (f.get("check") or {}).get("verdict") in ("canvas_wrong", "canvas_right")]
-    res = {}
+        # what has to be dealt with: what the last reading says is still open, everything that is not a nit,
+        # and everything the checker ruled on
+        todo = carried + [f for f in fresh if serious(f)]
+        R["todo"] = len(todo)
+        if not todo:
+            break
+        for f in todo:
+            f.pop("resolution", None)
 
-    # 3. research fixes: facts that are missing or wrong, unless the checker has already supplied the fact
-    for_research = [f for f in todo if f["owner"] == "research" and (f.get("check") or {}).get("verdict") not in ("canvas_wrong", "canvas_right")]
-    if for_research:
-        rp = work / "resolutions.research.json"
-        if rp.exists():
-            rp.unlink()
+        # research: facts that are missing or wrong, unless the checker has already supplied the fact
+        for_research = [f for f in todo if f["owner"] == "research" and (f.get("check") or {}).get("verdict") not in ("canvas_wrong", "canvas_right")]
+        if for_research:
+            rp = work / "resolutions.research.json"
+            if rp.exists():
+                rp.unlink()
 
-        def edit():
-            _, costs["research_fix"] = agent_cli.run(
-                FIX_RESEARCH.format(skill=HERE, work=work, items="\n".join(item_text(f) for f in for_research)),
-                repo, a.model, tools=None, add_dirs=[work, HERE], timeout=2400)
-        if guarded([rj], edit, lambda: tool_ok([HERE / "check_research.py", rj, "--repo", repo], repo)):
-            res.update(load_resolutions(rp, repo))
-        print("research fix: {} of {} resolved".format(sum(1 for f in for_research if f["id"] in res), len(for_research)))
-        for f in for_research:
-            if f["id"] in res:
-                f["resolution"] = res[f["id"]]
+            def edit():
+                _, costs["research_fix%d" % n] = agent_cli.run(
+                    FIX_RESEARCH.format(skill=HERE, work=work, items="\n".join(item_text(f) for f in for_research)),
+                    repo, a.model, tools=None, add_dirs=[work, HERE], timeout=2400)
+            if guarded([rj], edit, lambda: tool_ok([HERE / "check_research.py", rj, "--repo", repo], repo)):
+                res = load_resolutions(rp, repo)
+                for f in for_research:
+                    if f["id"] in res:
+                        f["resolution"] = res[f["id"]]
 
-    # 4. presentation fixes: everything in todo ends up on the canvas, including what research just found
-    if todo:
+        # presentation: everything in todo ends up on the canvas, including what research just found
         pp = work / "resolutions.present.json"
         if pp.exists():
             pp.unlink()
 
         def edit():
-            _, costs["present_fix"] = agent_cli.run(
+            _, costs["present_fix%d" % n] = agent_cli.run(
                 FIX_PRESENT.format(skill=HERE, work=work, ask=a.ask, items="\n".join(item_text(f) for f in todo)),
                 repo, a.model, tools=None, add_dirs=[work, HERE], timeout=3000)
         if guarded([zj, sj], edit, lambda: tool_ok(build, repo)):
@@ -236,37 +253,35 @@ def main() -> int:
                     f["resolution"] = pres[f["id"]]
         else:
             tool_ok(build, repo)   # rebuild the restored canvas so zoom.data.json matches zoom.json again
-        print("presentation fix: {} of {} have a resolution".format(sum(1 for f in todo if "resolution" in f), len(todo)))
-    for f in todo:
-        f.setdefault("resolution", {"status": "unaddressed", "note": "", "refs": []})
+        for f in todo:
+            f.setdefault("resolution", {"status": "unaddressed", "note": "", "refs": []})
+        R["resolutions"] = {s: sum(1 for f in todo if f["resolution"]["status"] == s) for s in STATUSES + ("unaddressed",)}
+        (work / "findings.json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    d["cost_usd"] = costs["reader"]
-    (work / "findings.json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
-    (work / "findings.md").write_text(reader_check.to_md(d, a.ask), encoding="utf-8")
-
-    # 5. the reader again: were they really solved, and what is new
-    second = None
-    if todo:
+        # the reader again: was each one really solved, and what is new
         try:
-            second, costs["reader2"] = reader_check.read(data, a.ask, audience, a.model, zoom=True, previous=todo, round_no=2)
-            (work / "findings2.json").write_text(json.dumps(second, ensure_ascii=False, indent=1), encoding="utf-8")
-            (work / "findings2.md").write_text(reader_check.to_md(second, a.ask), encoding="utf-8")
+            nxt, costs["reader%d" % (n + 1)] = reader_check.read(data, a.ask, audience, a.model, zoom=True, previous=todo, round_no=n + 1)
         except (ValueError, RuntimeError) as e:
-            print("second reading failed:", str(e)[:300])
+            print("reading after round {} failed: {}".format(n, str(e)[:300]))
+            break
+        out = work / "findings{}.json".format(n + 1)
+        out.write_text(json.dumps(nxt, ensure_ascii=False, indent=1), encoding="utf-8")
+        out.with_suffix(".md").write_text(reader_check.to_md(nxt, a.ask), encoding="utf-8")
+        verdict = {p["id"]: p for p in nxt.get("previous") or []}
+        carried = [f for f in todo if not verdict.get(f["id"], {}).get("resolved")]
+        for f in carried:
+            f["reopened"] = str(verdict.get(f["id"], {}).get("note") or "")
+        fresh = nxt["findings"]
+        R["resolved"], R["still_open"] = len(todo) - len(carried), [f["id"] for f in carried]
+        print("round {}: {} of {} resolved; still open {}".format(n, R["resolved"], len(todo), R["still_open"]))
+    else:
+        # ran out of rounds: say what is left rather than pretend it is clean
+        left = [f for f in fresh if f["severity"] != "minor"]
+        rounds.append({"round": "left", "still_open": [f["id"] for f in carried], "new_findings": len(fresh),
+                       "severity": sev(fresh), "serious": [f["id"] for f in left]})
 
-    sev = lambda fs: {s: sum(1 for f in fs if f["severity"] == s) for s in reader_check.SEVERITY}
-    summary = {
-        "ask": a.ask, "audience": audience, "costs": costs, "cost_usd": round(sum(costs.values()), 4),
-        "round1": {"findings": len(F), "severity": sev(F),
-                   "checked": {v: sum(1 for f in F if (f.get("check") or {}).get("verdict") == v) for v in VERDICTS},
-                   "todo": len(todo),
-                   "resolutions": {s: sum(1 for f in todo if f["resolution"]["status"] == s) for s in STATUSES + ("unaddressed",)}},
-    }
-    if second:
-        prev = second.get("previous") or []
-        summary["round2"] = {"resolved": sum(1 for p in prev if p.get("resolved")), "of": len(prev),
-                             "unresolved": [p["id"] for p in prev if not p.get("resolved")],
-                             "new_findings": len(second["findings"]), "severity": sev(second["findings"])}
+    (work / "findings.md").write_text(reader_check.to_md(d, a.ask), encoding="utf-8")
+    summary = {"ask": a.ask, "audience": audience, "costs": costs, "cost_usd": round(sum(costs.values()), 4), "rounds": rounds}
     (work / "review.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False))
     return 0
