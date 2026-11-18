@@ -40,6 +40,7 @@ node tests/scenario.mjs                                 # 28 PASS（情境推演
 python3 tests/video_test.py                             # 12 PASS（视频脚本校验契约；渲染需本机 manim venv）
 node tests/zoom.mjs                                     # 21 PASS（缩放图函数卡：逐段展开 / 缩放步进 / 故事落点 / 手机）
 python3 tests/research_test.py                          # 9 PASS（调研闸门：依据、函数行段、词表与槽位）
+python3 tests/review_test.py                            # 21 PASS（检查回路：核查与反驳要有站得住的依据、改坏回滚、复核逐条、没改干净再来一轮）
 ```
 
 ## 工具链（code-canvas/）

@@ -99,6 +99,7 @@
 | `log` | 只追加的序列 + 游标 | `append` · `cursors` 有哪些游标 |
 | `thread` | 一个执行者（线程 / 进程） | `runs` 它跑什么 · `blocks_on` 会阻塞在哪 |
 | `coroutine` | 可挂起、可恢复的执行 | `suspend` 在哪挂起 · `resume` 谁恢复它 · `state` 挂起时状态存哪 |
+| `switch` | 上下文切换 / 栈切换：保存现场、换栈、恢复 | `saved` 现场里存了什么、存在哪 · `swap` 怎么换过去 · `fresh` 从没跑过的上下文怎么造出"像刚被切出"的现场 |
 | `loop` | 主循环，每圈固定几站 | `stations` 每圈做哪几件事 · `exit` 何时退出 |
 | `pipeline` | 一串有先后的阶段 | `stages` |
 | `dispatch` | 按类型 / 条件分派 | `on` 按什么分 · `branches` |

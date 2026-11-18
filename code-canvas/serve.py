@@ -462,6 +462,9 @@ def list_jobs() -> list:
             renv = read_result_envelope(mp.with_name(mp.name.replace(".meta.json", ".research.result.json")))
             if renv:
                 meta["metrics_research"] = parse_claude_metrics(renv)
+            rv = jobs_dir() / meta["id"] / "review.json"
+            if rv.exists():
+                meta["review"] = json.loads(rv.read_text(encoding="utf-8"))
         except Exception:
             pass
         out.append(meta)
@@ -596,7 +599,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
     upgrade=True：把已有画布升级到最新规程——agent 改工作目录里的副本，
     merge_upgrade.py 机械锁死事实层再写回。
     zoom=True 分两段：调研 agent 写 research.json → check_research.py 机械核对 → 呈现 agent 只拿这份
-    调研去设计画布。核过的调研存进画布库（<name>.research.json），research_from 指定一张已有画布
+    调研去设计画布，之后 review.py 做独立检查并把问题派回去改，问题清单随画布入库。核过的调研存进画布库（<name>.research.json），research_from 指定一张已有画布
     的调研时跳过调研段直接复用。"""
     # 毫秒后缀去重：同一秒下多单会共享 id，prompt/status/workdir 互相踩（实案）
     job_id = time.strftime("j%Y%m%d-%H%M%S") + "-{:03d}".format(int(time.time() * 1000) % 1000)
@@ -623,6 +626,8 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             rec = ({"git_url": src["git_url"]} if src["kind"] == "git" else {"repo": src["repo"]})
             sidecar = "printf '%s' {j} > {sf}; ".format(j=q(json.dumps(rec, ensure_ascii=False)),
                                                         sf=q(ARGS.hub / (name + ".src.json")))
+            sidecar += "".join("cp {a} {b} 2>/dev/null; ".format(a=q(workdir / f), b=q(ARGS.hub / (name + "." + f)))
+                               for f in ("findings.json", "findings2.json", "findings3.json", "review.json"))
             return ('if [ "$rc" -eq 0 ]; then if [ -f {w} ]; then '
                     'if {bz} {w} --repo {r} --out {hh} --dump {hj} >> {lg} 2>&1; then {{ {sidecar}:; }}; '
                     'else rc=4; fi; else rc=5; fi; fi; ').format(
@@ -674,9 +679,15 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
         research = ('{core} > {res} 2>> {lg}; rc=$?; '
                     'if [ "$rc" -eq 0 ]; then ( {gate} && cp {wr} {lib} ) || rc=7; fi; ').format(
                         core=agent_cmd(rprompt_f), res=q(rresult_f), lg=q(log_f), gate=gate, wr=q(wr), lib=q(lib_r))
+    # 独立检查：读者 → 核查 → 派回调研方 / 呈现方改 → 复核。检查自己失败不算任务失败（画布在它之前已经能构建）
+    review = ""
+    if zoom:
+        (workdir / "ask.txt").write_text(ask, encoding="utf-8")
+        review = ('if [ "$rc" -eq 0 ]; then {rv} --work {w} --repo {{repo}} --ask "$(cat {af})" --model {m} >> {lg} 2>&1 || true; fi; ').format(
+            rv=tool("review.py"), w=q(workdir), af=q(workdir / "ask.txt"), m=shlex.quote(model or DEFAULT_CLAUDE_MODEL), lg=q(log_f))
     gen = ('T1=$(date +%s); rc=0; ' + research + 'TR=$(date +%s); '
-           'if [ "$rc" -eq 0 ]; then ' + core + ' > {res} 2>> {log}; rc=$?; fi; T2=$(date +%s); '
-           'printf \'{{"clone_s": %s, "research_s": %s, "claude_s": %s}}\' "$((T1-T0))" "$((TR-T1))" "$((T2-TR))" > {tm}; '
+           'if [ "$rc" -eq 0 ]; then ' + core + ' > {res} 2>> {log}; rc=$?; fi; TP=$(date +%s); ' + review + 'T2=$(date +%s); '
+           'printf \'{{"clone_s": %s, "research_s": %s, "claude_s": %s, "review_s": %s}}\' "$((T1-T0))" "$((TR-T1))" "$((TP-TR))" "$((T2-TP))" > {tm}; '
            '{post}echo $rc > {st}').format(
                res=shlex.quote(str(result_f)),
                log=shlex.quote(str(log_f)), tm=shlex.quote(str(timing_f)), st=shlex.quote(str(status_f)),
@@ -1253,6 +1264,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(404, {"ok": False, "error": "画布不存在"})
         removed = []
         for f in (p, p.with_suffix(".json"), p.with_suffix(".src.json"), p.with_suffix(".research.json"),
+                  p.with_suffix(".findings.json"), p.with_suffix(".findings2.json"), p.with_suffix(".findings3.json"),
+                  p.with_suffix(".review.json"),
                   p.with_suffix(p.suffix + ".qa.json")):
             if f.exists():
                 f.unlink()
