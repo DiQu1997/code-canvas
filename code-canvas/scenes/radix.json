@@ -1,0 +1,1907 @@
+{
+ "title": "RadixCache：请求 B 复用请求 A 的前缀",
+ "subtitle": "A=[1,2,3,4,5] 建缓存；B=[1,2,3,7,8] 命中前 3 个、劈开节点、只算 [7,8]；A decode 两步后结束，输出成单独叶子；C 缺槽触发淘汰",
+ "intro": "画面是一个 Scheduler 进程：主循环是唯一的执行者，旁边是基数树、可淘汰叶子集合、req_to_token 表和 KV 槽池。跟着 B 走。本动画演的是 radix_cache.RadixCache 参考实现；线上 tree_cache 默认是 UnifiedRadixCache，等价入口：匹配 match_prefix、插回 checkpoint→checkpoint_into_tree、加锁 lock→各组件 acquire_component_lock、淘汰 evict_for_alloc→_evict_device_walk。设定：page_size=1，池子 10 个槽，按关闭 overlap 调度的顺序讲；B 在 A 第一次 decode 之前被组批。",
+ "tokens": {
+  "B": {
+   "label": "B",
+   "color": "c1"
+  },
+  "A": {
+   "label": "A",
+   "color": "c2"
+  },
+  "C": {
+   "label": "C",
+   "color": "c3"
+  },
+  "rowA": {
+   "label": "1 2 3 4 5",
+   "color": "c2"
+  },
+  "rowBp": {
+   "label": "1 2 3",
+   "color": "c4"
+  },
+  "rowBn": {
+   "label": "6 7",
+   "color": "c1"
+  },
+  "rowC": {
+   "label": "6–10（5 个新槽）",
+   "color": "c3"
+  },
+  "leaf3": {
+   "label": "N3",
+   "color": "c1"
+  },
+  "leafN1": {
+   "label": "N1",
+   "color": "c2"
+  },
+  "leaf4": {
+   "label": "N4",
+   "color": "c2"
+  },
+  "rowA8": {
+   "label": "1 2 3 4 5 8",
+   "color": "c2"
+  },
+  "rowA9": {
+   "label": "1 2 3 4 5 8 9",
+   "color": "c2"
+  },
+  "Ad": {
+   "label": "A 输出",
+   "color": "c2"
+  }
+ },
+ "entities": [
+  {
+   "id": "client",
+   "type": "ext",
+   "kind": "另一个进程",
+   "x": 20,
+   "y": 40,
+   "w": 150,
+   "h": 120,
+   "title": "Tokenizer",
+   "sub": "送来 token 序列"
+  },
+  {
+   "id": "gpu",
+   "type": "ext",
+   "kind": "model runner",
+   "x": 20,
+   "y": 455,
+   "w": 150,
+   "h": 120,
+   "title": "GPU 前向",
+   "sub": "只算没命中的部分"
+  },
+  {
+   "id": "waitq",
+   "type": "queue",
+   "x": 245,
+   "y": 70,
+   "w": 210,
+   "h": 46,
+   "title": "waiting_queue",
+   "sub": "等着做 prefill",
+   "module": "sched"
+  },
+  {
+   "id": "sched",
+   "type": "thread",
+   "kind": "scheduler 进程",
+   "x": 245,
+   "y": 225,
+   "w": 210,
+   "h": 140,
+   "title": "Scheduler 主循环",
+   "sub": "树操作都在这里同步调用",
+   "state": "idle",
+   "on": "等请求",
+   "module": "sched"
+  },
+  {
+   "id": "running",
+   "type": "queue",
+   "x": 245,
+   "y": 545,
+   "w": 210,
+   "h": 46,
+   "title": "running_batch",
+   "sub": "在 decode 的请求",
+   "count": false,
+   "module": "sched"
+  },
+  {
+   "id": "tree",
+   "type": "tree",
+   "kind": "RadixCache",
+   "x": 545,
+   "y": 30,
+   "w": 300,
+   "h": 290,
+   "title": "基数树 tree_cache",
+   "sub": "节点 = 一段 token；左上角 ref = lock_ref",
+   "vars": {
+    "evictable_size_": 0,
+    "protected_size_": 0
+   },
+   "module": "tree",
+   "nodes": [
+    {
+     "id": "root",
+     "label": "根",
+     "tag": "ref 1"
+    }
+   ]
+  },
+  {
+   "id": "leaves",
+   "type": "queue",
+   "x": 565,
+   "y": 440,
+   "w": 260,
+   "h": 46,
+   "title": "evictable_leaves",
+   "kind": "set",
+   "sub": "没锁、没有活孩子的节点",
+   "count": false,
+   "module": "life"
+  },
+  {
+   "id": "r2t",
+   "type": "store",
+   "kind": "ReqToTokenPool",
+   "x": 935,
+   "y": 30,
+   "w": 320,
+   "h": 180,
+   "title": "req_to_token",
+   "sub": "每个请求一行：各 token 的槽号",
+   "rows": [
+    {
+     "id": "rA",
+     "label": "A 的行"
+    },
+    {
+     "id": "rB",
+     "label": "B 的行"
+    },
+    {
+     "id": "rC",
+     "label": "C 的行"
+    }
+   ],
+   "module": "pools"
+  },
+  {
+   "id": "pool",
+   "type": "grid",
+   "kind": "TokenToKVPoolAllocator",
+   "x": 935,
+   "y": 320,
+   "w": 320,
+   "h": 54,
+   "cols": 10,
+   "rowsN": 1,
+   "title": "KV 槽池：槽 1 … 10",
+   "sub": "上色 = 已占用；斜线 = 归树所有",
+   "module": "pools"
+  }
+ ],
+ "wires": [
+  {
+   "id": "w_in",
+   "a": [
+    "client",
+    "r",
+    0.35
+   ],
+   "b": [
+    "waitq",
+    "l"
+   ],
+   "kind": "queue",
+   "label": "入队"
+  },
+  {
+   "id": "w_take",
+   "a": [
+    "waitq",
+    "b",
+    0.5
+   ],
+   "b": [
+    "sched",
+    "t",
+    0.5
+   ],
+   "kind": "queue",
+   "label": "取出"
+  },
+  {
+   "id": "w_match",
+   "a": [
+    "sched",
+    "r",
+    0.15
+   ],
+   "b": [
+    "tree",
+    "l",
+    0.4
+   ],
+   "kind": "call",
+   "label": "match_prefix",
+   "lt": 0.45
+  },
+  {
+   "id": "w_ckpt",
+   "a": [
+    "sched",
+    "r",
+    0.45
+   ],
+   "b": [
+    "tree",
+    "l",
+    0.85
+   ],
+   "kind": "call",
+   "label": "checkpoint",
+   "lt": 0.55
+  },
+  {
+   "id": "w_alloc",
+   "a": [
+    "sched",
+    "r",
+    0.8
+   ],
+   "b": [
+    "pool",
+    "l",
+    0.5
+   ],
+   "kind": "call",
+   "label": "alloc",
+   "lt": 0.3,
+   "bend": 0.25
+  },
+  {
+   "id": "w_row",
+   "a": [
+    "pool",
+    "t",
+    0.5
+   ],
+   "b": [
+    "r2t",
+    "b",
+    0.5
+   ],
+   "kind": "data",
+   "label": "写行"
+  },
+  {
+   "id": "w_fwd",
+   "a": [
+    "sched",
+    "b",
+    0.15
+   ],
+   "b": [
+    "gpu",
+    "r",
+    0.35
+   ],
+   "kind": "call",
+   "label": "前向"
+  },
+  {
+   "id": "w_run",
+   "a": [
+    "sched",
+    "b",
+    0.7
+   ],
+   "b": [
+    "running",
+    "t",
+    0.7
+   ],
+   "kind": "queue",
+   "label": "进 decode"
+  },
+  {
+   "id": "w_leaf",
+   "a": [
+    "tree",
+    "b",
+    0.5
+   ],
+   "b": [
+    "leaves",
+    "t",
+    0.5
+   ],
+   "kind": "data",
+   "label": "成为候选",
+   "lt": 0.6
+  },
+  {
+   "id": "w_ev",
+   "a": [
+    "pool",
+    "b",
+    0.25
+   ],
+   "b": [
+    "leaves",
+    "r",
+    0.3
+   ],
+   "kind": "call",
+   "label": "evict",
+   "lt": 0.4
+  },
+  {
+   "id": "w_free",
+   "a": [
+    "leaves",
+    "r",
+    0.75
+   ],
+   "b": [
+    "pool",
+    "b",
+    0.7
+   ],
+   "kind": "ret",
+   "label": "free 槽号",
+   "lt": 0.6
+  }
+ ],
+ "setup": [],
+ "steps": [
+  {
+   "text": "请求 A 到达：prompt = [1,2,3,4,5]（token id）。它先进 waiting_queue，等主循环把它组进 prefill 批。",
+   "focus": [
+    "client",
+    "waitq"
+   ],
+   "beats": [
+    [
+     {
+      "op": "spawn",
+      "tok": "A",
+      "at": [
+       "client"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "A",
+      "to": [
+       "waitq"
+      ],
+      "via": "w_in"
+     }
+    ]
+   ],
+   "value": "A = [1,2,3,4,5]",
+   "tick": "A 建缓存"
+  },
+  {
+   "text": "主循环取出 A，调 init_next_round_input。匹配上限 = 5 − 1 = 4：最后一个 token 必须重算，才能得到下一个 token 的 logits。",
+   "focus": [
+    "waitq",
+    "sched"
+   ],
+   "beats": [
+    [
+     {
+      "op": "state",
+      "ent": "sched",
+      "s": "run",
+      "on": ""
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "A",
+      "to": [
+       "sched"
+      ],
+      "via": "w_take"
+     }
+    ],
+    [
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "key_limit",
+      "v": 4
+     }
+    ]
+   ],
+   "at": {
+    "card": "max_prefix_len",
+    "line": 1219
+   },
+   "value": "key_limit = 4",
+   "tick": "A 建缓存"
+  },
+  {
+   "text": "match_prefix 在根下找键为 1 的孩子。树是空的，while 一次也不进：命中 0 个，last_node = 根。",
+   "focus": [
+    "sched",
+    "tree"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_match",
+      "back": true
+     }
+    ],
+    [
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "prefix_len",
+      "v": 0
+     }
+    ]
+   ],
+   "at": {
+    "card": "match_helper",
+    "line": 665
+   },
+   "value": "prefix_len = 0",
+   "tick": "A 建缓存"
+  },
+  {
+   "text": "PrefillAdder 准入 A：要算 5 − 0 = 5 个 token，extend_end = 5。req.lock = lock(根)：inc_lock_ref 碰到根就停；根的 lock_ref 在 reset() 里就固定为 1。",
+   "value": "extend_end = 5",
+   "tick": "A 建缓存",
+   "focus": [
+    "sched",
+    "tree"
+   ],
+   "beats": [
+    [
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "extend_len",
+      "v": 5
+     }
+    ],
+    [
+     {
+      "op": "flash",
+      "ent": "tree",
+      "color": null
+     }
+    ]
+   ],
+   "at": {
+    "card": "commit_admission",
+    "line": 2037,
+    "line2": 2038
+   }
+  },
+  {
+   "text": "prepare_for_extend 先切输入 fill_ids[0:]（5 个 token），再调 alloc_for_extend → alloc_token_slots(5) → alloc：从空闲列表头部切出槽 1–5，写进 A 的行。",
+   "value": "A 的行 = [1,2,3,4,5]",
+   "tick": "A 建缓存",
+   "focus": [
+    "sched",
+    "pool",
+    "r2t"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_alloc",
+      "back": false
+     },
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "A",
+      "n": 5
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_row",
+      "back": false
+     }
+    ],
+    [
+     {
+      "op": "spawn",
+      "tok": "rowA",
+      "at": [
+       "r2t",
+       "rA"
+      ]
+     }
+    ]
+   ],
+   "at": {
+    "card": "prepare_for_extend",
+    "line": 2413,
+    "line2": 2415
+   }
+  },
+  {
+   "text": "run_batch 前向：注意力按 A 的行取 kv_indices = 槽 1–5，查询是全部 5 个 token（prefix_len = 0）。K/V 写进槽 1–5，采样出第一个输出 token 30。",
+   "value": "算 5 个 token",
+   "tick": "A 建缓存",
+   "focus": [
+    "sched",
+    "gpu"
+   ],
+   "beats": [
+    [
+     {
+      "op": "move",
+      "tok": "A",
+      "to": [
+       "gpu"
+      ],
+      "via": "w_fwd"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "A",
+      "to": [
+       "sched"
+      ],
+      "via": "w_fwd",
+      "rev": true
+     }
+    ]
+   ],
+   "at": {
+    "card": "attn_plan",
+    "line": 2458,
+    "line2": 2474
+   }
+  },
+  {
+   "text": "A 没结束，排 checkpoint_kv_cache。_insert_helper 在根下找不到键 1，挂新叶子 N1 = [1..5]、槽 [1..5]。N1 没锁、没孩子，当场进 evictable_leaves。",
+   "value": "evictable_size_ 0 → 5",
+   "tick": "A 建缓存",
+   "focus": [
+    "sched",
+    "tree",
+    "leaves"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_ckpt",
+      "back": false
+     }
+    ],
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N1",
+      "parent": "root",
+      "label": "N1 [1 2 3 4 5]",
+      "color": "c2"
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N1",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 5
+     },
+     {
+      "op": "hash",
+      "ent": "pool",
+      "who": "A"
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_leaf",
+      "back": false
+     },
+     {
+      "op": "spawn",
+      "tok": "leafN1",
+      "at": [
+       "leaves"
+      ]
+     }
+    ]
+   ],
+   "at": {
+    "card": "insert_helper",
+    "line": 753,
+    "line2": 763
+   }
+  },
+  {
+   "text": "checkpoint 收尾：unlock(根) 无事可做；lock(N1) 让 N1 0→1，5 个 token 挪到受保护，N1 移出候选。insert 到 lock 在同一线程同步执行，中间不会 evict。A 进 running_batch。",
+   "value": "N1.lock_ref = 1",
+   "tick": "A 建缓存",
+   "focus": [
+    "tree",
+    "leaves",
+    "running"
+   ],
+   "beats": [
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N1",
+      "set": {
+       "tag": "ref 1"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 0
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "protected_size_",
+      "v": 5
+     },
+     {
+      "op": "gone",
+      "tok": "leafN1"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "A",
+      "to": [
+       "running"
+      ],
+      "via": "w_run"
+     }
+    ]
+   ],
+   "at": {
+    "card": "rc_checkpoint",
+    "line": 548,
+    "line2": 550
+   }
+  },
+  {
+   "text": "请求 B 到达。下一圈 get_next_batch_to_run 先组 prefill 批：有新批就先跑 prefill，这一圈不做 decode，所以 A 还没拿到 decode 槽。",
+   "value": "prefill 优先",
+   "tick": "B 复用",
+   "focus": [
+    "client",
+    "waitq",
+    "sched"
+   ],
+   "beats": [
+    [
+     {
+      "op": "spawn",
+      "tok": "B",
+      "at": [
+       "client"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "B",
+      "to": [
+       "waitq"
+      ],
+      "via": "w_in"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "B",
+      "to": [
+       "sched"
+      ],
+      "via": "w_take"
+     }
+    ]
+   ],
+   "at": {
+    "card": "get_next_batch",
+    "line": 4362,
+    "line2": 4364
+   }
+  },
+  {
+   "text": "B 的匹配 key = 前 4 个 [1,2,3,7]。根下键 1 → N1，RadixKey.match 比出公共前缀 3（第 4 位 4≠7）；3 < len(N1.key) = 5：停在 N1 中间。",
+   "value": "3 < 5",
+   "tick": "B 复用",
+   "focus": [
+    "sched",
+    "tree"
+   ],
+   "beats": [
+    [
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "key_limit",
+      "v": 4
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_match",
+      "back": true
+     }
+    ],
+    [
+     {
+      "op": "flash",
+      "ent": "tree",
+      "color": "c1"
+     }
+    ]
+   ],
+   "at": {
+    "card": "match_helper",
+    "line": 668,
+    "line2": 669
+   }
+  },
+  {
+   "text": "_split_node 劈开 N1：新父节点 N2 = [1,2,3]、槽 [1,2,3]，lock_ref 照抄为 1；N1 只剩 [4,5]、槽 [4,5]。KV 数据一个字节都没动。",
+   "focus": [
+    "tree"
+   ],
+   "beats": [
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "parent": "root",
+      "label": "N2 [1 2 3]",
+      "color": "c4"
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "set": {
+       "tag": "ref 1"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N1",
+      "set": {
+       "parent": "N2",
+       "label": "N1 [4 5]"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N1",
+      "set": {
+       "tag": "ref 1"
+      }
+     }
+    ]
+   ],
+   "at": {
+    "card": "split",
+    "line": 687,
+    "line2": 697
+   },
+   "value": "N2 继承 lock_ref = 1",
+   "tick": "B 复用"
+  },
+  {
+   "text": "匹配终点是 N2：B.prefix_len = 3。准入后 req.lock = lock(N2)：N2.lock_ref 1→2，已经 >0，两个计数器不动。B 只要算 2 个 token。",
+   "focus": [
+    "sched",
+    "tree"
+   ],
+   "beats": [
+    [
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "prefix_len",
+      "v": 3
+     }
+    ],
+    [
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "extend_len",
+      "v": 2
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "set": {
+       "tag": "ref 2"
+      }
+     }
+    ]
+   ],
+   "at": {
+    "card": "commit_admission",
+    "line": 2037,
+    "line2": 2038
+   },
+   "value": "prefix_len = 3",
+   "tick": "B 复用"
+  },
+  {
+   "text": "分配 B：_prefix_kv_indices → prefix_device_indices 从 last_node = N2 回根读出槽 [1,2,3]、截前 3 个，这就是复用；只为 [7,8] 新切 2 个槽 6、7。",
+   "value": "B 的行 = [1,2,3,6,7]",
+   "tick": "B 复用",
+   "focus": [
+    "sched",
+    "pool",
+    "r2t"
+   ],
+   "beats": [
+    [
+     {
+      "op": "spawn",
+      "tok": "rowBp",
+      "at": [
+       "r2t",
+       "rB"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_alloc",
+      "back": false
+     },
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "B",
+      "n": 2
+     }
+    ],
+    [
+     {
+      "op": "spawn",
+      "tok": "rowBn",
+      "at": [
+       "r2t",
+       "rB"
+      ]
+     }
+    ]
+   ],
+   "at": {
+    "card": "prefix_device_indices",
+    "line": 735,
+    "line2": 737
+   }
+  },
+  {
+   "text": "run_batch：注意力按 B 的行取 kv_indices = 槽 [1,2,3,6,7]，读到槽 1–3 里 A 算好的 K/V；查询只有 seq_len − prefix_len = 2 个 token [7,8]。",
+   "value": "算 2 个 token（省 3 个）",
+   "tick": "B 复用",
+   "focus": [
+    "sched",
+    "gpu",
+    "r2t"
+   ],
+   "beats": [
+    [
+     {
+      "op": "move",
+      "tok": "B",
+      "to": [
+       "gpu"
+      ],
+      "via": "w_fwd"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "B",
+      "to": [
+       "sched"
+      ],
+      "via": "w_fwd",
+      "rev": true
+     }
+    ]
+   ],
+   "at": {
+    "card": "attn_plan",
+    "line": 2458,
+    "line2": 2474
+   }
+  },
+  {
+   "text": "设定 B 的 max_new_tokens = 1，prefill 采出 1 个 token 就结束。这次输出没被丢弃（discard_finish_reason 为 None），所以排 release(checkpoint=True)。",
+   "value": "B finished",
+   "tick": "B 收尾",
+   "focus": [
+    "sched"
+   ],
+   "beats": [
+    [
+     {
+      "op": "tok",
+      "tok": "B",
+      "set": {
+       "tag": "finished"
+      }
+     },
+     {
+      "op": "flash",
+      "ent": "sched",
+      "color": "c4"
+     }
+    ]
+   ],
+   "at": {
+    "card": "process_prefill_result",
+    "line": 505,
+    "line2": 511
+   }
+  },
+  {
+   "text": "release 先插回：insert([1,2,3,7,8], 槽 [1,2,3,6,7])。走完 N2 已有的 3 个，[7,8] 挂成新叶子 N3；N3 没锁、没孩子，当场进候选。重复区间 [3,3) 为空。",
+   "value": "insert 返回 prefix_len = 3",
+   "tick": "B 收尾",
+   "focus": [
+    "sched",
+    "tree",
+    "leaves"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_ckpt",
+      "back": false
+     }
+    ],
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N3",
+      "parent": "N2",
+      "label": "N3 [7 8]",
+      "color": "c1"
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N3",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 2
+     }
+    ],
+    [
+     {
+      "op": "hash",
+      "ent": "pool",
+      "who": "B"
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_leaf",
+      "back": false
+     },
+     {
+      "op": "spawn",
+      "tok": "leaf3",
+      "at": [
+       "leaves"
+      ]
+     }
+    ]
+   ],
+   "at": {
+    "card": "insert_cache",
+    "line": 479,
+    "line2": 488
+   }
+  },
+  {
+   "text": "回写 B 的行（不变），再挪锁：unlock(N2) 让 N2 2→1；lock(N3) 让 N3 0→1、N2 1→2，N3 移出候选。evictable 2→0，protected 5→7。",
+   "value": "protected_size_ = 7",
+   "tick": "B 收尾",
+   "focus": [
+    "tree",
+    "leaves"
+   ],
+   "beats": [
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "set": {
+       "tag": "ref 1"
+      }
+     }
+    ],
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N3",
+      "set": {
+       "tag": "ref 1"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "set": {
+       "tag": "ref 2"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 0
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "protected_size_",
+      "v": 7
+     },
+     {
+      "op": "gone",
+      "tok": "leaf3"
+     }
+    ]
+   ],
+   "at": {
+    "card": "rc_checkpoint",
+    "line": 548,
+    "line2": 549
+   }
+  },
+  {
+   "text": "释放 B：[cache_protected_len 5, owned 5) 是空区间，没有私有槽要还；unlock(N3) 沿路径各 −1：N3 1→0，N2 2→1。B 的行还回去。",
+   "focus": [
+    "sched",
+    "tree",
+    "r2t"
+   ],
+   "beats": [
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N3",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "set": {
+       "tag": "ref 1"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 2
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "protected_size_",
+      "v": 5
+     }
+    ],
+    [
+     {
+      "op": "gone",
+      "tok": "rowBp"
+     },
+     {
+      "op": "gone",
+      "tok": "rowBn"
+     },
+     {
+      "op": "gone",
+      "tok": "B"
+     }
+    ],
+    [
+     {
+      "op": "state",
+      "ent": "sched",
+      "s": "idle",
+      "on": "等请求"
+     },
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "key_limit",
+      "v": "—"
+     },
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "prefix_len",
+      "v": "—"
+     },
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "extend_len",
+      "v": "—"
+     }
+    ]
+   ],
+   "at": {
+    "card": "release_kv_cache",
+    "line": 420,
+    "line2": 423
+   },
+   "value": "N3.lock_ref = 0",
+   "tick": "B 收尾"
+  },
+  {
+   "text": "dec_lock_ref 对每个节点调 _update_leaf_status：N3 没锁、没孩子 → 再次进候选；N2、N1 仍被 A 锁着。第 16–17 步之间的空窗没有风险：同一线程同步执行，evict 插不进来。",
+   "value": "候选 = {N3}",
+   "tick": "B 收尾",
+   "focus": [
+    "tree",
+    "leaves"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_leaf",
+      "back": false
+     }
+    ],
+    [
+     {
+      "op": "spawn",
+      "tok": "leaf3",
+      "at": [
+       "leaves"
+      ]
+     }
+    ]
+   ],
+   "at": {
+    "card": "update_leaf",
+    "line": 809,
+    "line2": 810
+   }
+  },
+  {
+   "text": "下一圈没有新 prefill 批：update_running_batch → check_decode_mem（空闲 3 ≥ 1，不淘汰）→ prepare_for_decode → alloc_for_decode：槽 8 写进 A 的行第 6 列。喂入 30，采出 31。树没被碰。",
+   "value": "A 的行 += 槽 8",
+   "tick": "A 的结局",
+   "focus": [
+    "running",
+    "sched",
+    "pool",
+    "r2t"
+   ],
+   "beats": [
+    [
+     {
+      "op": "move",
+      "tok": "A",
+      "to": [
+       "sched"
+      ],
+      "via": "w_run",
+      "rev": true
+     },
+     {
+      "op": "state",
+      "ent": "sched",
+      "s": "run",
+      "on": ""
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_alloc",
+      "back": false
+     },
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "Ad",
+      "n": 1
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_row",
+      "back": false
+     },
+     {
+      "op": "gone",
+      "tok": "rowA"
+     },
+     {
+      "op": "spawn",
+      "tok": "rowA8",
+      "at": [
+       "r2t",
+       "rA"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "A",
+      "to": [
+       "gpu"
+      ],
+      "via": "w_fwd"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "A",
+      "to": [
+       "sched"
+      ],
+      "via": "w_fwd",
+      "rev": true
+     }
+    ]
+   ],
+   "at": {
+    "card": "alloc_for_decode",
+    "line": 693,
+    "line2": 718
+   }
+  },
+  {
+   "text": "再一圈 decode 拿到槽 9，采出 32。设定 max_new_tokens = 3，A 结束。decode 期间从不 checkpoint；结果处理看到 req.finished() 才排 release(checkpoint=True)。",
+   "value": "A finished",
+   "tick": "A 的结局",
+   "focus": [
+    "sched",
+    "pool",
+    "r2t"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_alloc",
+      "back": false
+     },
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "Ad",
+      "n": 1
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_row",
+      "back": false
+     },
+     {
+      "op": "gone",
+      "tok": "rowA8"
+     },
+     {
+      "op": "spawn",
+      "tok": "rowA9",
+      "at": [
+       "r2t",
+       "rA"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "tok",
+      "tok": "A",
+      "set": {
+       "tag": "finished"
+      }
+     },
+     {
+      "op": "flash",
+      "ent": "sched",
+      "color": "c4"
+     }
+    ]
+   ],
+   "at": {
+    "card": "decode_finish",
+    "line": 1592,
+    "line2": 1621
+   }
+  },
+  {
+   "text": "release_kv_cache：owned_kv_len = min(kv_committed_len 7, 5 + 3) = 7——32 从没喂回模型，没有 KV。checkpoint(A, up_to=7)：插 [1,2,3,4,5,30,31]，槽 [1..5,8,9]。",
+   "value": "owned_kv_len = 7",
+   "tick": "A 的结局",
+   "focus": [
+    "sched",
+    "tree"
+   ],
+   "beats": [
+    [
+     {
+      "op": "pulse",
+      "wire": "w_ckpt",
+      "back": false
+     }
+    ]
+   ],
+   "at": {
+    "card": "release_kv_cache",
+    "line": 409,
+    "line2": 419
+   }
+  },
+  {
+   "text": "_insert_helper：根→N2 吃 3 个，→N1 吃 2 个，剩 [30,31] 在 N1 下挂成新叶子 N4（槽 8、9），当场进候选。evictable 2→4。输出段就这样成了单独的叶子。",
+   "value": "evictable_size_ 2 → 4",
+   "tick": "A 的结局",
+   "focus": [
+    "tree",
+    "leaves",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N4",
+      "parent": "N1",
+      "label": "N4 [30 31]",
+      "color": "c2"
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N4",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 4
+     },
+     {
+      "op": "hash",
+      "ent": "pool",
+      "who": "Ad"
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_leaf",
+      "back": false
+     },
+     {
+      "op": "spawn",
+      "tok": "leaf4",
+      "at": [
+       "leaves"
+      ]
+     }
+    ]
+   ],
+   "at": {
+    "card": "insert_helper",
+    "line": 753,
+    "line2": 763
+   }
+  },
+  {
+   "text": "split_prompt：prompt 长 5，0 < 5 < 7，按 priority+1 再插一次 [1..5]。N1 的边界早在第 7 步就落在 prompt 末尾，所以不劈开，只把 N2、N1 的 priority 抬到 1。",
+   "value": "拓扑不变",
+   "tick": "A 的结局",
+   "focus": [
+    "tree"
+   ],
+   "beats": [
+    [
+     {
+      "op": "flash",
+      "ent": "tree",
+      "color": "c4"
+     }
+    ]
+   ],
+   "at": {
+    "card": "insert_cache",
+    "line": 490,
+    "line2": 507
+   }
+  },
+  {
+   "text": "挪锁：unlock(N1) 让 N1、N2 1→0（evictable 4→9，protected 5→0）；lock(N4) 让 N4、N1、N2 0→1（evictable 9→2，protected 0→7），N4 移出候选。",
+   "value": "protected_size_ = 7",
+   "tick": "A 的结局",
+   "focus": [
+    "tree",
+    "leaves"
+   ],
+   "beats": [
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N1",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 9
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "protected_size_",
+      "v": 0
+     }
+    ],
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N4",
+      "set": {
+       "tag": "ref 1"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N1",
+      "set": {
+       "tag": "ref 1"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "set": {
+       "tag": "ref 1"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 2
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "protected_size_",
+      "v": 7
+     },
+     {
+      "op": "gone",
+      "tok": "leaf4"
+     }
+    ]
+   ],
+   "at": {
+    "card": "rc_checkpoint",
+    "line": 548,
+    "line2": 549
+   }
+  },
+  {
+   "text": "释放 A：[7,7) 没有私有槽要还；unlock(N4) 让三个节点都 1→0，evictable 2→9，N4 再次进候选（N1、N2 有孩子，不是）。多分配区间 [7,7) 也为空，A 的行还回去。",
+   "value": "候选 = {N3, N4}",
+   "tick": "A 的结局",
+   "focus": [
+    "sched",
+    "tree",
+    "leaves",
+    "r2t"
+   ],
+   "beats": [
+    [
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N4",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N1",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "node",
+      "ent": "tree",
+      "id": "N2",
+      "set": {
+       "tag": "ref 0"
+      }
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 9
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "protected_size_",
+      "v": 0
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_leaf",
+      "back": false
+     },
+     {
+      "op": "spawn",
+      "tok": "leaf4",
+      "at": [
+       "leaves"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "gone",
+      "tok": "rowA9"
+     },
+     {
+      "op": "gone",
+      "tok": "A"
+     },
+     {
+      "op": "state",
+      "ent": "sched",
+      "s": "idle",
+      "on": "等请求"
+     }
+    ]
+   ],
+   "at": {
+    "card": "release_kv_cache",
+    "line": 420,
+    "line2": 426
+   }
+  },
+  {
+   "text": "后来请求 C（和 A、B 没有公共前缀）要 5 个新槽，池子只剩 1 个（槽 10）。take_tokens 先调 make_room → evict_to_free_tokens：1 < 5，请树腾地方。",
+   "value": "空闲 1 < 需要 5",
+   "tick": "淘汰",
+   "focus": [
+    "sched",
+    "pool",
+    "leaves"
+   ],
+   "beats": [
+    [
+     {
+      "op": "spawn",
+      "tok": "C",
+      "at": [
+       "client"
+      ]
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "C",
+      "to": [
+       "waitq"
+      ],
+      "via": "w_in"
+     }
+    ],
+    [
+     {
+      "op": "move",
+      "tok": "C",
+      "to": [
+       "sched"
+      ],
+      "via": "w_take"
+     },
+     {
+      "op": "state",
+      "ent": "sched",
+      "s": "run",
+      "on": ""
+     },
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "prefix_len",
+      "v": 0
+     },
+     {
+      "op": "var",
+      "ent": "sched",
+      "k": "extend_len",
+      "v": 5
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_alloc",
+      "back": false
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_ev",
+      "back": false
+     }
+    ]
+   ],
+   "at": {
+    "card": "evict_to_free_tokens",
+    "line": 257,
+    "line2": 258
+   }
+  },
+  {
+   "text": "缺口 = 5 − 1 = 4，evict(4)：候选 {N3, N4} 按 last_access_time 建最小堆。先弹最久没用的 N3：槽 6、7 还给池子、摘叶子；N2 还有孩子 N1，不入堆。",
+   "value": "已释放 2 个",
+   "tick": "淘汰",
+   "focus": [
+    "leaves",
+    "tree",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "flash",
+      "ent": "leaves",
+      "color": "c5"
+     }
+    ],
+    [
+     {
+      "op": "gone",
+      "tok": "leaf3"
+     },
+     {
+      "op": "unnode",
+      "ent": "tree",
+      "id": "N3"
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 7
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_free",
+      "back": false
+     },
+     {
+      "op": "free",
+      "ent": "pool",
+      "who": "B",
+      "dropHash": true
+     }
+    ]
+   ],
+   "at": {
+    "card": "rc_evict",
+    "line": 572,
+    "line2": 578
+   }
+  },
+  {
+   "text": "再弹 N4：槽 8、9 还给池子，累计 4 个，够了。N1 因此没孩子、lock_ref = 0，入堆、进候选，但这次已不用再删。普通分配器上 _evict_until_allocatable 直接返回。",
+   "value": "已释放 4 个",
+   "tick": "淘汰",
+   "focus": [
+    "leaves",
+    "tree",
+    "pool"
+   ],
+   "beats": [
+    [
+     {
+      "op": "gone",
+      "tok": "leaf4"
+     },
+     {
+      "op": "unnode",
+      "ent": "tree",
+      "id": "N4"
+     },
+     {
+      "op": "var",
+      "ent": "tree",
+      "k": "evictable_size_",
+      "v": 5
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_free",
+      "back": false
+     },
+     {
+      "op": "free",
+      "ent": "pool",
+      "who": "Ad",
+      "dropHash": true
+     }
+    ],
+    [
+     {
+      "op": "spawn",
+      "tok": "leafN1",
+      "at": [
+       "leaves"
+      ]
+     }
+    ]
+   ],
+   "at": {
+    "card": "rc_evict",
+    "line": 580,
+    "line2": 582
+   }
+  },
+  {
+   "text": "空闲变成 5 个，alloc 全部切给 C（槽 6–10）。N2→N1 还在树里，以后再来 [1,2,3,…] 的请求仍能命中，直到它们也被淘汰。",
+   "value": "空闲 0 格",
+   "tick": "淘汰",
+   "focus": [
+    "pool",
+    "r2t",
+    "tree"
+   ],
+   "beats": [
+    [
+     {
+      "op": "alloc",
+      "ent": "pool",
+      "who": "C",
+      "n": 5
+     }
+    ],
+    [
+     {
+      "op": "pulse",
+      "wire": "w_row",
+      "back": false
+     }
+    ],
+    [
+     {
+      "op": "spawn",
+      "tok": "rowC",
+      "at": [
+       "r2t",
+       "rC"
+      ]
+     }
+    ]
+   ],
+   "at": {
+    "card": "tok_alloc",
+    "line": 61,
+    "line2": 62
+   }
+  }
+ ]
+}

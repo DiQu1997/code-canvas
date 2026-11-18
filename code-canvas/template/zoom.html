@@ -293,6 +293,11 @@ body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
 .scn .rowl{stroke:color-mix(in srgb,var(--h,var(--muted)) 35%,var(--line))}
 .scn .et{font-weight:700}
 .scn .kind{fill:color-mix(in srgb,var(--h,var(--muted)) 50%,var(--muted))}
+.scn .tnr{fill:var(--panel);stroke:var(--h,var(--faint));stroke-width:1.8;transition:fill .4s,stroke .4s}
+.scn .tnl{font-size:12.5px;font-family:var(--mono);font-weight:600}.scn .tns{font-size:10.5px;fill:var(--muted)}
+.scn .tne{fill:none;stroke:var(--h,var(--faint));stroke-width:1.8}
+.scn .tntag rect{fill:var(--panel);stroke:var(--ink);stroke-width:1.2}.scn .tntag text{font-size:10px;font-family:var(--mono);font-weight:700}
+.scn .tnode.chg .tnr{stroke:var(--hot);stroke-width:3.2}
 .scn .badge circle{fill:var(--panel);stroke:var(--h,var(--faint));stroke-width:2}
 .scn .badge text{font-size:12.5px;font-weight:700}
 .scn .wire{stroke-width:2;stroke-linecap:round}
@@ -544,6 +549,8 @@ function buildEnt(e){ENT[e.id]=e;const g=e.g=E('g',{class:'ent st-'+(e.state||'i
     if(!v){E('path',{d:`M${w+4} ${h/2-6}l8 6l-8 6`,fill:'none',stroke:'var(--faint)','stroke-width':1.6},g);E('path',{d:`M-12 ${h/2-6}l8 6l-8 6`,fill:'none',stroke:'var(--faint)','stroke-width':1.6},g)}}
   if(e.type==='store'){E('rect',{width:w,height:h,rx:14,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'store');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
     const top=e.sub?62:48,rh=(h-top-8)/e.rows.length;e.rowY={};e.rows.forEach((r,i)=>{const y=top+i*rh;E('path',{d:`M10 ${y}H${w-10}`,class:'rowl'},g);E('text',{x:14,y:y+rh/2+4,class:'rowk'},g,r.label);e.rowY[r.id]={y:y+rh/2,x:14+tw(r.label.trimEnd())*11.6+12}})}
+  if(e.type==='tree'){E('rect',{width:w,height:h,rx:14,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'tree');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
+    e.tE=E('path',{class:'tne'},g);e.tN=E('g',{},g);e.tn={}}
   if(e.type==='log'){E('rect',{width:w,height:h,rx:14,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'log');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
     e.ty=h/2+22;E('path',{d:`M22 ${e.ty}H${w-22}`,class:'track'},g);e.mk={};
     (e.markers||[]).forEach((m,i)=>{const up=m.side!=='b';const mg=E('g',{class:'mk'},g);E('path',{d:up?'M0 -5l-6 -9h12z':'M0 5l-6 9h12z',fill:col(m.color)},mg);const t=E('text',{y:up?-19:28,'text-anchor':'middle',fill:col(m.color)},mg,'');e.mk[m.id]={g:mg,t,label:m.label,v:null}})}
@@ -555,7 +562,8 @@ function buildEnt(e){ENT[e.id]=e;const g=e.g=E('g',{class:'ent st-'+(e.state||'i
   if(e.type==='bar'){E('text',{x:0,y:-22,class:'kind'},g,e.kind||'budget');E('text',{x:0,y:-6,class:'et'},g,e.title);e.cntT=E('text',{x:w,y:-6,'text-anchor':'end',class:'cnt'},g,'');
     E('rect',{width:w,height:h,rx:6,class:'pipe'},g);e.segG=E('g',{},g);if(e.sub)E('text',{x:0,y:h+18,class:'es'},g,e.sub)}
   e.varG=E('g',{},g);e.varEl={}}
-function slotPos(loc,i,n,id){const [eid,slot]=loc;const e=ENT[eid];const s=tokSize(id);
+function slotPos(loc,i,n,id,st){const [eid,slot]=loc;const e=ENT[eid];const s=tokSize(id);
+  if(e.type==='tree'){const L=treeLayout(e,st.ent[eid].nodes),p=L[slot]||Object.values(L)[0]||{x:e.w/2,y:e.h/2,w:0,h:0};return {x:e.x+p.x+p.w/2-s.w/2+8-i*(s.w+4),y:e.y+p.y-p.h/2-3,o:1}}
   if(e.type==='queue'){if(e.dir==='v')return {x:e.x+e.w/2,y:e.y+10+s.h/2+i*(s.h+7),o:(10+(i+1)*(s.h+7)>e.h+4)?0:1};
     const x=e.x+e.w-14-s.w/2-i*(s.w+7);return {x,y:e.y+e.h/2,o:x-s.w/2<e.x+4?0:1}}
   if(e.type==='store'){const r=e.rowY[slot]||Object.values(e.rowY)[0];return {x:e.x+r.x+s.w/2+i*(s.w+6),y:e.y+r.y,o:1}}
@@ -576,7 +584,8 @@ const wpt=(w,t)=>{const p=w.el.getPointAtLength(w.L*t);return [p.x,p.y]};
 /* ---------------- state ---------------- */
 // state = {loc:{'ent/slot':[tokIds]}, tok:{id:{done,total,tag}}, ent:{id:{state,on,vars:{},mk:{},cells:[],hash:[],segs:[]}}, wires:{id:shown}}
 function init(){const st={loc:{},tok:{},ent:{},wires:{}};for(const e of S.entities){const x=st.ent[e.id]={state:e.state||'idle',on:e.on||'',vars:{...(e.vars||{})},mk:{},segs:[]};
-    for(const m of e.markers||[])x.mk[m.id]=m.v;if(e.type==='grid'){x.cells=Array(e.cols*e.rowsN).fill(null);x.hash=Array(e.cols*e.rowsN).fill(false)}}
+    for(const m of e.markers||[])x.mk[m.id]=m.v;if(e.type==='grid'){x.cells=Array(e.cols*e.rowsN).fill(null);x.hash=Array(e.cols*e.rowsN).fill(false)}
+    if(e.type==='tree')x.nodes=(e.nodes||[]).map(n=>({...n}))}
   for(const w of S.wires||[])st.wires[w.id]=!w.hidden;for(const o of S.setup||[])apply(st,o);return st}
 const key=l=>l[0]+'/'+(l[1]||'hand');
 function unplace(st,id){for(const k in st.loc){const i=st.loc[k].indexOf(id);if(i>=0)st.loc[k].splice(i,1)}}
@@ -596,6 +605,8 @@ function apply(st,o){const x=o.ent&&st.ent[o.ent];
       else{for(let i=0;i<x.cells.length&&n;i++)if(x.cells[i]===null&&!x.hash[i]){x.cells[i]=o.who;if(o.hash)x.hash[i]=true;n--}for(let i=x.cells.length-1;i>=0&&n;i--)if(x.cells[i]===null){x.cells[i]=o.who;x.hash[i]=!!o.hash;n--}}}break;
     case 'free':for(let i=0;i<x.cells.length;i++)if(x.cells[i]===o.who){x.cells[i]=null;if(o.dropHash)x.hash[i]=false}break;
     case 'hash':for(let i=0;i<x.cells.length;i++)if(x.cells[i]===o.who)x.hash[i]=true;break;
+    case 'node':{const n=x.nodes.find(q=>q.id===o.id);if(n)Object.assign(n,o.set||{});else x.nodes.push({id:o.id,parent:o.parent??null,label:o.label,note:o.note,tag:o.tag,color:o.color})}break;
+    case 'unnode':x.nodes=x.nodes.filter(q=>q.id!==o.id);break;
   }}
 
 /* ---------------- rendering (state → positions and attributes) ---------------- */
@@ -608,7 +619,7 @@ function tokEl(id){if(TOK[id])return TOK[id];const d=TOKD[id]||{};const s=tokSiz
   T.tagT=E('text',{y:-s.h/2-5,'text-anchor':'middle',class:'tag',fill:c},g,'');return TOK[id]=T}
 function put(T){T.g.setAttribute('transform',`translate(${T.x},${T.y}) scale(${T.sc})`);T.g.setAttribute('opacity',T.o)}
 function setPg(T,done,total){T.done=done;T.total=total;T.pgT.textContent=`${Math.round(done)} / ${Math.round(total)}`;T.pgB.setAttribute('width',Math.max(0,(T.s.w-18)*clamp(done/Math.max(1,total),0,1)))}
-function targets(st){const out={};for(const k in st.loc){const [eid,slot]=k.split('/');st.loc[k].forEach((id,i)=>{out[id]=slotPos([eid,slot],i,st.loc[k],id)})}return out}
+function targets(st){const out={};for(const k in st.loc){const [eid,slot]=k.split('/');st.loc[k].forEach((id,i)=>{out[id]=slotPos([eid,slot],i,st.loc[k],id,st)})}return out}
 function renderEnt(st,animate){for(const e of S.entities){const x=st.ent[e.id];if(e.type==='group')continue;
     e.g.setAttribute('class','ent st-'+x.state+(e.g.classList.contains('dim')?' dim':''));
     if(e.chipT){const t=x.state==='run'?'● running':x.state==='blocked'?'‖ blocked'+(x.on?' on '+x.on:''):('○ '+(x.on||'idle'));e.chipT.textContent=t;const wd=tw(t)*7.2+20;e.chipR.setAttribute('x',e.w/2-wd/2);e.chipR.setAttribute('width',wd)}
@@ -618,6 +629,7 @@ function renderEnt(st,animate){for(const e of S.entities){const x=st.ent[e.id];i
       const by=(e.type==='queue'||e.type==='grid'||e.type==='bar')?e.h+(e.sub?46:26)+(e.cap?8:0):e.h+(e.type==='thread'?30:20);v.g.setAttribute('transform',`translate(${e.varX||4},${by+i*17})`);v.v.setAttribute('x',tw(k)*11.6+9);
       if(v.val!==x.vars[k]){roll(v,v.val,x.vars[k],animate);v.val=x.vars[k]}});
     for(const k in e.varEl)if(!(k in x.vars)){e.varEl[k].g.remove();delete e.varEl[k]}
+    if(e.type==='tree')renderTree(e,x,animate);
     if(e.type==='log')for(const m of e.markers){const M=e.mk[m.id];const v=x.mk[m.id];if(M.v===null||!animate){M.v=v;placeMk(e,M)}else if(M.v!==v)tween(700,t=>{M.cur=lerp(M.from,v,ease(t));placeMk(e,M,M.cur)},()=>{M.v=v},M.from=M.v)}
     if(e.type==='grid'){let d=0,used=0;x.cells.forEach((who,i)=>{const f=who?`color-mix(in srgb,${tcol(who)} 62%,var(--panel))`:'var(--panel2)';const c=e.cells[i];if(c.dataset.f!==f){c.style.transitionDelay=animate?(d++*18)+'ms':'0ms';c.setAttribute('fill',f);c.dataset.f=f}
         e.hashes[i].style.opacity=x.hash[i]?.6:0;if(who)used++});e.cntT.textContent=e.count===false?'':`空闲 ${x.cells.length-used} 格`}
@@ -652,6 +664,28 @@ async function animateTo(st,ops,ms){const tg=targets(st);const jobs=[];const via
     if(o.op==='run'){const e=ENT[o.ent];const sw=E('rect',{x:e.x,y:e.y,width:18,height:e.h,fill:'var(--ink)',opacity:.22,rx:4},LFX);jobs.push(tween(ms*1.2,t=>sw.setAttribute('x',e.x+(e.w-18)*ease(t)),()=>sw.remove()))}}
   renderEnt(st,true);await Promise.all(jobs)}
 function ring(x,y,r,c,e){const el=e?E('rect',{x:e.x-6,y:e.y-6,width:e.w+12,height:e.h+12,rx:16,class:'ring',stroke:c?col(c):null},LFX):E('circle',{cx:x,cy:y,r,class:'ring'},LFX);tween(900,t=>{el.setAttribute('opacity',1-t);if(!e)el.setAttribute('r',r+14*t)},()=>el.remove())}
+
+/* ---------------- tree: a data structure drawn as itself; nodes come, go, split and change while the walk runs ---------------- */
+function treeLayout(e,nodes){const ids=new Set(nodes.map(n=>n.id)),kids={},roots=[];for(const n of nodes){if(n.parent!=null&&ids.has(n.parent))(kids[n.parent]=kids[n.parent]||[]).push(n);else roots.push(n)}
+  const pos={};let leaf=0,deep=0;const walk=(n,d)=>{deep=Math.max(deep,d);const ks=kids[n.id]||[];if(!ks.length){pos[n.id]={c:leaf++,d};return}ks.forEach(k=>walk(k,d+1));pos[n.id]={c:(pos[ks[0].id].c+pos[ks[ks.length-1].id].c)/2,d}};
+  roots.forEach(r=>walk(r,0));const top=e.sub?70:56,nh=40,cw=(e.w-20)/Math.max(1,leaf),rh=Math.min(78,(e.h-top-8)/(deep+1));
+  const out={};for(const id in pos)out[id]={x:10+cw*(pos[id].c+.5),y:top+rh*pos[id].d+nh/2,w:Math.max(44,Math.min(150,cw-12)),h:nh};return out}
+function treeDraw(e){let d='';for(const id in e.tn){const N=e.tn[id];N.g.setAttribute('transform',`translate(${N.x},${N.y})`);N.g.setAttribute('opacity',N.o);const P=N.par!=null&&e.tn[N.par];if(P)d+=`M${P.x} ${P.y+P.h/2}L${N.x} ${N.y-N.h/2}`}e.tE.setAttribute('d',d)}
+function renderTree(e,x,animate){const L=treeLayout(e,x.nodes),seen=new Set(),from={};
+  for(const n of x.nodes){const p=L[n.id];seen.add(n.id);let N=e.tn[n.id];
+    if(!N){const g=E('g',{class:'tnode'},e.tN);N=e.tn[n.id]={g,r:E('rect',{rx:9,class:'tnr'},g),t:E('text',{class:'tnl','text-anchor':'middle'},g,''),s:E('text',{class:'tns','text-anchor':'middle'},g,''),tg:E('g',{class:'tntag'},g),x:p.x,y:p.y,o:0,sig:''};
+      const P=n.parent!=null&&e.tn[n.parent];if(P&&animate){N.x=P.x;N.y=P.y}}   // a new node grows out of its parent
+    Object.assign(N,{par:n.parent,w:p.w,h:p.h,tx:p.x,ty:p.y});const c=n.color?col(n.color):null;
+    N.r.setAttribute('x',-p.w/2);N.r.setAttribute('y',-p.h/2);N.r.setAttribute('width',p.w);N.r.setAttribute('height',p.h);
+    N.r.style.fill=c?`color-mix(in srgb,${c} 24%,var(--panel))`:'';N.r.style.stroke=c||'';
+    let lab=String(n.label??n.id);while(lab.length>3&&tw(lab)*7.7>p.w-10)lab=lab.slice(0,-2)+'…';N.t.textContent=lab;N.t.setAttribute('y',n.note?-3:4.5);N.s.textContent=n.note||'';N.s.setAttribute('y',12);
+    N.tg.innerHTML='';if(n.tag){const wd=tw(n.tag)*6.6+12;E('rect',{x:-p.w/2-4,y:-p.h/2-9,width:wd,height:16,rx:8},N.tg);E('text',{x:-p.w/2-4+wd/2,y:-p.h/2+2.5,'text-anchor':'middle'},N.tg,n.tag)}
+    const sig=[n.label,n.note,n.tag,n.color,n.parent].join('|');if(animate&&N.sig&&N.sig!==sig){N.g.classList.add('chg');setTimeout(()=>N.g.classList.remove('chg'),1300)}N.sig=sig}
+  const gone=[];for(const id in e.tn)if(!seen.has(id)){gone.push(e.tn[id]);if(!animate){e.tn[id].g.remove();delete e.tn[id]}}
+  if(!animate){for(const id in e.tn){const N=e.tn[id];N.x=N.tx;N.y=N.ty;N.o=1}treeDraw(e);return}
+  for(const id in e.tn){const N=e.tn[id];from[id]=[N.x,N.y,N.o]}
+  tween(650,t=>{const k=ease(t);for(const id in e.tn){const N=e.tn[id],f=from[id];if(gone.includes(N)){N.o=f[2]*(1-k);continue}N.x=lerp(f[0],N.tx,k);N.y=lerp(f[1],N.ty,k);N.o=lerp(f[2],1,k)}treeDraw(e)},
+    ()=>{for(const id in e.tn)if(gone.includes(e.tn[id])){e.tn[id].g.remove();delete e.tn[id]}treeDraw(e)})}
 
 /* ---------------- steps ---------------- */
 const STEPS=S.steps;const SNAP=[];{let st=init();SNAP.push(JSON.parse(JSON.stringify(st)));for(const s of STEPS){for(const b of s.beats||[])for(const o of [].concat(b))apply(st,o);SNAP.push(JSON.parse(JSON.stringify(st)))}}
