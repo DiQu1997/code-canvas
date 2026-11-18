@@ -706,7 +706,7 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
             "可用的工具，以及不可商量的交付契约。\n").format(skill=SKILL_DIR)
     if zoom:
         head = ("阅读 {skill}/SKILL.md 的第 1、2 节（判断标准、你必须自己做的判断）、{skill}/zoom-spec.md（缩放画布，含最后的"
-                "伪代码一节）和 {skill}/scene-spec.md（动画场景，画布的最上层）。再读一个场景例子 {skill}/scenes/kafka.json。"
+                "伪代码一节）和 {skill}/scene-spec.md（动画场景，画布的最上层）。再读一个场景例子：{skill}/scenes/ 下和调研的 shape.kind 最接近的那个（flow / lifecycle → kafka.json，loop → vllm.json，structure → radix.json）。"
                 "它们不是逐步执行的管线：给出的是判断标准、可选的表达原语、工具和不可商量的交付契约。\n"
                 "**调研已经做完并通过了机械核对：{wr}**（格式见 {skill}/research-spec.md）。你是呈现方：范围、模块、"
                 "机制、主路径、例子的数值都以这份调研为准，不要重新调研这个仓库。写行段和伪代码时，读它列出的那些文件和行。"
@@ -721,8 +721,10 @@ def spawn_generate(src: dict, ask: str, name: str, preview: bool = False,
                 "不凭印象；meta.judgment 写实话。\n"
                 "自查：node {skill}/zoom_shot.js {work}/zoom.html {work}/shots 截图并逐张看（Read 图片）：场景每一步的画面"
                 "（s-step-N.png）、每个模块的结构图、函数卡。有重叠、压线、token 停错地方、文字和画面不一致就改了再构建，至少两轮。\n"
-                "完成的标准：一位第一次接触这个代码库的读者，看完动画能说出主角经过了哪些执行者和队列；放大任何一个实体"
-                "能看到它内部怎么运转；到最后一层能对着伪代码读懂源码。\n"
+                "完成的标准（按调研的 shape.kind）：一位第一次接触这个代码库的读者，看完动画——flow / loop：能说出主角经过了哪些执行者和队列；"
+                "structure：能画出这个数据结构在每次操作前后的样子，并说出每次变化是哪几行代码做的；lifecycle：能说出主角经历了哪些状态、"
+                "每次转换由谁触发。读者问的那个东西必须以它自己的样子出现在画面正中。放大任何一个实体能看到它内部怎么运转；"
+                "到函数卡能对着伪代码读懂源码。\n"
                 "**不要写入画布库**——服务端收尾时重新构建并入库。完成后打印 DONE。").format(
                     skill=SKILL_DIR, w=wj, work=workdir)
     if upgrade:

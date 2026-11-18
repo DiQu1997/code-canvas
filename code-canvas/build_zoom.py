@@ -328,7 +328,7 @@ def main():
                 if f not in ents:
                     R.e(f"scene step {i + 1}: focus on unknown entity {f}")
         # every op must refer to things that exist, in an order that makes sense (replay the scene)
-        ET = {"thread", "ext", "queue", "store", "log", "grid", "bar", "group"}
+        ET = {"thread", "ext", "queue", "store", "log", "grid", "bar", "group", "tree"}
         E = {e["id"]: e for e in sc.get("entities") or []}
         for e in E.values():
             if e.get("type") not in ET:
@@ -344,6 +344,15 @@ def main():
                 R.e(f"scene entity {e['id']}: bar needs total")
             if e.get("type") == "store" and not e.get("rows"):
                 R.e(f"scene entity {e['id']}: store needs rows")
+            if e.get("type") == "tree" and not isinstance(e.get("nodes"), list):
+                R.e(f"scene entity {e['id']}: tree needs nodes (the nodes it starts with; [] for an empty tree)")
+        # a tree's nodes come and go while the scene runs: replay them, so every op meets the tree it expects
+        trees = {e["id"]: {n["id"]: n.get("parent") for n in e.get("nodes") or [] if isinstance(n, dict) and "id" in n}
+                 for e in E.values() if e.get("type") == "tree"}
+        for tid, nodes in trees.items():
+            for nid, par in nodes.items():
+                if par is not None and par not in nodes:
+                    R.e(f"scene entity {tid}: node {nid} has unknown parent {par}")
         boxes = [e for e in E.values() if e.get("type") != "group" and all(isinstance(e.get(k), (int, float)) for k in "xywh")]
         for i, p in enumerate(boxes):
             for q in boxes[i + 1:]:
@@ -351,7 +360,7 @@ def main():
                     R.e(f"scene: entities {p['id']} and {q['id']} overlap")
         W = {w["id"] for w in sc.get("wires") or []}
         toks, alive = sc.get("tokens") or {}, set()
-        OPS = {"spawn", "move", "gone", "tok", "state", "var", "mark", "wire", "segs", "batch", "alloc", "free", "hash", "pulse", "flash", "run"}
+        OPS = {"spawn", "move", "gone", "tok", "state", "var", "mark", "wire", "segs", "batch", "alloc", "free", "hash", "pulse", "flash", "run", "node", "unnode"}
         def chk(o, where):
             op = o.get("op")
             if op not in OPS:
@@ -366,11 +375,29 @@ def main():
                     loc = o[k]
                     if not (isinstance(loc, list) and loc and loc[0] in E): R.e(f"{where}: {k} must be [entity] or [store, row]; got {loc}")
                     elif E[loc[0]].get("type") == "store" and (len(loc) < 2 or loc[1] not in {r["id"] for r in E[loc[0]].get("rows") or []}): R.e(f"{where}: store {loc[0]} needs a row id, got {loc}")
+                    elif E[loc[0]].get("type") == "tree" and (len(loc) < 2 or loc[1] not in trees[loc[0]]): R.e(f"{where}: tree {loc[0]} needs a node that exists at this point, got {loc}")
                     elif E[loc[0]].get("type") in ("group", "log", "grid", "bar"): R.e(f"{where}: tokens cannot sit in a {E[loc[0]]['type']} ({loc[0]})")
             if "ent" in o and o["ent"] not in E: R.e(f"{where}: unknown entity {o['ent']}")
             for k in ("via", "wire"):
                 if k in o and o[k] not in W: R.e(f"{where}: unknown wire {o[k]}")
             if op == "wire" and o.get("id") not in W: R.e(f"{where}: unknown wire {o.get('id')}")
+            if op in ("node", "unnode"):
+                nodes = trees.get(o.get("ent"))
+                if nodes is None: R.e(f"{where}: {op} needs ent to be a tree")
+                elif op == "unnode":
+                    if o.get("id") not in nodes: R.e(f"{where}: node {o.get('id')} is not in the tree")
+                    elif o["id"] in nodes.values(): R.e(f"{where}: node {o['id']} still has children; remove or move them first")
+                    else: del nodes[o["id"]]
+                elif o.get("id") in nodes:   # change a node that exists
+                    st_ = o.get("set")
+                    if not isinstance(st_, dict): R.e(f"{where}: node {o['id']} exists; change it with \"set\": {{label / note / tag / color / parent}}")
+                    elif "parent" in st_:
+                        if st_["parent"] is not None and (st_["parent"] not in nodes or st_["parent"] == o["id"]): R.e(f"{where}: node {o['id']}: unknown parent {st_['parent']}")
+                        else: nodes[o["id"]] = st_["parent"]
+                else:                        # a new node
+                    if not o.get("id") or not str(o.get("label") or "").strip(): R.e(f"{where}: a new node needs id and label")
+                    elif o.get("parent") is not None and o["parent"] not in nodes: R.e(f"{where}: node {o['id']}: unknown parent {o.get('parent')}")
+                    else: nodes[o["id"]] = o.get("parent")
             if op == "state" and o.get("s") not in ("run", "blocked", "idle"): R.e(f"{where}: state s must be run / blocked / idle")
             if op == "mark" and "ent" in o and o["ent"] in E and o.get("k") not in {m["id"] for m in E[o["ent"]].get("markers") or []}: R.e(f"{where}: unknown marker {o.get('k')}")
         for j, o in enumerate(sc.get("setup") or []):

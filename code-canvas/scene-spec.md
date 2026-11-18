@@ -7,12 +7,18 @@
 - **每一步都从上一个画面动画过去**，并且带着这一步的代码：侧栏显示对应的伪代码和源码，可以一键放大到那几行。
 - **放大某个实体** → 进到它对应模块的内部结构图 → 函数卡 → 伪代码 / 源码。
 
-渲染器 `template/zoom.html`（场景引擎与 `template/scene.html` 共用），构建和检查 `build_zoom.py`，截图 `zoom_shot.js`。完整例子：`scenes/kafka.json`、`scenes/vllm.json`——**先读其中一个再动手**。
+渲染器 `template/zoom.html`，构建和检查 `build_zoom.py`，截图 `zoom_shot.js`。完整例子：`scenes/kafka.json`（一个请求穿过线程和队列）、`scenes/vllm.json`（调度循环的一拍）、`scenes/radix.json`（一棵树被匹配、分裂、插入、淘汰）——**先读和你这次故事形态最接近的那个再动手**。
 
 ---
 
 ## 1. 你要做的判断
 
+0. **故事形态决定画面中心**（调研的 `shape.kind`）。读者问的是什么，什么就在画面正中、占最大的一块：
+   - `flow` / `loop`：主角是穿过系统的那个东西。画面是执行者和队列，主角在它们之间移动。
+   - `structure`：主角是**数据结构本身**。把它画成它自己（树就用 `tree` 实体），放在正中；请求只是来触发操作的人。
+     每一步是这个结构的一次变化——多一个节点、劈开一个节点、计数加一、摘掉一片叶子——而不是"请求走到了下一站"。
+   - `lifecycle`：主角是一个会变状态的对象。它的状态（在哪个队列里、被谁拿着、标签写着什么）每一步都看得见。
+   把数据结构画成"请求路过的一个方框"，或者用一张表去凑一棵树，是这张图最容易犯、代价最大的错。
 1. **画哪些实体（6–11 个）**。只画主角会碰到的、而且有状态可看的东西：线程 / 进程 / 循环（谁在执行）、队列和表（东西停在哪）、外部角色（请求从哪来、结果到哪去）、资源（预算、批次、块池、日志）。一个函数不是实体；"谁在执行它"才是。
 2. **主角是谁**。一个请求、一个任务、一条记录。它派生出来的东西（闭包、响应、子任务）也是 token，在派生的那一步 `spawn`。
 3. **每种关系怎么动**。调用 = 过去再回来（`pulse` + `back`）；交接 = 放进队列、停留、被另一个执行者取走（两次 `move`，分在两步或两拍）；回调 = 闭包被存起来，之后由**另一个**执行者调用（`cb` 连线先隐藏，被调用的那一步才 `wire` 画出来）；跨进程 = `ipc` 连线。
@@ -67,12 +73,13 @@
 | `store` | 表 / 登记处：几行，每行一个 key，后面放 token | `rows: [{"id": "w", "label": "orders-0"}]` | 235 × 150 |
 | `log` | 一条刻度轴上的几个游标（offset、水位） | `range: [min, max]`，`markers: [{"id","label","color","v","side":"b"}]`（`side: "b"` 画在轴下方，避免两个游标同值时重叠） | 235 × 150 |
 | `grid` | 一格一格的资源：GPU 批次、块池、槽位 | `cols` `rowsN`；`count: false` 不显示空闲数 | 330 × 90–120 |
+| `tree` | 一棵树，画成树：节点自动排版，父子连线。节点可以随步骤新增、改写、换父节点（分裂）、删除 | `nodes: [{"id", "label", "parent"?, "note"?, "tag"?, "color"?}]` 开场时就有的节点（空树写 `[]`）。`label` 节点上的字（≤ 14 字）；`note` 下面一行小字；`tag` 左上角的小标签（计数、状态，如 `ref 1`）；`color` 整个节点上色 | 300–360 × 260–320（同一层最多 4 个节点、最多 4 层） |
 | `bar` | 一条会被分段吃掉的预算 | `total` | 330 × 30 |
 | `group` | 包住几个实体的虚线框：线程池、进程边界 | | 比里面的实体每边多 20，上边多 30 |
 
 `queue` / `grid` / `bar` 的标题画在框的**上方**（占 ~34 高），`sub` 和 `vars` 画在框的**下方**——排位置时把这两条空间留出来。`thread` 的 `vars` 也在框下方。
 
-token 可以放在 `thread` `ext`（槽里）、`queue`、`store`（要写行：`["purg", "w"]`）里；不能放在 `log` `grid` `bar` `group` 里。
+token 可以放在 `thread` `ext`（槽里）、`queue`、`store`（要写行：`["purg", "w"]`）、`tree`（要写节点：`["tree", "n2"]`，贴在节点右上角——表示"谁正指着 / 锁着这个节点"）里；不能放在 `log` `grid` `bar` `group` 里。
 
 ### 连线
 
@@ -95,6 +102,9 @@ token 可以放在 `thread` `ext`（槽里）、`queue`、`store`（要写行：
 | `{"op":"batch","ent":E,"segs":[["A",1],["B",63]]}` | `grid` 从头按顺序填格子（`[]` 清空） |
 | `{"op":"alloc","ent":E,"who":"C","n":8}` | `grid` 里给 who 分 n 个空格；`"hashed": true` 只取带标记的空格；`"hash": true` 分到的格子打上标记 |
 | `{"op":"free","ent":E,"who":"C"}` / `{"op":"hash","ent":E,"who":"C"}` | 释放 who 的格子（标记保留）/ 给 who 的格子打标记 |
+| `{"op":"node","ent":E,"id":N,"parent":P,"label":"…"}` | `tree` 里新增一个节点（从父节点长出来）。`parent` 省略 = 根。可带 `note` `tag` `color` |
+| `{"op":"node","ent":E,"id":N,"set":{"label":"…","tag":"ref 2"}}` | 改一个已有的节点：`label` `note` `tag` `color`，或 `parent`（换父节点）。**分裂** = 同一拍里新增上半截节点 + 把原节点 `set` 到它下面并改 `label` |
+| `{"op":"unnode","ent":E,"id":N}` | 删掉一个节点（必须已经没有孩子） |
 | `{"op":"pulse","wire":W,"back":true}` | 一个点沿线过去（`back` 再回来）= 一次调用 |
 | `{"op":"wire","id":W}` / `{"op":"wire","id":W,"show":false}` | 画出 / 隐藏一条连线 |
 | `{"op":"flash","ent":E,"color":"c5"}` | 实体闪一下（判断发生在这里、失败、满足） |
@@ -106,7 +116,29 @@ token 可以放在 `thread` `ext`（槽里）、`queue`、`store`（要写行：
 
 `text`：这一步发生了什么，用例子的具体值讲，≤ 120 字。`value`：最关键的一个值。`tick`：阶段标签（"第 N 拍"）。`focus`：这一步点亮哪些实体（其余变淡；手机上镜头对准它们）——写上这一步涉及的 2–4 个。`at`：对应的代码。`beats`：画面上的变化。
 
-## 3. 检查
+## 3. 调研里的机制 → 固定画法
+
+调研的 `mechanisms[].pattern` 已经说了每个机制是什么。按下表画，不要每次重新发明；表里没有固定画法的，用最接近的实体凑，
+并在 `meta.judgment.skipped` 里写明"这个机制没有合适的画法、缺什么"。
+
+| pattern | 动画场景里 | 模块结构图里（zoom-spec 的 primitive） |
+|---|---|---|
+| `tree` | `tree` 实体；`node` / `unnode` 表达插入、分裂、删除 | `flow`（它的几个操作怎么互相调用） |
+| `queue` `stack` | `queue` 实体（栈用 `"dir": "v"`） | 字段图标 `queue` / `stack` |
+| `map` | `store` 实体，一行一个 key | 字段图标 `map` |
+| `pool` `ring` | `grid` 实体；`alloc` / `free` | 字段图标 `pool` / `ring` |
+| `counter` | 数值少用实体的 `vars`；是一条会被吃掉的预算用 `bar` | 字段图标 `scalar` |
+| `log` | `log` 实体，游标用 `mark` | 字段图标 `array` |
+| `thread` `coroutine` | `thread` 实体；挂起 = `state: blocked` + `on` 写等什么 | `loop` 或 `statemachine` |
+| `loop` `pipeline` `dispatch` `statemachine` | 执行它的那个 `thread` 实体；循环走到哪一站写在 `vars` 里 | 同名的 primitive |
+| `call` | `pulse` + `back` | 边 |
+| `enqueue` | 两次 `move`：放进队列，另一个执行者取走 | 边连到字段 |
+| `callback` | `closure` 类 token + 先隐藏的 `cb` 连线 | 虚线边 |
+| `refcount` `lock` | 挂在被计数 / 被锁的那个东西上：树节点的 `tag`，或实体的 `vars` | 字段图标 `lock` / `scalar` |
+| `evict` | `unnode`（树）/ `gone`（token）+ `free`（把格子还回 `grid`） | `flow` |
+| `switch` `retry` `linked` `other` | 没有固定画法 | 没有固定画法 |
+
+## 4. 检查
 
 ```bash
 python3 build_zoom.py zoom.json --repo <仓库根> --out zoom.html   # scene.json 自动并入；0 ERROR

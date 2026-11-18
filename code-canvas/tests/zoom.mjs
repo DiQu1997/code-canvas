@@ -51,5 +51,26 @@ for (const mobile of [false, true]) {
     check(tag + 'no page errors', errs.length === 0); if (errs.length) console.log(errs.join('\n'));
     await p.close();
 }
+
+// a scene whose protagonist is a data structure: the tree is drawn as a tree and changes as the walk runs
+{
+  const html2 = join(mkdtempSync(join(tmpdir(), 'canvas-zoom-')), 'radix.html');
+  writeFileSync(html2, readFileSync(join(root, 'template/zoom.html'), 'utf8').replace('/*ZOOM_DATA*/null',
+    () => readFileSync(join(root, 'tests/fixtures/zoom-radix.json'), 'utf8').replace(/<\//g, '<\\/')));
+  const p = await b.newPage({viewport: {width: 1400, height: 860}});
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.goto('file://' + html2); await p.waitForTimeout(800);
+  const at = async n => { await p.evaluate(i => { __zoom.goStep(i) }, n - 1); for (let i = 0; i < 80; i++) { if (!(await p.evaluate(() => __zoom.busy()))) break; await p.waitForTimeout(60); } await p.waitForTimeout(900);
+    return p.evaluate(() => ({nodes: [...document.querySelectorAll('.tnode')].filter(g => +g.getAttribute('opacity') > .9).map(g => g.querySelector('.tnl').textContent),
+      edges: (document.querySelector('.tne').getAttribute('d') || '').split('M').length - 1, tags: [...document.querySelectorAll('.tntag text')].map(t => t.textContent)})); };
+  let t = await at(7); check('tree: the first insert hangs one leaf under the root', t.nodes.length === 2 && t.edges === 1);
+  t = await at(11); check('tree: a split puts a new parent above the old node', t.nodes.length === 3 && t.edges === 2 && t.nodes.some(x => x.includes('1 2 3')) && t.nodes.some(x => x.includes('4 5')));
+  t = await at(23); check('tree: later inserts branch', t.nodes.length === 5 && t.edges === 4);
+  check('tree: every node carries its lock count as a tag', t.tags.length === 5 && t.tags.every(x => /^ref \d$/.test(x)));
+  t = await at(29); check('tree: evicted leaves are gone', t.nodes.length === 3 && t.edges === 2);
+  t = await at(7); check('tree: stepping back redraws the earlier tree', t.nodes.length === 2 && t.edges === 1);
+  check('tree: no page errors', errs.length === 0); if (errs.length) console.log(errs.join('\n'));
+  await p.close();
+}
 await b.close();
 process.exit(fails ? 1 : 0);
