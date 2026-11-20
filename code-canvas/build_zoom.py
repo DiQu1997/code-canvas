@@ -312,7 +312,7 @@ def main():
                 if f not in ents:
                     R.e(f"scene step {i + 1}: focus on unknown entity {f}")
         # every op must refer to things that exist, in an order that makes sense (replay the scene)
-        ET = {"thread", "ext", "queue", "store", "log", "grid", "bar", "group"}
+        ET = {"thread", "ext", "queue", "store", "log", "grid", "bar", "group", "tree", "fn"}
         E = {e["id"]: e for e in sc.get("entities") or []}
         for e in E.values():
             if e.get("type") not in ET:
@@ -328,6 +328,17 @@ def main():
                 R.e(f"scene entity {e['id']}: bar needs total")
             if e.get("type") == "store" and not e.get("rows"):
                 R.e(f"scene entity {e['id']}: store needs rows")
+            if e.get("type") == "tree":
+                seen = set()
+                for nd in e.get("nodes") or []:
+                    if not nd.get("id"): R.e(f"scene entity {e['id']}: a tree node has no id")
+                    if nd.get("parent") and nd["parent"] not in seen: R.e(f"scene entity {e['id']}: node {nd.get('id')} listed before its parent {nd['parent']}")
+                    if nd.get("val") is not None and len(nd["val"]) != len(nd.get("key") or []): R.e(f"scene entity {e['id']}: node {nd.get('id')} has {len(nd.get('key') or [])} key cells but {len(nd['val'])} value cells")
+                    for sid in nd.get("sets") or []:
+                        if sid not in {x["id"] for x in e.get("sets") or []}: R.e(f"scene entity {e['id']}: node {nd.get('id')} is in unknown set {sid}")
+                    seen.add(nd.get("id"))
+                if not e.get("nodes"): R.e(f"scene entity {e['id']}: tree needs nodes (at least the root)")
+                elif sum(1 for nd in e["nodes"] if not nd.get("parent")) != 1: R.e(f"scene entity {e['id']}: tree needs exactly one root (a node without parent)")
         boxes = [e for e in E.values() if e.get("type") != "group" and all(isinstance(e.get(k), (int, float)) for k in "xywh")]
         for i, p in enumerate(boxes):
             for q in boxes[i + 1:]:
@@ -335,11 +346,61 @@ def main():
                     R.e(f"scene: entities {p['id']} and {q['id']} overlap")
         W = {w["id"] for w in sc.get("wires") or []}
         toks, alive = sc.get("tokens") or {}, set()
-        OPS = {"spawn", "move", "gone", "tok", "state", "var", "mark", "wire", "segs", "batch", "alloc", "free", "hash", "pulse", "flash", "run"}
+        OPS = {"spawn", "move", "gone", "tok", "state", "var", "mark", "wire", "segs", "batch", "alloc", "free", "hash", "pulse", "flash", "run",
+               "node", "split", "nset", "member", "del", "path", "probe"}
+        TREE_OPS = {"node", "split", "nset", "member", "del", "path", "probe"}
+        # tree entities are replayed too: which nodes exist right now, who their parent is, how many key cells they hold
+        TN = {e["id"]: {nd["id"]: {"parent": nd.get("parent"), "n": len(nd.get("key") or [])} for nd in e.get("nodes") or [] if nd.get("id")}
+              for e in E.values() if e.get("type") == "tree"}
+        TSETS = {e["id"]: {x["id"] for x in e.get("sets") or []} for e in E.values() if e.get("type") == "tree"}
+        def chk_tree(o, where):
+            op, T = o["op"], TN.get(o.get("ent"))
+            if T is None:
+                R.e(f"{where}: op {op} needs ent = a tree entity"); return
+            def need(k):
+                v = o.get(k)
+                if v not in T: R.e(f"{where}: {op} refers to tree node {v!r}, which does not exist at this point"); return None
+                return v
+            if op == "node":
+                if not o.get("id") or o["id"] in T: R.e(f"{where}: node needs a new id (got {o.get('id')!r})"); return
+                if o.get("parent") not in T: R.e(f"{where}: node {o['id']}: parent {o.get('parent')!r} does not exist"); return
+                if o.get("val") is not None and len(o["val"]) != len(o.get("key") or []): R.e(f"{where}: node {o['id']}: key and val must have the same number of cells")
+                T[o["id"]] = {"parent": o["parent"], "n": len(o.get("key") or [])}
+            elif op == "split":
+                n = need("node")
+                if n is None: return
+                k = o.get("at")
+                if not (isinstance(k, int) and 0 < k < T[n]["n"]): R.e(f"{where}: split at must be inside the node's key (1..{T[n]['n'] - 1}), got {k}"); return
+                if not o.get("new") or o["new"] in T: R.e(f"{where}: split needs a new node id in 'new' (got {o.get('new')!r})"); return
+                T[o["new"]] = {"parent": T[n]["parent"], "n": k}
+                T[n] = {"parent": o["new"], "n": T[n]["n"] - k}
+            elif op == "nset":
+                n = need("node")
+                if n is not None and o.get("key") is not None: T[n]["n"] = len(o["key"])
+            elif op == "member":
+                need("node")
+                if o.get("set") not in TSETS.get(o["ent"], ()): R.e(f"{where}: member: unknown set {o.get('set')!r} on tree {o['ent']}")
+            elif op == "del":
+                n = need("node")
+                if n is None: return
+                if any(v["parent"] == n for v in T.values()): R.e(f"{where}: del {n}: it still has children (delete leaves first)")
+                elif T[n]["parent"] is None: R.e(f"{where}: del {n}: cannot delete the root")
+                else: del T[n]
+            elif op == "path":
+                for n in o.get("nodes") or []:
+                    if n not in T: R.e(f"{where}: path refers to tree node {n!r}, which does not exist at this point")
+            elif op == "probe":
+                if o.get("node") is not None:
+                    need("node")
+                    if not isinstance(o.get("key"), list): R.e(f"{where}: probe needs key (the lookup key cells)")
         def chk(o, where):
             op = o.get("op")
             if op not in OPS:
                 R.e(f"{where}: unknown op {op}"); return
+            if op in TREE_OPS:
+                chk_tree(o, where); return
+            if op == "flash" and o.get("node") is not None and o.get("ent") in TN and o["node"] not in TN[o["ent"]]:
+                R.e(f"{where}: flash refers to tree node {o['node']!r}, which does not exist at this point")
             if "tok" in o:
                 if o["tok"] not in toks: R.e(f"{where}: unknown token {o['tok']}")
                 elif op == "spawn": alive.add(o["tok"])
@@ -350,7 +411,7 @@ def main():
                     loc = o[k]
                     if not (isinstance(loc, list) and loc and loc[0] in E): R.e(f"{where}: {k} must be [entity] or [store, row]; got {loc}")
                     elif E[loc[0]].get("type") == "store" and (len(loc) < 2 or loc[1] not in {r["id"] for r in E[loc[0]].get("rows") or []}): R.e(f"{where}: store {loc[0]} needs a row id, got {loc}")
-                    elif E[loc[0]].get("type") in ("group", "log", "grid", "bar"): R.e(f"{where}: tokens cannot sit in a {E[loc[0]]['type']} ({loc[0]})")
+                    elif E[loc[0]].get("type") in ("group", "log", "grid", "bar", "tree"): R.e(f"{where}: tokens cannot sit in a {E[loc[0]]['type']} ({loc[0]})")
             if "ent" in o and o["ent"] not in E: R.e(f"{where}: unknown entity {o['ent']}")
             for k in ("via", "wire"):
                 if k in o and o[k] not in W: R.e(f"{where}: unknown wire {o[k]}")

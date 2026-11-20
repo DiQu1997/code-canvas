@@ -1,0 +1,244 @@
+{
+  "meta": {
+    "mode": "zoom",
+    "title": "RadixCache：一棵前缀树管 KV 复用",
+    "short": "sglang radix",
+    "subtitle": "一个请求的 key 在树上的一生：匹配 → 切开 → 加锁 → 淘汰 → 存回 → 换锁 → 释放",
+    "audience": "有经验的工程师，第一次读 sglang 的 radix_cache.py，想知道前缀复用、加锁和淘汰是怎么靠一棵树做到的",
+    "overview": [
+      "RadixCache 是一棵压缩前缀树：每个 TreeNode 的 key 是一段 token，value 是这段 token 的 KV 在槽位池里的下标。新请求的 prompt 从 root 往下走，能对上多长，就有多少 token 的 KV 不用重算。",
+      "树上只有两种“谁在用”的记录：lock_ref（有请求正在用这段前缀，不能淘汰）和 evictable_leaves（没锁、没有活孩子的叶子，淘汰只从这里挑）。两个计数 evictable_size_ / protected_size_ 跟着 lock_ref 的 0↔1 变化来回倒。",
+      "对这棵树动手的只有五件事：match_prefix（读，必要时把节点从中间切开）、inc/dec_lock_ref（沿父指针走到 root）、evict（按策略弹出叶子）、insert（把没匹配的尾巴挂成新叶子）、checkpoint（请求结束时 insert + 换锁）。顶层画面里左边是这几个函数，中间就是那棵树。"
+    ],
+    "judgment": {
+      "scope": "只讲 python/sglang/srt/mem_cache/radix_cache.py 里的 RadixCache 和 TreeNode：一棵树、两个计数、一个集合，以及读写它们的 14 个函数。剪掉了：RadixKey 的 bigram / extra_key 细节、KV 事件上报（kv_events）、每页哈希、优先级淘汰策略的各个实现、create_simulated、打印和统计函数。理由：它们不改变树的形状和锁 / 淘汰的规则。",
+      "shape": "一个数据结构 + 围着它的几个操作。主体不是线程也不是流水线，而是树本身的状态；所以顶层画的是树的一个小实例，操作是对它动手的角色。",
+      "protagonist": "请求 B 的 key [1,2,5,6]：它先在树上找前缀（顺便把 A 切成两段），锁住命中的节点，逼出一次淘汰，最后把自己没命中的尾巴挂成新叶子。选它是因为这一条 key 会依次碰到全部五种操作。",
+      "parts": [
+        {"name": "树本身", "owns": "TreeNode 的字段、root_node、evictable_leaves、两个计数", "not": "不管 KV 张量本身：value 里只是槽位下标", "why": "所有操作读写的就是这几样东西，它是画面的中心"},
+        {"name": "匹配前缀", "owns": "match_prefix / _match_prefix_helper / _split_node", "not": "不加锁：锁是调用方拿到 last_node 之后另外调用的", "why": "读路径，也是唯一会在读的时候改树形状（split）的地方"},
+        {"name": "加锁 / 解锁", "owns": "inc_lock_ref / dec_lock_ref / _update_leaf_status", "not": "不动 key / value，也不动树的形状", "why": "两个函数镜像对称，都沿父指针走到 root，并且都靠 _update_leaf_status 维护 evictable_leaves"},
+        {"name": "淘汰", "owns": "evict / _delete_leaf", "not": "不决定谁更该被淘汰：优先级来自 eviction_strategy", "why": "唯一会删节点、把槽位还给分配器的地方"},
+        {"name": "插入", "owns": "insert / _insert_helper", "not": "不分配槽位：value 是调用方给的", "why": "唯一会长出新叶子的地方，走树的方式和匹配几乎一样"},
+        {"name": "请求结束存回", "owns": "checkpoint / _insert_cache", "not": "不是新的树操作：它只是按固定顺序调用 insert、match、unlock、lock", "why": "把前面几种操作串起来的那一个调用，读它能看到锁是怎么从旧节点换到新节点的"}
+      ],
+      "cut": "调度器和 KV 分配器画成外部角色，只为说明谁在调用、槽位从哪来回哪去；common.py / schedule_policy.py 里的调用点只在讲解里提到，不做成卡。",
+      "primitives": {
+        "tree": "pipeline + 字段：两张卡（字段定义、reset）之外，主角是字段本身，用带形状的字段面板画",
+        "match": "flow：入口 → 走树 → 需要时切开，是带分支的过程",
+        "lock": "flow：inc / dec 两个入口都落到 _update_leaf_status",
+        "evict": "flow：evict 循环里调用 _delete_leaf",
+        "insert": "flow：insert 入口 → _insert_helper",
+        "ckpt": "flow：checkpoint 调 _insert_cache"
+      },
+      "cards": "14 张卡，全部来自 radix_cache.py，行号对应 commit 2726766。match_prefix 跳过了 35 行 docstring（用 ranges 拼接）。",
+      "skipped": ["touch_prefix、path_device_indices、all_values_flatten 等辅助读函数", "RadixKey 类（按页比较、bigram 视图）", "kv_events 事件上报和每页哈希的维护", "优先级淘汰策略（只在讲解里说明 LRU 下优先级 = last_access_time）"],
+      "revisions": ["第一版顶层是模块方框图；改成画树的实例（scene 的 tree 实体），函数作为角色放在左边，连线标它们读写的字段", "故事里只用一条 key [1,2,5,6]，并明说设定：存回的序列和 prompt 等长，所以 _insert_cache 里 prompt 边界的二次切分（:499）不触发"]
+    }
+  },
+  "layout": {"colw": 330, "rowh": 260, "gap": 44},
+  "groups": [
+    {"title": "读路径", "modules": ["match", "lock"]},
+    {"title": "写路径", "modules": ["insert", "evict"]}
+  ],
+  "modules": [
+    {"id": "caller", "title": "调度器", "kind": "external", "pos": [0, 1.35], "span": [0.6, 0.9], "oneliner": "给请求找前缀、加锁，结束时存回"},
+    {"id": "match", "title": "匹配前缀", "kind": "component", "pos": [0.85, 0], "span": [1.3, 1.25], "oneliner": "从 root 往下走，对上多长算多长；只对上一半就把节点切开",
+     "anatomy": {"primitive": "flow",
+       "items": [
+         {"id": "mp", "label": "入口：对齐 key", "sub": "match_prefix()", "card": "match_prefix", "short": "入口"},
+         {"id": "h", "label": "顺着孩子往下走", "sub": "_match_prefix_helper()", "card": "match_helper", "short": "走树"},
+         {"id": "sp", "label": "从中间切开节点", "sub": "_split_node()", "card": "split", "short": "切开"}
+       ],
+       "edges": [["mp", "h", "root, key"], ["h", "sp", "只对上一半"]]},
+     "info": {"kicker": "RadixCache.match_prefix（radix_cache.py:369）",
+       "role": "读路径。把 key 按 page_size 对齐后，从 root 沿 children 一层层往下：每进一个孩子就刷新它的 last_access_time，用 key.match 比较能对上多长。整段对上就继续，只对上一半就调用 _split_node 把这个孩子切成两段，停在前半段上。",
+       "not": "不加锁。返回的 last_node 由调用方（schedule_policy.py:2038）再调用 lock() 锁住。",
+       "methods": [["match_prefix(params)", "→ MatchResult", "入口：对齐 key，空则返回预先做好的空结果"], ["_match_prefix_helper(node, key)", "→ (value, node)", "循环走树，收集每段 value"], ["_split_node(key, child, split_len)", "→ TreeNode", "新建节点接管前半段"]]}},
+    {"id": "lock", "title": "加锁 / 解锁", "kind": "component", "pos": [0.85, 1.4], "span": [1.3, 1.25], "oneliner": "从一个节点沿父指针走到 root，lock_ref 逐个 ±1",
+     "anatomy": {"primitive": "flow",
+       "items": [
+         {"id": "inc", "label": "加锁到 root", "sub": "inc_lock_ref()", "card": "inc_lock", "short": "加锁"},
+         {"id": "dec", "label": "解锁到 root", "sub": "dec_lock_ref()", "card": "dec_lock", "short": "解锁"},
+         {"id": "ls", "label": "重算可淘汰叶子", "sub": "_update_leaf_status()", "card": "leaf_status", "short": "叶子"}
+       ],
+       "edges": [["inc", "ls", "每个节点"], ["dec", "ls", "每个节点"]]},
+     "info": {"kicker": "RadixCache.inc_lock_ref / dec_lock_ref（radix_cache.py:589）",
+       "role": "一个请求正在用某段前缀时，从它的 last_node 一直到 root 的整条路径都要 lock_ref += 1；用完再逐个 −1。lock_ref 从 0 变 1（或 1 变 0）的那个节点，把自己 key 的长度在 evictable_size_ 和 protected_size_ 之间倒一次。每改一个节点都调用 _update_leaf_status 维护 evictable_leaves。",
+       "not": "不动 key / value，也不改树的形状。root 的 lock_ref 固定为 1，循环到 root 就停。",
+       "methods": [["inc_lock_ref(node)", "→ IncLockRefResult", "路径上每个节点 +1"], ["dec_lock_ref(node, params)", "→ DecLockRefResult", "路径上每个节点 −1"], ["_update_leaf_status(node)", "→ None", "没锁、没活孩子 → 进 evictable_leaves，否则移出"]]}},
+    {"id": "ckpt", "title": "请求结束存回", "kind": "component", "pos": [0.85, 2.8], "span": [1.3, 1.25], "oneliner": "把请求算出来的序列插进树，再把锁从旧末端换到新末端",
+     "anatomy": {"primitive": "flow",
+       "items": [
+         {"id": "ck", "label": "存回树 + 换锁", "sub": "checkpoint()", "card": "checkpoint", "short": "存回"},
+         {"id": "ic", "label": "插入并归还重复槽位", "sub": "_insert_cache()", "card": "insert_cache", "short": "插入"}
+       ],
+       "edges": [["ck", "ic", "token_ids"]]},
+     "info": {"kicker": "RadixCache.checkpoint（radix_cache.py:515）",
+       "role": "请求结束（或中途要把已算出的部分交给树）时调用：_insert_cache 把序列插进树并把重复的槽位还给分配器；再 match 一遍拿到新的末端节点，把树里的槽位号写回请求那一行；最后 unlock 旧节点、lock 新节点。",
+       "not": "不是新的树操作：它只按固定顺序调用 insert、match_prefix、unlock、lock。",
+       "methods": [["checkpoint(req, up_to)", "→ None", "插入 + 换锁"], ["_insert_cache(req, token_ids, …)", "→ (key, indices, prefix_len)", "拼 key / value，调用 insert，归还重复槽位"]]}},
+    {"id": "tree", "title": "树本身：TreeNode", "kind": "state", "pos": [2.45, 0.9], "span": [1.5, 1.7], "oneliner": "压缩前缀树：key 是一段 token，value 是对应的 KV 槽位号",
+     "anatomy": {"primitive": "pipeline",
+       "items": [
+         {"id": "tn", "label": "TreeNode 的字段", "sub": "TreeNode.__init__()", "card": "node_init", "short": "字段"},
+         {"id": "rs", "label": "清空成只剩 root", "sub": "reset()", "card": "reset", "short": "reset"}
+       ],
+       "fields": [
+         {"name": "children", "type": "defaultdict(TreeNode)", "shape": "map", "slots": 3, "fill": 2, "note": "这段 key 之后的第一页 token → 子节点"},
+         {"name": "key", "type": "RadixKey", "shape": "array", "slots": 4, "fill": 4, "note": "这条边上的一段 token"},
+         {"name": "value", "type": "torch.Tensor", "shape": "array", "slots": 4, "fill": 4, "note": "和 key 等长：每个 token 的 KV 槽位下标；None = 已淘汰"},
+         {"name": "lock_ref", "type": "int", "shape": "scalar", "value": "0", "note": "有多少在跑的请求压着这个节点"},
+         {"name": "last_access_time", "type": "float", "shape": "scalar", "value": "monotonic()", "note": "匹配 / 插入路过时刷新，LRU 的依据"},
+         {"name": "evictable_leaves", "type": "set", "shape": "set", "slots": 4, "fill": 2, "note": "没锁、没有活孩子的叶子；淘汰只从这里挑"},
+         {"name": "evictable_size_", "type": "int", "shape": "scalar", "value": "Σ len(key)", "note": "lock_ref == 0 的节点的 token 数"},
+         {"name": "protected_size_", "type": "int", "shape": "scalar", "value": "Σ len(key)", "note": "lock_ref > 0 的节点的 token 数"}
+       ]},
+     "info": {"kicker": "class TreeNode / RadixCache.reset（radix_cache.py:251, 348）",
+       "role": "所有操作读写的状态都在这里。每个节点：children / parent 定形状，key / value 是内容，lock_ref / last_access_time 是生命周期。整棵树另有一个集合（evictable_leaves）和两个计数。",
+       "not": "不存 KV 张量：value 只是槽位下标，真正的 KV 在分配器管理的池子里。",
+       "fields": [["parent", "TreeNode", "加锁 / 解锁沿它往上走"], ["hit_count / priority", "int", "统计与优先级淘汰用"], ["root_node", "TreeNode", "空 key、空 value，lock_ref 固定为 1"]]}},
+    {"id": "insert", "title": "插入", "kind": "component", "pos": [4.3, 0], "span": [1.3, 1.25], "oneliner": "走到分叉处，把没匹配的尾巴挂成新叶子",
+     "anatomy": {"primitive": "flow",
+       "items": [
+         {"id": "in", "label": "入口：对齐、截断", "sub": "insert()", "card": "insert", "short": "入口"},
+         {"id": "ih", "label": "走到分叉处挂新叶", "sub": "_insert_helper()", "card": "insert_helper", "short": "挂叶子"}
+       ],
+       "edges": [["in", "ih", "root, key, value"]]},
+     "info": {"kicker": "RadixCache.insert（radix_cache.py:433）",
+       "role": "和匹配走同一条路：沿 children 往下，对上的部分从 key / value 上切掉，只对上一半就 split。走到没有孩子可走时，如果 key 还有剩，就新建一个叶子挂上去，evictable_size_ 加上这段长度，并重算父节点和新叶子是不是可淘汰叶子。",
+       "not": "不分配槽位：value 是调用方给的（请求已经占着的槽位号）。",
+       "methods": [["insert(params)", "→ InsertResult", "入口：对齐 key、截短 value"], ["_insert_helper(node, key, value, …)", "→ (prefix_len, node)", "走树 + 挂新叶子"]]}},
+    {"id": "evict", "title": "淘汰", "kind": "component", "pos": [4.3, 1.4], "span": [1.3, 1.25], "oneliner": "把可淘汰叶子按优先级建堆，逐个弹出直到腾够",
+     "anatomy": {"primitive": "flow",
+       "items": [
+         {"id": "ev", "label": "弹出最旧的叶子", "sub": "evict()", "card": "evict", "short": "弹出"},
+         {"id": "dl", "label": "摘掉叶子", "sub": "_delete_leaf()", "card": "delete_leaf", "short": "摘掉"}
+       ],
+       "edges": [["ev", "dl", "每个弹出的叶子"]]},
+     "info": {"kicker": "RadixCache.evict（radix_cache.py:559）",
+       "role": "分配器不够用时由调用方触发（common.py 的 _evict_until_allocatable）。把 evictable_leaves 里的叶子按 eviction_strategy.get_priority 建成小顶堆，弹出一个就把它的 value（槽位）还给分配器、从树上摘掉；父节点因此变成没锁的叶子的话，也进堆。",
+       "not": "不决定谁更该被淘汰：优先级来自策略对象（LRU 下就是 last_access_time）。",
+       "methods": [["evict(params)", "→ EvictResult", "循环弹出直到腾够 num_tokens"], ["_delete_leaf(node)", "→ None", "从父节点的 children 里摘掉，维护计数和集合"]]}},
+    {"id": "pool", "title": "KV 槽位分配器", "kind": "external", "pos": [4.45, 2.85], "span": [0.7, 0.8], "oneliner": "value 里的下标指向它管理的槽位"}
+  ],
+  "channels": [
+    {"from": "caller", "to": "match", "label": "match_prefix", "kind": "call"},
+    {"from": "caller", "to": "lock", "label": "lock / unlock", "kind": "call"},
+    {"from": "caller", "to": "ckpt", "label": "checkpoint", "kind": "call"},
+    {"from": "match", "to": "tree", "label": "读 children / key，可能 split", "kind": "data"},
+    {"from": "lock", "to": "tree", "label": "lock_ref ±1", "kind": "data"},
+    {"from": "ckpt", "to": "tree", "label": "insert + 换锁", "kind": "data"},
+    {"from": "insert", "to": "tree", "label": "挂新叶子", "kind": "data", "sides": "lr"},
+    {"from": "evict", "to": "tree", "label": "摘叶子", "kind": "data", "sides": "lr"},
+    {"from": "evict", "to": "pool", "label": "free_segment", "kind": "call", "sides": "bt"}
+  ],
+  "cards": [
+    {"id": "match_prefix", "title": "match_prefix()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "ranges": [[369, 369], [405, 422]],
+     "blocks": [
+       [405, 406, "取出 key（bigram 模式下换成二元组视图）"],
+       [408, 409, "缓存关闭或 key 为空 → 空结果"],
+       [411, 414, "按 page_size 对齐，对齐后为空也返回空结果"],
+       [416, 416, "从 root 开始往下走，拿到命中的 value 段和停下的节点"],
+       [417, 422, "拼成 MatchResult：命中长度 = 各段长度之和"]]},
+    {"id": "match_helper", "title": "_match_prefix_helper()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [658, 682],
+     "blocks": [
+       [659, 660, "记下访问时间，刷新起点节点"],
+       [662, 664, "算出第一个 child_key，准备收集 value"],
+       [665, 668, "只要还有 key 且有对应孩子：进入孩子，比较能对上多长"],
+       [669, 673, "只对上一半 → 把孩子从中间切开，停在切出来的新节点"],
+       [674, 680, "整段对上 → 收下 value，吃掉这段 key，继续往下"],
+       [682, 682, "返回一路收集的 value 和最后停下的节点"]]},
+    {"id": "split", "title": "_split_node()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [684, 707],
+     "blocks": [
+       [687, 688, "新建节点，继承优先级和命中次数"],
+       [689, 693, "新节点接管前半段：孩子只有原节点，父亲 / 锁计数照抄，key 和 value 取前 split_len"],
+       [694, 696, "原节点挂到新节点下面，只留后半段 key / value"],
+       [697, 697, "父节点的 children 改指向新节点"],
+       [700, 705, "哈希值也按同样位置切开"],
+       [707, 707, "返回新节点"]]},
+    {"id": "inc_lock", "title": "inc_lock_ref()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [589, 602],
+     "blocks": [
+       [590, 591, "缓存关闭 → 什么也不做"],
+       [594, 594, "从这个节点一路往上，到 root 为止（root 不动）"],
+       [595, 598, "第一次被锁（0 → 1）：这段 key 的长度从 evictable 记到 protected"],
+       [599, 600, "lock_ref += 1，然后重算它还算不算可淘汰叶子"],
+       [601, 601, "上移到父节点"],
+       [602, 602, "返回这次一共挪走了多少 token"]]},
+    {"id": "dec_lock", "title": "dec_lock_ref()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [604, 623],
+     "blocks": [
+       [607, 608, "缓存关闭 → 什么也不做"],
+       [611, 611, "从这个节点一路往上，到 root 为止"],
+       [612, 615, "最后一把锁放掉（1 → 0）：这段 key 的长度从 protected 记回 evictable"],
+       [616, 617, "lock_ref −= 1，然后重算它是不是可淘汰叶子"],
+       [618, 622, "上移到父节点（没有父节点却不是 root，说明拿错了树）"],
+       [623, 623, "返回这次一共放回了多少 token"]]},
+    {"id": "leaf_status", "title": "_update_leaf_status()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [797, 810],
+     "blocks": [
+       [798, 801, "已被淘汰或还有锁 → 一定不在 evictable_leaves 里"],
+       [803, 807, "还有没被淘汰的孩子 → 不是叶子，也不在集合里"],
+       [809, 810, "没锁、没有活着的孩子 → 进 evictable_leaves"]]},
+    {"id": "evict", "title": "evict()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [559, 587],
+     "blocks": [
+       [560, 561, "缓存关闭 → 空结果"],
+       [563, 569, "把 evictable_leaves 里所有叶子按策略的优先级建成小顶堆"],
+       [571, 573, "还没腾够就继续：弹出优先级最小的叶子（LRU 下 = 最久没访问）"],
+       [576, 578, "把它的 value（KV 槽位）还给分配器，再把节点从树上摘掉"],
+       [580, 582, "父节点因此变成没锁的叶子 → 也进堆，下一轮可以接着淘汰"],
+       [584, 584, "记一条删除事件"],
+       [586, 587, "记指标，返回一共腾出多少 token"]]},
+    {"id": "delete_leaf", "title": "_delete_leaf()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [787, 795],
+     "blocks": [
+       [788, 790, "从父节点的 children 里按首页 key 摘掉自己"],
+       [792, 794, "evictable_size_ 减去这段长度，并从 evictable_leaves 里拿掉"],
+       [795, 795, "父节点少了一个孩子 → 重算父节点是不是可淘汰叶子"]]},
+    {"id": "insert", "title": "insert()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [433, 453],
+     "blocks": [
+       [434, 435, "缓存关闭 → 什么也不插"],
+       [437, 440, "拆出参数：key、value、优先级、这个请求之前已插入的长度"],
+       [442, 445, "bigram 视图 + 按 page_size 对齐；value 截成和 key 一样长"],
+       [446, 448, "没给 value 时（调试 / 测试）用 token id 本身当 value"],
+       [450, 453, "从 root 往下插，返回树里原本已有的前缀长度和最后的节点"]]},
+    {"id": "insert_helper", "title": "_insert_helper()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [712, 767],
+     "blocks": [
+       [721, 726, "优先级兜底；记访问时间；沿路把优先级抬到最大"],
+       [727, 728, "key 为空 → 什么也不插"],
+       [730, 732, "算出第一个 child_key，已匹配长度从 0 开始"],
+       [733, 739, "只要还有 key 且有对应孩子：进入孩子，比较能对上多长，把对上的部分从 key / value 上切掉"],
+       [741, 746, "只对上一半 → 把这个节点从中间切开，停在切出来的新节点；否则只抬优先级"],
+       [748, 751, "命中计数；还有剩余 key 就算下一个 child_key"],
+       [753, 760, "还剩没匹配的尾巴 → 新建叶子挂到当前节点下面"],
+       [761, 763, "evictable_size_ 加上尾巴长度；重算父节点和新叶子是不是可淘汰叶子"],
+       [765, 766, "记一条存储事件，当前节点变成新叶子"],
+       [767, 767, "返回已有前缀长度和最后的节点"]]},
+    {"id": "checkpoint", "title": "checkpoint()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [515, 550],
+     "blocks": [
+       [516, 517, "缓存关闭 → 返回"],
+       [518, 525, "取出这个请求到目前为止的 token；纯滑动窗口时只存到窗口下沿"],
+       [526, 528, "把这段序列插进树（并在 prompt 边界再切一刀）"],
+       [531, 536, "再匹配一遍，拿到现在的末端节点和整条路径上的槽位号"],
+       [538, 541, "把树里的槽位号写回请求自己的那一行"],
+       [546, 546, "记下树已经接管到哪儿"],
+       [548, 550, "换锁：先放掉旧末端节点的锁，再锁住新的末端节点"]]},
+    {"id": "insert_cache", "title": "_insert_cache()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [455, 513],
+     "blocks": [
+       [465, 467, "取出这个请求占着的 KV 槽位号"],
+       [468, 477, "拼出按页对齐的 key（可被 key_limit 截短），复制等长的一段槽位号当 value"],
+       [480, 489, "插进树；记下这个请求已插入到多长"],
+       [490, 507, "split_prompt：再按 prompt 的长度插一次，只为在 prompt 边界把叶子切开"],
+       [509, 512, "树里原本就有的那段前缀是重复的 → 把请求自己那份槽位还给分配器"],
+       [513, 513, "返回 key、槽位号和已有前缀长度"]]},
+    {"id": "node_init", "title": "TreeNode.__init__()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [254, 272],
+     "blocks": [
+       [255, 258, "树的形状和内容：孩子表、父指针、这条边上的 token 段、对应的 KV 槽位号"],
+       [259, 261, "生命周期：被多少请求锁着、最后访问时间、创建时间"],
+       [263, 269, "统计和附加信息：命中次数、每页哈希、淘汰优先级"],
+       [271, 272, "节点编号：全局计数器递增"]]},
+    {"id": "reset", "title": "reset()", "file": "python/sglang/srt/mem_cache/radix_cache.py", "lines": [348, 367],
+     "blocks": [
+       [350, 354, "新建 root：空 key、空 value，lock_ref 固定为 1（永远不会被淘汰）"],
+       [355, 357, "两个计数清零，evictable_leaves 清空"],
+       [358, 366, "预先做好“空结果”：命中长度 0、停在 root"],
+       [367, 367, "记一条全部清空的事件"]]}
+  ]
+}

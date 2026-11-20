@@ -281,6 +281,37 @@ body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
 .scn .tok .tag{font-size:10px;font-weight:600;font-family:var(--mono)}
 .scn .ring{fill:none;stroke:var(--hot);stroke-width:3}
 
+.scn .fnb{transition:fill .4s,stroke .4s}.scn .st-run .fnb{fill:color-mix(in srgb,var(--ok) 12%,var(--panel))}
+.scn .fnt{font-size:13.5px;font-weight:600;font-family:var(--mono)}
+.scn .ci{font-size:10px;font-family:var(--mono);text-anchor:middle;fill:var(--ink);opacity:.7;pointer-events:none}
+.scn .tn .nb{fill:var(--panel2);stroke:var(--line);stroke-width:1.2;transition:stroke .4s,stroke-width .4s}
+.scn .tn.onpath .nb{stroke:var(--hot);stroke-width:2.2}.scn .tn.dead .nb{stroke:var(--c5);stroke-dasharray:4 3}
+.scn .tn .nl{font-size:11px;font-weight:700;font-family:var(--mono)}
+.scn .tn .rl,.scn .pb .pl{font-size:8px;font-family:var(--mono);fill:var(--faint)}
+.scn .tn .kc,.scn .pb .kc{fill:var(--panel);stroke:var(--line);stroke-width:1;transition:fill .35s,stroke .35s}
+.scn .tn .kt,.scn .pb .kt{font-size:11px;font-family:var(--mono);text-anchor:middle}
+.scn .tn .vc{stroke:var(--line);stroke-width:.8}
+.scn .tn .vt{font-size:8.5px;font-family:var(--mono);text-anchor:middle;fill:var(--muted)}
+.scn .tn .nil{stroke-dasharray:3 2.5;fill:none}.scn .tn text.nil{fill:var(--faint);stroke:none}
+.scn .pb .kc{fill:color-mix(in srgb,var(--pc) 18%,var(--panel));stroke:var(--pc)}
+.scn .pb .kc.rest{fill:var(--panel);stroke:var(--faint);stroke-dasharray:3 2.5}
+.scn .tn .kc.hit,.scn .pb .kc.hit{fill:color-mix(in srgb,var(--ok) 30%,var(--panel));stroke:var(--ok)}
+.scn .tn .kc.miss,.scn .pb .kc.miss{fill:color-mix(in srgb,var(--c5) 34%,var(--panel));stroke:var(--c5)}
+.scn .pb .pl{fill:var(--pc);font-weight:600;text-anchor:end}
+.scn .tn .bd rect{fill:none;stroke:var(--line);stroke-width:1}
+.scn .tn .bd text{font-size:9px;font-family:var(--mono);fill:var(--muted)}
+.scn .tn .bd.on text{fill:var(--bg);font-weight:700}
+.scn .tn .bd.pop,.scn .chip2.pop{animation:bpop .9s ease .3s both;transform-box:fill-box;transform-origin:center}
+@keyframes bpop{0%{transform:scale(1)}35%{transform:scale(1.5)}100%{transform:scale(1)}}
+.scn .tn .bt{font-size:8.5px;font-family:var(--mono)}.scn .tn .bt .bk{fill:var(--faint)}.scn .tn .bt .bv{fill:var(--muted)}
+.scn .tn .bt.pop .bv{animation:tfl 1.6s ease both}@keyframes tfl{0%,55%{fill:var(--hot)}}
+.scn .halo{fill:none;stroke-width:1.4;stroke-dasharray:4 3}
+.scn .tn .halo.pop{animation:hpop .7s ease .3s both;transform-box:fill-box;transform-origin:center}
+@keyframes hpop{0%{opacity:0;transform:scale(1.3)}100%{opacity:1;transform:scale(1)}}
+.scn .te{fill:none;stroke:var(--faint);stroke-width:1.4;transition:stroke .4s,stroke-width .4s}
+.scn .te.hot{stroke:var(--hot);stroke-width:2.6}
+.scn .tel{font-size:8.5px;font-family:var(--mono);fill:var(--muted);text-anchor:middle;paint-order:stroke;stroke:var(--panel);stroke-width:3.5px;stroke-linejoin:round}
+.scn .setl{font-size:10.5px;font-family:var(--mono);fill:var(--muted)}.scn .setm{font-size:10.5px;font-family:var(--mono);font-weight:700}
 .scn .tok,.scn .wl,.scn .wire,.scn .ring{pointer-events:none}.scn [data-key]{cursor:zoom-in}.scn [data-key]:hover .box,.scn [data-key]:hover .pipe{stroke:var(--hot)}
 
 .peek{font-family:var(--mono);font-size:11.5px;line-height:1.65;border:1px solid var(--line);border-radius:9px;padding:6px 0;margin:6px 0 10px;background:var(--panel);overflow:hidden}
@@ -510,6 +541,77 @@ const tw=s=>{let n=0;for(const ch of String(s))n+=ch.charCodeAt(0)>255?1:.6;retu
 /* ---------------- entities ---------------- */
 const TS={w:52,h:26};                                   // plain token size
 function tokSize(id){const d=TOKD[id]||{};if(d.kind==='req')return {w:150,h:38};if(d.kind==='gray')return {w:30,h:22};return {w:Math.max(46,tw(d.label||id)*8.4+20),h:26}}
+// ---------- tree entity: a live instance of a linked structure; every node is a record card with the real field names ----------
+const TU={cw:24,kh:24,vh:17,lab:38,px:8,hh:22,gap:26,lv:58,py:7,br:15};
+function tnSize(e,n){const U=TU;let hw=U.px*2+tw(n.label)*11+(n.color?11:0)+8,bw=U.px*2;
+  for(const b of e.badges||[]){const v=n.vals[b.k];if(v==null)continue;const s=(b.label||b.k)+' '+v;if(b.row==='bottom')bw+=tw(s)*8.5+10;else hw+=tw(s)*9+17}
+  return {w:Math.max(U.px*2+U.lab+Math.max(1,n.key.length)*U.cw-2,hw,bw,e.minNode||96),h:e.nodeH}}
+function treeLayout(e,x){const U=TU,pos={},kids={};let root=null,cur=0,maxD=0;
+  for(const id of x.order){const n=x.nodes[id];if(!n)continue;kids[id]=kids[id]||[];if(n.parent==null)root=id;else(kids[n.parent]=kids[n.parent]||[]).push(id)}
+  const shift=(id,dx)=>{pos[id].x+=dx;for(const c of kids[id])shift(c,dx)};
+  const place=(id,d)=>{const s=tnSize(e,x.nodes[id]),y=e.lane+d*(e.nodeH+U.lv);maxD=Math.max(maxD,d);
+    if(!kids[id].length){pos[id]={x:cur,y,w:s.w,h:s.h};cur+=s.w+U.gap;return}
+    const start=cur;for(const c of kids[id])place(c,d+1);
+    const a=pos[kids[id][0]],b=pos[kids[id][kids[id].length-1]];pos[id]={x:(a.x+b.x+b.w)/2-s.w/2,y,w:s.w,h:s.h};
+    if(pos[id].x<start){const dx=start-pos[id].x;shift(id,dx);cur+=dx}
+    cur=Math.max(cur,pos[id].x+s.w+U.gap)};
+  if(root!=null)place(root,0);
+  return {pos,W:Math.max(1,cur-U.gap),H:e.lane+(maxD+1)*e.nodeH+maxD*U.lv}}
+function tnBuild(e,T,n,p,pop){const U=TU,g=T.g,w=p.w,h=p.h;g.textContent='';T.kc=[];
+  n.sets.forEach((sid,j)=>{const sd=(e.sets||[]).find(q=>q.id===sid)||{};E('rect',{x:-5-j*4,y:-5-j*4,width:w+10+j*8,height:h+10+j*8,rx:12+j*3,class:'halo'+(pop&&T.sets&&!T.sets.includes(sid)?' pop':''),stroke:col(sd.color||'c4')},g)});
+  E('rect',{width:w,height:h,rx:8,class:'nb'},g);
+  let lx=U.px;if(n.color){E('circle',{cx:lx+3.5,cy:11.5,r:3.5,fill:col(n.color)},g);lx+=11}
+  E('text',{x:lx,y:15.5,class:'nl'},g,n.label);
+  let bx=w-U.px;for(const b of (e.badges||[]).filter(q=>q.row!=='bottom').reverse()){const v=n.vals[b.k];if(v==null)continue;const s=(b.label||b.k)+' '+v,bw=tw(s)*9+12,on=typeof v==='number'?v>0:!!v,c=col(b.color||'c1');bx-=bw;
+    const bg=E('g',{class:'bd'+(on?' on':'')+(pop&&T.vals&&T.vals[b.k]!==v?' pop':'')},g);E('rect',{x:bx,y:4,width:bw,height:14,rx:7,style:on?`fill:${c};stroke:${c}`:null},bg);E('text',{x:bx+bw/2,y:14.3,'text-anchor':'middle'},bg,s);bx-=5}
+  const cx0=U.px+U.lab,y0=U.hh,cell=(i,y,hh,cls,fill)=>E('rect',{x:cx0+i*U.cw,y,width:U.cw-2,height:hh,rx:3,class:cls,fill},g),lab=(i,y,cls,v)=>E('text',{x:cx0+i*U.cw+(U.cw-2)/2,y,class:cls},g,v);
+  E('text',{x:U.px,y:y0+U.kh/2+3,class:'rl'},g,e.keyLabel||'key');
+  if(n.key.length)n.key.forEach((v,i)=>{T.kc.push(cell(i,y0,U.kh,'kc'));lab(i,y0+U.kh/2+4,'kt',v)});else{cell(0,y0,U.kh,'kc nil');lab(0,y0+U.kh/2+4,'kt nil','∅')}
+  let y=y0+U.kh+3;
+  if(e.valLabel){E('text',{x:U.px,y:y+U.vh/2+3,class:'rl'},g,e.valLabel);const f=n.color?`color-mix(in srgb,${col(n.color)} 34%,var(--panel))`:'var(--panel)';
+    if(n.val.length)n.val.forEach((v,i)=>{cell(i,y,U.vh,'vc',f);lab(i,y+U.vh/2+3.2,'vt',v)});else{cell(0,y,U.vh,'vc nil');lab(0,y+U.vh/2+3.2,'vt nil','∅')}
+    y+=U.vh+3}
+  let fx=U.px;for(const b of (e.badges||[]).filter(q=>q.row==='bottom')){const v=n.vals[b.k];if(v==null)continue;const lb=(b.label||b.k)+' ';
+    const t=E('text',{x:fx,y:y+9.5,class:'bt'+(pop&&T.vals&&T.vals[b.k]!==v?' pop':'')},g);E('tspan',{class:'bk'},t,lb);E('tspan',{class:'bv'},t,v);fx+=tw(lb+v)*8.5+10}
+  T.vals={...n.vals};T.sets=[...n.sets]}
+function renderTree(e,x,animate){const U=TU,sg=JSON.stringify([x.nodes,x.order,x.path,x.probe]);if(animate&&sg===e.sg)return;e.sg=sg;
+  const L=treeLayout(e,x),ox=(e.w/e.k-L.W)/2,onp=new Set(x.path||[]);
+  if(!animate){e.ng.textContent='';e.eg.textContent='';e.pg.textContent='';e.tn={};e.te={};e.pb=null}
+  for(const id of x.order){const n=x.nodes[id];if(!n)continue;const p=L.pos[id],tx=p.x+ox,ty=p.y;let T=e.tn[id];
+    if(!T)T=e.tn[id]={g:E('g',{class:'tn'},e.ng),x:tx,y:ty,o:animate?0:1,born:animate};
+    const sig=JSON.stringify([n.key,n.val,n.vals,n.sets,n.label,n.color,p.w]);if(T.sig!==sig){tnBuild(e,T,n,p,animate&&!T.born);T.sig=sig}
+    Object.assign(T,{x0:T.x,y0:T.y,tx,ty,w:p.w,h:p.h,par:n.parent,dead:false});T.g.classList.toggle('onpath',onp.has(id))}
+  for(const id in e.tn)if(!x.nodes[id]){const T=e.tn[id];Object.assign(T,{x0:T.x,y0:T.y,tx:T.x,ty:T.y+14,dead:true});T.g.classList.add('dead')}
+  for(const id in e.tn){const T=e.tn[id];if(T.par==null||!e.tn[T.par])continue;let ed=e.te[id];if(!ed)ed=e.te[id]={p:E('path',{class:'te'},e.eg),t:e.childKey?E('text',{class:'tel'},e.eg,''):null};
+    ed.p.classList.toggle('hot',onp.has(id)&&onp.has(T.par));const n=x.nodes[id];if(ed.t&&n)ed.t.textContent=n.key.length?'['+n.key[0]+']':''}
+  // the lookup key under comparison, laid cell by cell over the node it is being compared with
+  const pr=x.probe&&x.nodes[x.probe.node]?x.probe:null;let P=e.pb,moved=false;
+  if(!pr){if(P)Object.assign(P,{x0:P.x,y0:P.y,tx:P.x,ty:P.y,dead:true})}
+  else{const p=L.pos[pr.node],tx=p.x+ox+U.px+U.lab,ty=p.y-U.kh-5,sig=JSON.stringify([pr.key,pr.label]);
+    if(!P||P.dead){if(P)P.g.remove();P=e.pb={g:E('g',{class:'pb',style:'--pc:'+col(e.probeColor||'c1')},e.pg),x:tx,y:ty,o:animate?0:1,born:animate,node:null}}
+    if(P.sig!==sig){P.g.textContent='';P.cells=[];E('text',{x:-6,y:U.kh/2+3,class:'pl'},P.g,pr.label||e.probeLabel||'key');
+      pr.key.forEach((v,i)=>{P.cells.push(E('rect',{x:i*U.cw,y:0,width:U.cw-2,height:U.kh,rx:3,class:'kc'},P.g));E('text',{x:i*U.cw+(U.cw-2)/2,y:U.kh/2+4,class:'kt'},P.g,v)});P.sig=sig}
+    moved=P.node!==pr.node;P.node=pr.node;Object.assign(P,{x0:P.x,y0:P.y,tx,ty,dead:false});
+    const nk=x.nodes[pr.node].key.length,m=pr.matched;
+    P.cells.forEach((c,i)=>{c.style.transitionDelay=animate&&moved?'.55s':'0s';c.setAttribute('class','kc'+(m==null?'':i<m?' hit':i===m&&i<nk?' miss':' rest'))})}
+  for(const id in e.tn){const T=e.tn[id],on=pr&&pr.node===id&&pr.matched!=null;(T.kc||[]).forEach((c,i)=>{const hit=on&&i<pr.matched,miss=on&&i===pr.matched&&i<pr.key.length;
+      c.style.transitionDelay=animate&&moved&&(hit||miss)?'.55s':'0s';c.classList.toggle('hit',!!hit);c.classList.toggle('miss',!!miss)})}
+  if(e.setG){const G=e.setG,prev=e.setPrev||{},now={};G.textContent='';let sx=0;
+    for(const sd of e.sets){const c=col(sd.color||'c4'),lb=(sd.label||sd.id)+' = {';E('rect',{x:sx,y:10,width:15,height:14,rx:4.5,class:'halo',stroke:c},G);sx+=21;
+      E('text',{x:sx,y:21,class:'setl'},G,lb);sx+=tw(lb)*10.5+7;
+      for(const id of x.order){const n=x.nodes[id];if(!n||!n.sets.includes(sd.id))continue;const cw=tw(n.label)*10.5+16,key=sd.id+'/'+id;now[key]=1;
+        const ch=E('g',{class:'chip2'+(animate&&!prev[key]?' pop':'')},G);E('rect',{x:sx,y:8,width:cw,height:18,rx:9,fill:`color-mix(in srgb,${c} 20%,var(--panel))`,stroke:c,'stroke-width':1.2},ch);E('text',{x:sx+cw/2,y:21,'text-anchor':'middle',class:'setm'},ch,n.label);sx+=cw+6}
+      E('text',{x:sx,y:21,class:'setl'},G,'}');sx+=26}
+    e.setPrev=now}
+  const draw=t=>{const q=ease(t);
+    for(const id in e.tn){const T=e.tn[id];T.x=lerp(T.x0,T.tx,q);T.y=lerp(T.y0,T.ty,q);T.o=T.dead?clamp(1-t/.55,0,1):T.born?clamp((t-.4)/.6,0,1):1;T.g.setAttribute('transform',`translate(${T.x},${T.y})`);T.g.setAttribute('opacity',T.o)}
+    if(e.pb){const Q=e.pb;Q.x=lerp(Q.x0,Q.tx,q);Q.y=lerp(Q.y0,Q.ty,q);Q.o=Q.dead?1-q:Q.born?q:1;Q.g.setAttribute('transform',`translate(${Q.x},${Q.y})`);Q.g.setAttribute('opacity',Q.o)}
+    for(const id in e.te){const T=e.tn[id],Q=T&&e.tn[T.par],ed=e.te[id];if(!Q){ed.p.setAttribute('opacity',0);if(ed.t)ed.t.setAttribute('opacity',0);continue}
+      const x1=Q.x+Q.w/2,y1=Q.y+Q.h,x2=T.x+T.w/2,y2=T.y,my=(y1+y2)/2,o=Math.min(Q.o,T.o);ed.p.setAttribute('d',`M${x1} ${y1}C${x1} ${my} ${x2} ${my} ${x2} ${y2}`);ed.p.setAttribute('opacity',o);
+      if(ed.t){ed.t.setAttribute('x',x1+(x2-x1)*.216);ed.t.setAttribute('y',y1+(y2-y1)*.342+3);ed.t.setAttribute('opacity',o)}}};
+  const done=()=>{for(const id in e.tn){const T=e.tn[id];if(T.dead){T.g.remove();delete e.tn[id];const ed=e.te[id];if(ed){ed.p.remove();ed.t&&ed.t.remove();delete e.te[id]}}else T.born=false}
+    if(e.pb){if(e.pb.dead){e.pb.g.remove();e.pb=null}else e.pb.born=false}};
+  if(animate)pend.push(tween(720,draw,done));else{draw(1);done()}}
 function buildEnt(e){ENT[e.id]=e;const g=e.g=E('g',{class:'ent st-'+(e.state||'idle'),transform:`translate(${e.x},${e.y})`},e.type==='group'?LG:LE);const w=e.w,h=e.h;
   if(e.type==='group'){E('rect',{width:w,height:h,rx:16,class:'grp'},g);E('text',{x:14,y:-7,class:'grpt'},g,e.title);return}
   if(e.type==='thread'||e.type==='ext'){E('rect',{width:w,height:h,rx:12,class:'box','stroke-dasharray':e.type==='ext'?'5 5':null},g);E('text',{x:14,y:17,class:'kind'},g,e.type==='ext'?(e.kind||'external'):(e.kind||'thread'));
@@ -529,15 +631,24 @@ function buildEnt(e){ENT[e.id]=e;const g=e.g=E('g',{class:'ent st-'+(e.state||'i
   if(e.type==='grid'){E('text',{x:0,y:-22,class:'kind'},g,e.kind||'pool');E('text',{x:0,y:-6,class:'et'},g,e.title);e.cntT=E('text',{x:w,y:-6,'text-anchor':'end',class:'cnt'},g,'');
     E('rect',{x:-6,y:-2,width:w+12,height:h+4,rx:8,class:'box'},g);const cw=w/e.cols,ch=h/e.rowsN;e.cells=[];e.hashes=[];
     for(let i=0;i<e.cols*e.rowsN;i++){const cx=(i%e.cols)*cw,cy=Math.floor(i/e.cols)*ch;e.cells.push(E('rect',{x:cx+1,y:cy+1,width:cw-2,height:ch-2,rx:2.5,class:'cell',fill:'var(--panel2)'},g));
-      e.hashes.push(E('path',{d:`M${cx+cw*.3} ${cy+ch*.7}L${cx+cw*.7} ${cy+ch*.3}`,class:'hash',opacity:0},g))}
+      e.hashes.push(E('path',{d:`M${cx+cw*.3} ${cy+ch*.7}L${cx+cw*.7} ${cy+ch*.3}`,class:'hash',opacity:0},g));if(e.index)E('text',{x:cx+cw/2,y:cy+ch/2+3.5,class:'ci'},g,i)}
     if(e.sub)E('text',{x:0,y:h+18,class:'es'},g,e.sub)}
   if(e.type==='bar'){E('text',{x:0,y:-22,class:'kind'},g,e.kind||'budget');E('text',{x:0,y:-6,class:'et'},g,e.title);e.cntT=E('text',{x:w,y:-6,'text-anchor':'end',class:'cnt'},g,'');
     E('rect',{width:w,height:h,rx:6,class:'pipe'},g);e.segG=E('g',{},g);if(e.sub)E('text',{x:0,y:h+18,class:'es'},g,e.sub)}
+  if(e.type==='fn'){E('rect',{width:w,height:h,rx:10,class:'box fnb'},g);E('rect',{x:0,y:9,width:3.5,height:h-18,rx:1.75,fill:col(e.color||'c2')},g);
+    E('text',{x:14,y:e.sub?h/2-3:h/2+5,class:'fnt'},g,e.title);if(e.sub)E('text',{x:14,y:h/2+15,class:'es'},g,e.sub)}
+  if(e.type==='tree'){E('rect',{width:w,height:h,rx:14,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'tree');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
+    const U=TU;e.HEAD=e.sub?64:50;e.FOOT=(e.sets||[]).length?34:10;e.lane=U.kh+14;
+    e.nodeH=U.hh+U.kh+(e.valLabel?U.vh+3:0)+((e.badges||[]).some(b=>b.row==='bottom')?U.br:0)+U.py;
+    let k=e.maxScale||1.5;for(const s of SNAP){const L=treeLayout(e,s.ent[e.id]);k=Math.min(k,(w-24)/L.W,(h-e.HEAD-e.FOOT-6)/L.H)}e.k=k;
+    const vp=E('g',{transform:`translate(0,${e.HEAD}) scale(${k})`},g);e.eg=E('g',{},vp);e.ng=E('g',{},vp);e.pg=E('g',{},vp);e.tn={};e.te={};e.pb=null;
+    if(e.FOOT>10){E('path',{d:`M12 ${h-e.FOOT}H${w-12}`,class:'rowl'},g);e.setG=E('g',{transform:`translate(14,${h-e.FOOT})`},g)}}
   e.varG=E('g',{},g);e.varEl={}}
 function slotPos(loc,i,n,id){const [eid,slot]=loc;const e=ENT[eid];const s=tokSize(id);
   if(e.type==='queue'){if(e.dir==='v')return {x:e.x+e.w/2,y:e.y+10+s.h/2+i*(s.h+7),o:(10+(i+1)*(s.h+7)>e.h+4)?0:1};
     const x=e.x+e.w-14-s.w/2-i*(s.w+7);return {x,y:e.y+e.h/2,o:x-s.w/2<e.x+4?0:1}}
   if(e.type==='store'){const r=e.rowY[slot]||Object.values(e.rowY)[0];return {x:e.x+r.x+s.w/2+i*(s.w+6),y:e.y+r.y,o:1}}
+  if(e.type==='fn')return {x:e.x+e.w-s.w/2-10,y:e.y+e.h/2,o:1};
   const gap=6;let tot=0;const ws=[];for(const t of n)ws.push(tokSize(t).w);tot=ws.reduce((a,b)=>a+b,0)+gap*(ws.length-1);let x=e.x+e.w/2-tot/2;for(let k=0;k<i;k++)x+=ws[k]+gap;
   return {x:x+s.w/2,y:e.y+e.h-45,o:1}}
 
@@ -555,7 +666,8 @@ const wpt=(w,t)=>{const p=w.el.getPointAtLength(w.L*t);return [p.x,p.y]};
 /* ---------------- state ---------------- */
 // state = {loc:{'ent/slot':[tokIds]}, tok:{id:{done,total,tag}}, ent:{id:{state,on,vars:{},mk:{},cells:[],hash:[],segs:[]}}, wires:{id:shown}}
 function init(){const st={loc:{},tok:{},ent:{},wires:{}};for(const e of S.entities){const x=st.ent[e.id]={state:e.state||'idle',on:e.on||'',vars:{...(e.vars||{})},mk:{},segs:[]};
-    for(const m of e.markers||[])x.mk[m.id]=m.v;if(e.type==='grid'){x.cells=Array(e.cols*e.rowsN).fill(null);x.hash=Array(e.cols*e.rowsN).fill(false)}}
+    for(const m of e.markers||[])x.mk[m.id]=m.v;if(e.type==='grid'){x.cells=Array(e.cols*e.rowsN).fill(null);x.hash=Array(e.cols*e.rowsN).fill(false)}
+    if(e.type==='tree'){x.nodes={};x.order=[];x.path=[];x.probe=null;for(const n of e.nodes||[]){x.nodes[n.id]={parent:n.parent||null,key:n.key||[],val:n.val||[],vals:{...(n.vals||{})},sets:[...(n.sets||[])],label:n.label||n.id,color:n.color||null};x.order.push(n.id)}}}
   for(const w of S.wires||[])st.wires[w.id]=!w.hidden;for(const o of S.setup||[])apply(st,o);return st}
 const key=l=>l[0]+'/'+(l[1]||'hand');
 function unplace(st,id){for(const k in st.loc){const i=st.loc[k].indexOf(id);if(i>=0)st.loc[k].splice(i,1)}}
@@ -575,6 +687,14 @@ function apply(st,o){const x=o.ent&&st.ent[o.ent];
       else{for(let i=0;i<x.cells.length&&n;i++)if(x.cells[i]===null&&!x.hash[i]){x.cells[i]=o.who;if(o.hash)x.hash[i]=true;n--}for(let i=x.cells.length-1;i>=0&&n;i--)if(x.cells[i]===null){x.cells[i]=o.who;x.hash[i]=!!o.hash;n--}}}break;
     case 'free':for(let i=0;i<x.cells.length;i++)if(x.cells[i]===o.who){x.cells[i]=null;if(o.dropHash)x.hash[i]=false}break;
     case 'hash':for(let i=0;i<x.cells.length;i++)if(x.cells[i]===o.who)x.hash[i]=true;break;
+      case 'node':x.nodes[o.id]={parent:o.parent,key:o.key||[],val:o.val||[],vals:{...(o.vals||{})},sets:[...(o.sets||[])],label:o.label||o.id,color:o.color||null};x.order.push(o.id);break;
+      case 'split':{const n=x.nodes[o.node],k=o.at;x.nodes[o.new]={parent:n.parent,key:n.key.slice(0,k),val:n.val.slice(0,k),vals:{...n.vals,...(o.vals||{})},sets:[...(o.sets||[])],label:o.label||o.new,color:o.color||n.color};
+        n.key=n.key.slice(k);n.val=n.val.slice(k);n.parent=o.new;x.order.splice(x.order.indexOf(o.node),0,o.new);break}
+      case 'nset':{const n=x.nodes[o.node];if(o.key)n.key=o.key;if(o.val)n.val=o.val;if(o.vals)Object.assign(n.vals,o.vals);if(o.label)n.label=o.label;if(o.color)n.color=o.color;break}
+      case 'member':{const n=x.nodes[o.node],i=n.sets.indexOf(o.set);if(o.in===false){if(i>=0)n.sets.splice(i,1)}else if(i<0)n.sets.push(o.set);break}
+      case 'del':delete x.nodes[o.node];x.order.splice(x.order.indexOf(o.node),1);if(x.probe&&x.probe.node===o.node)x.probe=null;x.path=(x.path||[]).filter(i=>i!==o.node);break;
+      case 'path':x.path=o.nodes||[];break;
+      case 'probe':x.probe=o.node!=null?{node:o.node,key:o.key||[],matched:o.matched==null?null:o.matched,label:o.label||null}:null;break;
   }}
 
 /* ---------------- rendering (state → positions and attributes) ---------------- */
@@ -594,10 +714,11 @@ function renderEnt(st,animate){for(const e of S.entities){const x=st.ent[e.id];i
     if(e.type==='queue'){const n=(st.loc[e.id+'/hand']||[]).length;e.cntT.textContent=e.cap?`${n+(x.vars._base||0)} / ${e.cap}`:(e.count===false?'':`${n}`);if(e.fill)e.fill.setAttribute('width',Math.max(n?4:0,(e.w-20)*clamp((n+(x.vars._base||0))/(e.capShow||e.cap),0,1)))}
     // vars
     const ks=Object.keys(x.vars).filter(k=>!k.startsWith('_'));ks.forEach((k,i)=>{let v=e.varEl[k];if(!v){const vg=E('g',{class:'var'},e.varG);v=e.varEl[k]={g:vg,k:E('text',{class:'k'},vg,k),v:E('text',{class:'v'},vg,''),val:null}}
-      const by=(e.type==='queue'||e.type==='grid'||e.type==='bar')?e.h+(e.sub?36:20)+(e.cap?8:0):e.h+(e.type==='thread'?30:18);v.g.setAttribute('transform',`translate(${e.varX||4},${by+i*17})`);v.v.setAttribute('x',tw(k)*11.6+9);
+      const by=(e.type==='queue'||e.type==='grid'||e.type==='bar')?e.h+(e.sub?36:20)+(e.cap?8:0):e.h+(e.type==='thread'?30:18);if(e.type==='tree'){const vw=Math.max(...ks.map(q=>tw(q)*11.6))+9+26;v.g.setAttribute('transform',`translate(${e.w-vw-10},${22+i*17})`)}else v.g.setAttribute('transform',`translate(${e.varX||4},${by+i*17})`);v.v.setAttribute('x',tw(k)*11.6+9);
       if(v.val!==x.vars[k]){roll(v,v.val,x.vars[k],animate);v.val=x.vars[k]}});
     for(const k in e.varEl)if(!(k in x.vars)){e.varEl[k].g.remove();delete e.varEl[k]}
     if(e.type==='log')for(const m of e.markers){const M=e.mk[m.id];const v=x.mk[m.id];if(M.v===null||!animate){M.v=v;placeMk(e,M)}else if(M.v!==v)tween(700,t=>{M.cur=lerp(M.from,v,ease(t));placeMk(e,M,M.cur)},()=>{M.v=v},M.from=M.v)}
+    if(e.type==='tree')renderTree(e,x,animate);
     if(e.type==='grid'){let d=0,used=0;x.cells.forEach((who,i)=>{const f=who?`color-mix(in srgb,${tcol(who)} 62%,var(--panel))`:'var(--panel2)';const c=e.cells[i];if(c.dataset.f!==f){c.style.transitionDelay=animate?(d++*18)+'ms':'0ms';c.setAttribute('fill',f);c.dataset.f=f}
         e.hashes[i].style.opacity=x.hash[i]?.6:0;if(who)used++});e.cntT.textContent=e.count===false?'':`空闲 ${x.cells.length-used} 格`}
     if(e.type==='bar'){const tot=e.total;let acc=0;const els=[...e.segG.children];x.segs.forEach(([who,n],i)=>{let r=els[i];if(!r)r=E('rect',{y:2,height:e.h-4,rx:4,x:0,width:0,style:'transition:all .6s'},e.segG);
@@ -608,13 +729,13 @@ function roll(v,a,b,animate){const el=v.v;const na=String(a??'').match(/-?\d+(\.
   if(animate&&a!=null){v.g.classList.add('flash');setTimeout(()=>v.g.classList.remove('flash'),1400)}
   if(!animate||a==null||!na||!nb||na.length!==nb.length||shape(a)!==shape(b)){el.textContent=b;return}
   tween(650,t=>{let i=0;el.textContent=String(b).replace(/-?\d+(\.\d+)?/g,()=>{const x=lerp(+na[i],+nb[i],ease(t));i++;return Math.round(x)})},()=>{el.textContent=b})}
-const anims=new Set();
+const anims=new Set(),pend=[];
 function tween(ms,f,done){if(RM||!ms){f(1);done&&done();return Promise.resolve()}return new Promise(res=>{const t0=performance.now();const a={stop:false};anims.add(a);const step=now=>{if(a.stop){anims.delete(a);return res()}const t=Math.min(1,(now-t0)/ms);f(t);if(t<1)requestAnimationFrame(step);else{anims.delete(a);done&&done();res()}};requestAnimationFrame(step)})}
 function snap(st){for(const a of anims)a.stop=true;anims.clear();LFX.innerHTML='';const tg=targets(st);for(const id in TOK)if(!(id in tg)){TOK[id].g.remove();delete TOK[id]}
   for(const id in tg){const T=tokEl(id);Object.assign(T,{x:tg[id].x,y:tg[id].y,o:tg[id].o,sc:1});put(T);const k=st.tok[id]||{};if(T.pgT)setPg(T,k.done||0,k.total||1);T.tagT.textContent=k.tag||''}
   renderEnt(st,false)}
 // animate from the rendered picture to state `st`, using the beat's ops as hints (which wire a token rides, pulses…)
-async function animateTo(st,ops,ms){const tg=targets(st);const jobs=[];const via={};for(const o of ops)if(o.op==='move'&&o.via)via[o.tok]=o;
+async function animateTo(st,ops,ms){const tg=targets(st);const jobs=[],after=[];const via={};for(const o of ops)if(o.op==='move'&&o.via)via[o.tok]=o;
   for(const id in TOK)if(!(id in tg)){const T=TOK[id];delete TOK[id];jobs.push(tween(ms*.5,t=>{T.o=1-t;T.sc=1-.4*t;put(T)},()=>T.g.remove()))}
   for(const id in tg){const fresh=!TOK[id];const T=tokEl(id);const p=tg[id];const k=st.tok[id]||{};
     if(fresh){Object.assign(T,{x:p.x,y:p.y,o:0,sc:.3});if(T.pgT)setPg(T,k.done||0,k.total||1);jobs.push(tween(ms*.6,t=>{const e=ease(t);T.o=e*p.o;T.sc=.3+.7*e+.25*Math.sin(Math.PI*e);put(T)},()=>{T.sc=1;put(T)}))}
@@ -626,11 +747,11 @@ async function animateTo(st,ops,ms){const tg=targets(st);const jobs=[];const via
   for(const o of ops){
     if(o.op==='pulse'){const w=WIRE[o.wire];w.el.classList.add('hot');const dot=E('circle',{r:6,fill:w.color},LFX);const go=(a,b)=>tween(ms*.8,t=>{const q=wpt(w,lerp(a,b,ease(t)));dot.setAttribute('cx',q[0]);dot.setAttribute('cy',q[1])});
       jobs.push((async()=>{await go(o.rev?1:0,o.rev?0:1);if(o.back)await go(o.rev?0:1,o.rev?1:0);dot.remove();w.el.classList.remove('hot')})())}
-    if(o.op==='flash'){const e=ENT[o.ent];ring(e.x+e.w/2,e.y+e.h/2,Math.max(e.w,e.h)/2+8,o.color,e)}
+    if(o.op==='flash'){const e=ENT[o.ent];if(o.node!=null&&e.type==='tree')after.push(()=>{const T=e.tn[o.node];if(T)ring(0,0,0,o.color,{x:e.x+T.tx*e.k,y:e.y+e.HEAD+T.ty*e.k,w:T.w*e.k,h:T.h*e.k})});else ring(e.x+e.w/2,e.y+e.h/2,Math.max(e.w,e.h)/2+8,o.color,e)}
     if(o.op==='wire'&&o.show!==false){const w=WIRE[o.id];w.el.style.strokeDasharray=w.L;w.el.style.strokeDashoffset=w.L;w.el.classList.remove('hid');if(w.lab)w.lab.classList.remove('hid');jobs.push(tween(ms,t=>{w.el.style.strokeDashoffset=w.L*(1-ease(t))},()=>{w.el.style.strokeDasharray='';w.el.style.strokeDashoffset=''}))}
     if(o.op==='run'){const e=ENT[o.ent];const sw=E('rect',{x:e.x,y:e.y,width:18,height:e.h,fill:'var(--ink)',opacity:.22,rx:4},LFX);jobs.push(tween(ms*1.2,t=>sw.setAttribute('x',e.x+(e.w-18)*ease(t)),()=>sw.remove()))}}
-  renderEnt(st,true);await Promise.all(jobs)}
-function ring(x,y,r,c,e){const el=e?E('rect',{x:e.x-6,y:e.y-6,width:e.w+12,height:e.h+12,rx:16,class:'ring',stroke:c?col(c):null},LFX):E('circle',{cx:x,cy:y,r,class:'ring'},LFX);tween(900,t=>{el.setAttribute('opacity',1-t);if(!e)el.setAttribute('r',r+14*t)},()=>el.remove())}
+  renderEnt(st,true);jobs.push(...pend.splice(0));for(const f of after)f();await Promise.all(jobs)}
+function ring(x,y,r,c,e){const el=e?E('rect',{x:e.x-6,y:e.y-6,width:e.w+12,height:e.h+12,rx:16,class:'ring',style:c?'stroke:'+col(c):null},LFX):E('circle',{cx:x,cy:y,r,class:'ring'},LFX);tween(900,t=>{el.setAttribute('opacity',1-t);if(!e)el.setAttribute('r',r+14*t)},()=>el.remove())}
 
 /* ---------------- steps ---------------- */
 const STEPS=S.steps;const SNAP=[];{let st=init();SNAP.push(JSON.parse(JSON.stringify(st)));for(const s of STEPS){for(const b of s.beats||[])for(const o of [].concat(b))apply(st,o);SNAP.push(JSON.parse(JSON.stringify(st)))}}
