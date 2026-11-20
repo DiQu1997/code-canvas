@@ -355,10 +355,48 @@ def main():
                 if p["x"] < q["x"] + q["w"] and q["x"] < p["x"] + p["w"] and p["y"] < q["y"] + q["h"] and q["y"] < p["y"] + p["h"]:
                     R.e(f"scene: entities {p['id']} and {q['id']} overlap")
         W = {w["id"] for w in sc.get("wires") or []}
+        # phone layout: the same entities re-arranged for a narrow screen; it must hold together on its own
+        ph = sc.get("phone")
+        if ph is not None:
+            num = lambda v: isinstance(v, (int, float))
+            pe, stacked = {}, {}
+            for k, ov in (ph.get("entities") or {}).items():
+                if k not in E: R.e(f"scene phone.entities: unknown entity {k}"); continue
+                if "cols" in ov or "rowsN" in ov or "type" in ov or "id" in ov: R.e(f"scene phone.entities.{k}: only placement/looks may change (not id/type/cols/rowsN)")
+                pe[k] = dict(E[k], **ov)
+            for k, e0 in E.items(): pe.setdefault(k, dict(e0))
+            for i, sk in enumerate(ph.get("stacks") or []):
+                ids = sk.get("ids") or []
+                if len(ids) < 2: R.e(f"scene phone.stacks[{i}]: a stack needs at least 2 ids")
+                if not all(num(sk.get(k)) for k in "xywh"): R.e(f"scene phone.stacks[{i}]: x/y/w/h missing")
+                for q in ids:
+                    if q not in E: R.e(f"scene phone.stacks[{i}]: unknown entity {q}")
+                    elif q in stacked: R.e(f"scene phone.stacks: entity {q} is in two stacks")
+                    else:
+                        stacked[q] = i
+                        pe[q].update({k: sk.get(k) for k in "xywh"})
+            for k, ov in (ph.get("wires") or {}).items():
+                if k not in W: R.e(f"scene phone.wires: unknown wire {k}"); continue
+                for end in (ov.get("a"), ov.get("b")):
+                    if end is not None and (not isinstance(end, list) or not end or end[0] not in E): R.e(f"scene phone.wires.{k}: bad anchor {end}")
+            vis, seen = [], set()
+            for k, e1 in pe.items():
+                if e1.get("type") == "group" or e1.get("hide") or not all(num(e1.get(q)) for q in "xywh"): continue
+                if k in stacked:
+                    if stacked[k] in seen: continue
+                    seen.add(stacked[k])
+                vis.append(e1)
+            for i, p1 in enumerate(vis):
+                for p2 in vis[i + 1:]:
+                    if p1["x"] < p2["x"] + p2["w"] and p2["x"] < p1["x"] + p1["w"] and p1["y"] < p2["y"] + p2["h"] and p2["y"] < p1["y"] + p1["h"]:
+                        R.e(f"scene phone: entities {p1['id']} and {p2['id']} overlap")
+            if vis:
+                pw = max(v["x"] + v["w"] for v in vis) - min(v["x"] for v in vis)
+                if pw > 380: R.w(f"scene phone: layout is {pw:.0f} wide — over ~380 it gets scaled down on a phone and text shrinks")
         toks, alive = sc.get("tokens") or {}, set()
         OPS = {"spawn", "move", "gone", "tok", "state", "var", "mark", "wire", "segs", "batch", "alloc", "free", "hash", "pulse", "flash", "run",
-               "node", "split", "nset", "member", "del", "path", "probe"}
-        TREE_OPS = {"node", "split", "nset", "member", "del", "path", "probe"}
+               "node", "split", "nset", "member", "del", "path", "probe", "ptr"}
+        TREE_OPS = {"node", "split", "nset", "member", "del", "path", "probe", "ptr"}
         # tree entities are replayed too: which nodes exist right now, who their parent is, how many key cells they hold
         TN = {e["id"]: {nd["id"]: {"parent": nd.get("parent"), "n": len(nd.get("key") or [])} for nd in e.get("nodes") or [] if nd.get("id")}
               for e in E.values() if e.get("type") == "tree"}
@@ -399,6 +437,9 @@ def main():
             elif op == "path":
                 for n in o.get("nodes") or []:
                     if n not in T: R.e(f"{where}: path refers to tree node {n!r}, which does not exist at this point")
+            elif op == "ptr":
+                if not o.get("id"): R.e(f"{where}: ptr needs id (the pointer's name; omit node to drop it)")
+                if o.get("node") is not None: need("node")
             elif op == "probe":
                 if o.get("node") is not None:
                     need("node")

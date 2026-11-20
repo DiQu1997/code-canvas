@@ -45,6 +45,24 @@
 
     {"id": "w_t_pool", "a": ["tree", "r", 0.3007], "b": ["pool", "l"], "kind": "data"}
   ],
+  "phone": {
+    "stacks": [{"ids": ["f_match", "f_inc", "f_evict", "fwd", "f_ckpt", "f_insert", "f_dec"], "x": 0, "y": 0, "w": 350, "h": 46}],
+    "entities": {
+      "g_ops": {"hide": true},
+      "tree": {"x": 0, "y": 72, "w": 350, "h": 500, "compact": true},
+      "pool": {"x": 6, "y": 612, "w": 150, "h": 56, "sub": "value 里的数 = 槽位号"},
+      "sizes": {"x": 190, "y": 630, "w": 160, "h": 18}
+    },
+    "wires": {
+      "w_match_t": {"a": ["f_match", "b", 0.14], "b": ["tree", "t", 0.14], "la": "start", "ldx": 8, "ldy": 11},
+      "w_inc_t": {"a": ["f_inc", "b", 0.14], "b": ["tree", "t", 0.14], "la": "start", "ldx": 8, "ldy": 11},
+      "w_evict_t": {"a": ["f_evict", "b", 0.14], "b": ["tree", "t", 0.14], "la": "start", "ldx": 8, "ldy": 11},
+      "w_ins_t": {"a": ["f_insert", "b", 0.14], "b": ["tree", "t", 0.14], "la": "start", "ldx": 8, "ldy": 11},
+      "w_dec_t": {"a": ["f_dec", "b", 0.14], "b": ["tree", "t", 0.14], "la": "start", "ldx": 8, "ldy": 11},
+      "w_ck_ins": {"hide": true},
+      "w_t_pool": {"hide": true}
+    }
+  },
   "setup": [
     {"op": "spawn", "tok": "B", "at": ["f_match"]},
     {"op": "alloc", "ent": "pool", "who": "A", "n": 4},
@@ -84,8 +102,8 @@
      "focus": ["f_match", "tree"],
      "at": {"card": "match_helper", "line": 671, "line2": 673},
      "beats": [
-       [{"op": "pulse", "wire": "w_match_t", "rev": true}, {"op": "state", "ent": "f_match", "s": "idle"}, {"op": "var", "ent": "f_match", "k": "→ last_node", "v": "N"}],
-       [{"op": "probe", "ent": "tree"}]
+       [{"op": "pulse", "wire": "w_match_t", "rev": true}, {"op": "state", "ent": "f_match", "s": "idle"}],
+       [{"op": "probe", "ent": "tree"}, {"op": "ptr", "ent": "tree", "id": "last", "node": "N", "label": "B.last_node", "color": "c1"}]
      ]},
     {"tick": "③ 加锁",
      "text": "B 被接纳进批次，调度器锁住 last_node（schedule_policy.py:2038）。inc_lock_ref(N) 从 N 走到 root：N 的 lock_ref 0 → 1，它的 2 个 token 从 evictable 记到 protected，B 跑完前不会被淘汰。",
@@ -128,7 +146,7 @@
     {"tick": "⑥ 存回",
      "text": "B 结束，checkpoint 把完整序列 [1,2,5,6] 存回树（设定：和 prompt 等长，:499 的二次切分不触发）。insert 从 root 往下：N 的 [1,2] 整段对上，剩下 [5,6]，N 没有以 5 开头的孩子。",
      "value": "剩下 [5,6]",
-     "focus": ["f_insert", "f_ckpt", "tree"],
+     "focus": ["f_ckpt", "f_insert", "tree"],
      "at": {"card": "insert_helper", "line": 733, "line2": 739},
      "beats": [
        [{"op": "move", "tok": "B", "to": ["f_ckpt"]}, {"op": "state", "ent": "f_ckpt", "s": "run"}],
@@ -138,7 +156,7 @@
     {"tick": "⑥ 存回",
      "text": "还剩没匹配的尾巴 → 新建叶子 L = [5,6]，value 就是 B 刚用的槽位 4、5，挂到 N 下面。evictable_size_ += 2；L 没锁、没孩子，进 evictable_leaves。",
      "value": "L = [5,6] → 槽位 [4,5]",
-     "focus": ["f_insert", "f_ckpt", "tree", "pool", "sizes"],
+     "focus": ["f_ckpt", "f_insert", "tree", "pool", "sizes"],
      "at": {"card": "insert_helper", "line": 753, "line2": 763},
      "beats": [
        [{"op": "node", "ent": "tree", "id": "L", "parent": "N", "key": [5, 6], "val": [4, 5], "color": "c1", "vals": {"lock_ref": 0, "t": 30}, "sets": ["ev"]}, {"op": "probe", "ent": "tree"}, {"op": "var", "ent": "sizes", "k": "evictable_size_", "v": 4}],
@@ -151,7 +169,7 @@
      "at": {"card": "checkpoint", "line": 548, "line2": 550},
      "beats": [
        [{"op": "state", "ent": "f_dec", "s": "run"}, {"op": "pulse", "wire": "w_dec_t"}, {"op": "nset", "ent": "tree", "node": "N", "vals": {"lock_ref": 0}}, {"op": "var", "ent": "sizes", "k": "evictable_size_", "v": 6}, {"op": "var", "ent": "sizes", "k": "protected_size_", "v": 0}],
-       [{"op": "state", "ent": "f_dec", "s": "idle"}, {"op": "state", "ent": "f_inc", "s": "run"}, {"op": "pulse", "wire": "w_inc_t"}, {"op": "nset", "ent": "tree", "node": "L", "vals": {"lock_ref": 1}}, {"op": "member", "ent": "tree", "node": "L", "set": "ev", "in": false}, {"op": "nset", "ent": "tree", "node": "N", "vals": {"lock_ref": 1}}, {"op": "var", "ent": "sizes", "k": "evictable_size_", "v": 2}, {"op": "var", "ent": "sizes", "k": "protected_size_", "v": 4}, {"op": "path", "ent": "tree", "nodes": ["root", "N", "L"]}],
+       [{"op": "state", "ent": "f_dec", "s": "idle"}, {"op": "state", "ent": "f_inc", "s": "run"}, {"op": "pulse", "wire": "w_inc_t"}, {"op": "nset", "ent": "tree", "node": "L", "vals": {"lock_ref": 1}}, {"op": "member", "ent": "tree", "node": "L", "set": "ev", "in": false}, {"op": "nset", "ent": "tree", "node": "N", "vals": {"lock_ref": 1}}, {"op": "var", "ent": "sizes", "k": "evictable_size_", "v": 2}, {"op": "var", "ent": "sizes", "k": "protected_size_", "v": 4}, {"op": "path", "ent": "tree", "nodes": ["root", "N", "L"]}, {"op": "ptr", "ent": "tree", "id": "last", "node": "L", "label": "B.last_node", "color": "c1"}],
        [{"op": "state", "ent": "f_inc", "s": "idle"}, {"op": "state", "ent": "f_ckpt", "s": "idle"}]
      ]},
     {"tick": "⑧ 释放",
@@ -162,7 +180,7 @@
      "beats": [
        [{"op": "move", "tok": "B", "to": ["f_dec"]}, {"op": "state", "ent": "f_dec", "s": "run"}],
        [{"op": "pulse", "wire": "w_dec_t"}, {"op": "nset", "ent": "tree", "node": "L", "vals": {"lock_ref": 0}}, {"op": "member", "ent": "tree", "node": "L", "set": "ev"}, {"op": "nset", "ent": "tree", "node": "N", "vals": {"lock_ref": 0}}, {"op": "var", "ent": "sizes", "k": "evictable_size_", "v": 6}, {"op": "var", "ent": "sizes", "k": "protected_size_", "v": 0}, {"op": "path", "ent": "tree", "nodes": []}],
-       [{"op": "state", "ent": "f_dec", "s": "idle"}, {"op": "gone", "tok": "B"}]
+       [{"op": "state", "ent": "f_dec", "s": "idle"}, {"op": "gone", "tok": "B"}, {"op": "ptr", "ent": "tree", "id": "last"}]
      ]}
   ]
 }
