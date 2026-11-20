@@ -44,7 +44,7 @@
   "modules": [
     {"id": "caller", "title": "调度器", "kind": "external", "pos": [0, 1.35], "span": [0.6, 0.9], "oneliner": "给请求找前缀、加锁，结束时存回"},
     {"id": "match", "title": "匹配前缀", "kind": "component", "pos": [0.85, 0], "span": [1.3, 1.25], "oneliner": "从 root 往下走，对上多长算多长；只对上一半就把节点切开",
-     "anatomy": {"primitive": "flow",
+     "anatomy": {"primitive": "cfg",
        "items": [
          {"id": "mp", "label": "入口：对齐 key", "sub": "match_prefix()", "card": "match_prefix", "short": "入口"},
          {"id": "h", "label": "顺着孩子往下走", "sub": "_match_prefix_helper()", "card": "match_helper", "short": "走树"},
@@ -56,7 +56,7 @@
        "not": "不加锁。返回的 last_node 由调用方（schedule_policy.py:2038）再调用 lock() 锁住。",
        "methods": [["match_prefix(params)", "→ MatchResult", "入口：对齐 key，空则返回预先做好的空结果"], ["_match_prefix_helper(node, key)", "→ (value, node)", "循环走树，收集每段 value"], ["_split_node(key, child, split_len)", "→ TreeNode", "新建节点接管前半段"]]}},
     {"id": "lock", "title": "加锁 / 解锁", "kind": "component", "pos": [0.85, 1.4], "span": [1.3, 1.25], "oneliner": "从一个节点沿父指针走到 root，lock_ref 逐个 ±1",
-     "anatomy": {"primitive": "flow",
+     "anatomy": {"primitive": "cfg",
        "items": [
          {"id": "inc", "label": "加锁到 root", "sub": "inc_lock_ref()", "card": "inc_lock", "short": "加锁"},
          {"id": "dec", "label": "解锁到 root", "sub": "dec_lock_ref()", "card": "dec_lock", "short": "解锁"},
@@ -68,7 +68,7 @@
        "not": "不动 key / value，也不改树的形状。root 的 lock_ref 固定为 1，循环到 root 就停。",
        "methods": [["inc_lock_ref(node)", "→ IncLockRefResult", "路径上每个节点 +1"], ["dec_lock_ref(node, params)", "→ DecLockRefResult", "路径上每个节点 −1"], ["_update_leaf_status(node)", "→ None", "没锁、没活孩子 → 进 evictable_leaves，否则移出"]]}},
     {"id": "ckpt", "title": "请求结束存回", "kind": "component", "pos": [0.85, 2.8], "span": [1.3, 1.25], "oneliner": "把请求算出来的序列插进树，再把锁从旧末端换到新末端",
-     "anatomy": {"primitive": "flow",
+     "anatomy": {"primitive": "cfg",
        "items": [
          {"id": "ck", "label": "存回树 + 换锁", "sub": "checkpoint()", "card": "checkpoint", "short": "存回"},
          {"id": "ic", "label": "插入并归还重复槽位", "sub": "_insert_cache()", "card": "insert_cache", "short": "插入"}
@@ -99,7 +99,7 @@
        "not": "不存 KV 张量：value 只是槽位下标，真正的 KV 在分配器管理的池子里。",
        "fields": [["parent", "TreeNode", "加锁 / 解锁沿它往上走"], ["hit_count / priority", "int", "统计与优先级淘汰用"], ["root_node", "TreeNode", "空 key、空 value，lock_ref 固定为 1"]]}},
     {"id": "insert", "title": "插入", "kind": "component", "pos": [4.3, 0], "span": [1.3, 1.25], "oneliner": "走到分叉处，把没匹配的尾巴挂成新叶子",
-     "anatomy": {"primitive": "flow",
+     "anatomy": {"primitive": "cfg",
        "items": [
          {"id": "in", "label": "入口：对齐、截断", "sub": "insert()", "card": "insert", "short": "入口"},
          {"id": "ih", "label": "走到分叉处挂新叶", "sub": "_insert_helper()", "card": "insert_helper", "short": "挂叶子"}
@@ -110,7 +110,7 @@
        "not": "不分配槽位：value 是调用方给的（请求已经占着的槽位号）。",
        "methods": [["insert(params)", "→ InsertResult", "入口：对齐 key、截短 value"], ["_insert_helper(node, key, value, …)", "→ (prefix_len, node)", "走树 + 挂新叶子"]]}},
     {"id": "evict", "title": "淘汰", "kind": "component", "pos": [4.3, 1.4], "span": [1.3, 1.25], "oneliner": "把可淘汰叶子按优先级建堆，逐个弹出直到腾够",
-     "anatomy": {"primitive": "flow",
+     "anatomy": {"primitive": "cfg",
        "items": [
          {"id": "ev", "label": "弹出最旧的叶子", "sub": "evict()", "card": "evict", "short": "弹出"},
          {"id": "dl", "label": "摘掉叶子", "sub": "_delete_leaf()", "card": "delete_leaf", "short": "摘掉"}

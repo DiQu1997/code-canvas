@@ -122,6 +122,36 @@ body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
 .slot{fill:none;stroke:var(--faint);stroke-width:1;vector-effect:non-scaling-stroke}
 .slot.on{fill:var(--faint);fill-opacity:.35}
 .ring{fill:none;stroke:var(--line);stroke-width:1.2;vector-effect:non-scaling-stroke}
+/* cfg: function skeletons */
+.cff{fill:var(--panel)}
+.cfh{stroke:var(--line);stroke-width:1;fill:none}
+.cfsp{stroke:var(--faint);stroke-width:1.6;fill:none;stroke-linecap:round}
+.cftk{stroke:var(--faint);stroke-width:1.2;fill:none}
+.cfd{fill:var(--panel);stroke:var(--muted);stroke-width:1.5}
+.cfdi{fill:var(--panel);stroke:var(--c1);stroke-width:1.6}
+#svg text.cfs,.layer text.cfs{font-family:var(--sans)}
+.cft{fill:var(--ink)}
+.cfk{fill:var(--muted)}
+.cfq{fill:var(--c1)}
+.cfr{fill:color-mix(in srgb,var(--c6) 15%,transparent);stroke:var(--c6);stroke-width:1}
+.cfrt{fill:var(--c6);font-weight:600}
+.cfr.x{fill:color-mix(in srgb,var(--c5) 15%,transparent);stroke:var(--c5)}
+.cfrt.x{fill:var(--c5)}
+.cfj{fill:var(--panel2);stroke:var(--faint);stroke-width:1}
+.cfl{fill:color-mix(in srgb,var(--c4) 8%,transparent);stroke:var(--c4);stroke-opacity:.5;stroke-width:1}
+.cfb{fill:none;stroke:var(--c4);stroke-width:1.6;stroke-linejoin:round}
+.cfbh{fill:var(--c4)}
+.cflt{fill:var(--c4);font-weight:700}
+.cfw{fill:color-mix(in srgb,var(--c3) 18%,transparent)}
+.cfwt{fill:var(--c3)}
+.cfc{fill:color-mix(in srgb,var(--c2) 16%,transparent);stroke:var(--c2);stroke-opacity:.6;stroke-width:1}
+.cfc.out{stroke-dasharray:3 2;fill:none}
+.cfct{fill:var(--c2)}
+.cfca{fill:none;stroke:var(--c2);stroke-width:1.5;vector-effect:non-scaling-stroke;opacity:.9}
+.cfcah{fill:var(--c2)}
+.cftip rect{fill:var(--ink);opacity:.92}
+.cftip text{fill:var(--bg);font-family:var(--sans);font-weight:600}
+.cftip{pointer-events:none}
 /* cards */
 .morph{fill:var(--panel);stroke:var(--line);stroke-width:1.4;vector-effect:non-scaling-stroke;cursor:zoom-in}
 .morph.on{stroke:var(--hot);stroke-width:2.2}
@@ -402,7 +432,7 @@ function layoutAnatomy(M){const A=M.anatomy||{};const VW=M.VW,VH=M.VH;const item
   items.forEach(it=>{M.items[it.id]=it});M.fieldsL=fields;
   if(F)layoutFields(M,F,fields);
   // explicit edges
-  for(const e of A.edges||[]){const [f,t,lab,sty]=Array.isArray(e)?e:[e.from,e.to,e.label,e.style];const a=M.anch[f],b2=M.anch[t];if(!a||!b2)continue;edgeBetween(M,a,b2,lab,sty)}
+  if(P!=='cfg')for(const e of A.edges||[]){const [f,t,lab,sty]=Array.isArray(e)?e:[e.from,e.to,e.label,e.style];const a=M.anch[f],b2=M.anch[t];if(!a||!b2)continue;edgeBetween(M,a,b2,lab,sty)}
   // draw items
   for(const it of items)drawItem(M,it);
   if(A.center&&M.anch.center){M.centerIt={...A.center,id:'center',_r:M.anch.center,_ctr:true};drawItem(M,M.centerIt)}
@@ -452,6 +482,80 @@ const LAY={
   items.forEach((it,i)=>{const r=Math.floor(i/cols),c=i%cols;it._r={x:R.x+c*(w+g),y:R.y+r*(h+g),w,h,rx:7};it._cell=it._r;M.anch[it.id]=it._r})},
 };
 LAY.tree=LAY.flow;LAY.structs=LAY.grid;LAY.pool=LAY.dispatch;
+// word-aware wrap: CJK breaks anywhere, latin words / identifiers stay whole
+function wrapW(s,maxEm,maxLines){const tk=String(s??'').match(/[⺀-￿]|[^\s⺀-￿]+|\s+/g)||[];const out=[];let cur='';
+  for(let t of tk){if(/^\s+$/.test(t)){if(cur)cur+=' ';continue}
+    if(/^[，。、；：）》」！？,.;:)]$/.test(t)&&cur){cur+=t;continue}
+    while(tw(t)>maxEm){if(cur){out.push(cur);cur=''}let h='';for(const ch of t){if(tw(h+ch)>maxEm)break;h+=ch}out.push(h);t=t.slice(h.length)}
+    if(tw(cur+t)>maxEm){out.push(cur.trimEnd());cur=t}else cur+=t}
+  if(cur.trim())out.push(cur.trimEnd());if(out.length>maxLines){out.length=maxLines;out[maxLines-1]=fitStr(out[maxLines-1]+'…………',maxEm)}return out}
+// cfg: every item is one function, drawn as its control skeleton. The tree (card.cfg) is derived
+// mechanically from the card's real code by cfg_extract.py; captions are the card's block summaries.
+function cfgFrame(M,it,W,gs,gt,nodes,cont,more){const cid=itemCards(it)[0],C=cid&&CARDS[cid],T=nodes||(C&&C.cd.cfg)||[];const PAD=12,IND=17,calls=[];
+  const frame=E('rect',{x:0,y:0,width:W,height:10,rx:10,class:'ab cff'+(C?' hit':'')},gs);
+  if(cont){E('text',{x:PAD,y:20,'font-size':11.5,class:'as cfs'},gt,fitStr('↳ '+it.label+'（接上栏）',(W-2*PAD)/11.5));E('path',{d:`M0 30H${W}`,class:'cfh'},gs)}
+  else{E('text',{x:PAD,y:22,'font-size':13.5,class:'al cfs'},gt,fitStr(it.label,(W-2*PAD)/13.5));
+  E('text',{x:PAD,y:38,'font-size':10.5,class:'as'},gt,fitStr(it.sub||(C&&C.cd.title)||'',(W-2*PAD)/10.5));
+  E('path',{d:`M0 47H${W}`,class:'cfh'},gs)}
+  const para=(s,x,y,fs,cls,mw,max)=>{const L=wrapW(s,mw/fs,max);L.forEach((l,i)=>E('text',{x,y:y+fs*.86+i*fs*1.32,'font-size':fs,class:cls},gt,l));return L.length*fs*1.32};
+  const one=(s,x,y,fs,cls,mw)=>{E('text',{x,y:y+fs*.86,'font-size':fs,class:cls},gt,fitStr(s,mw/fs));return fs*1.32};
+  const pill=(s,x,y,mw,cls,sans)=>{const fs=10.5,t=fitStr(s,(mw-16)/fs),w=Math.min(mw,tw(t)*fs+16);E('rect',{x,y,width:w,height:19,rx:9.5,class:cls},gs);E('text',{x:x+8,y:y+13.4,'font-size':fs,class:(cls.includes(' x')?'cfrt x':cls.startsWith('cfr')?'cfrt':'cfk')+(sans?' cfs':'')},gt,t);return w};
+  const chips=(n,x,y,mw)=>{const L=[];for(const w of (n.w||[]).slice(0,4))L.push({t:'✎ '+w,k:'w'});for(const c of n.calls||[]){const tc=CARDS[c];L.push({t:(c===cid?'↻ ':'→ ')+(tc?tc.cd.title:c),k:'c',c})}
+    if(!L.length)return 0;const fs=9.5;let cx=x,cy=y;for(const ch of L){const w=Math.min(mw,tw(ch.t)*fs+12);if(cx+w>x+mw+.5&&cx>x){cx=x;cy+=18}
+      const inMod=ch.k==='c'&&ch.c!==cid&&(M.anatomy.items||[]).some(o=>o.id!==it.id&&itemCards(o).includes(ch.c));
+      E('rect',{x:cx,y:cy,width:w,height:15,rx:7.5,class:ch.k==='w'?'cfw':'cfc'+(inMod||ch.c===cid?'':' out')},gs);E('text',{x:cx+6,y:cy+10.8,'font-size':fs,class:ch.k==='w'?'cfwt':'cfct'},gt,fitStr(ch.t,(w-10)/fs));
+      if(inMod)calls.push({c:ch.c,x:cx+w,y:cy+7.5,x0:cx});cx+=w+5}
+    return cy-y+19};
+  const retTxt=n=>'↩ '+(n.c||'return');
+  function seq(nodes,x,y,w){const sx=x+5,cx=x+16,mw=w-16;const sp=E('path',{class:'cfsp'},gs);let y0=null,y1=null,open=true;const mk=cy=>{if(y0==null)y0=cy;y1=cy};
+    nodes.forEach((n,i)=>{open=true;
+      if(n.k==='run'){mk(y+7);E('circle',{cx:sx,cy:y+7,r:3.2,class:'cfd'},gs);y+=n.s?para(n.s,cx,y,11.5,'cfs cft',mw,3):one(n.c+(n.n>1?'  ⋯':''),cx,y+1,10.5,'cfk',mw);y+=chips(n,cx,y+2,mw);y+=8}
+      else if(n.k==='ret'){mk(y+9.5);const x5=/^raise\b/.test(n.c||'');pill(n.s?'↩ '+n.s:retTxt(n),x+0,y,w,'cfr'+(x5?' x':''),!!n.s);y+=19;y+=chips(n,cx,y+3,mw);y+=9;open=false}
+      else if(n.k==='jump'){mk(y+9.5);pill('⤴ '+n.c,x+0,y,w,'cfj');y+=27;open=false}
+      else if(n.k==='loop'){const top=y;const box=E('rect',{x:x-3,y:top,width:w+3,height:10,rx:8,class:'cfl'},gs);y+=6;mk(y+8);E('text',{x:sx,y:y+12.5,'font-size':14,'text-anchor':'middle',class:'cflt'},gt,'↻');
+        const hy=y+8;if(n.s)y+=para(n.s,cx,y,11.5,'cfs cft',mw-12,3);y+=one(n.c,cx,y+1,10.5,'cfq',mw-12);y+=chips(n,cx,y+2,mw-12);y+=7;
+        const r=seq(n.body,x+IND-4,y,w-IND-10);y=r.y;const rx=x+w-8,bx=x+IND+1;
+        if(r.last!=null){E('path',{d:`M${sx} ${hy+9}V${r.first-10}Q${sx} ${r.first} ${bx} ${r.first}`,class:'cftk'},gs);
+          if(r.open){E('path',{d:`M${bx} ${r.last}V${y-1}H${rx-5}Q${rx} ${y-1} ${rx} ${y-6}V${hy+7}`,class:'cfb'},gs);E('path',{d:`M${rx-4} ${hy+8}L${rx} ${hy+1}L${rx+4} ${hy+8}Z`,class:'cfbh'},gs)}}
+        y+=5;box.setAttribute('height',y-top);y1=y;y+=9}
+      else if(n.k==='if'){const guard=n.arms.length===1&&n.arms[0].body.length===1&&/ret|jump/.test(n.arms[0].body[0].k);const cy=y+7;mk(cy);
+        E('path',{d:`M${sx} ${cy-5.5}L${sx+5.5} ${cy}L${sx} ${cy+5.5}L${sx-5.5} ${cy}Z`,class:'cfdi'},gs);
+        if(n.s)y+=para(n.s,cx,y,11.5,'cfs cft',mw,3);
+        if(guard){const b=n.arms[0].body[0];y+=one(n.arms[0].c,cx,y+1,10.5,'cfq',mw);y+=chips(n,cx,y+2,mw);y+=3;
+          E('path',{d:`M${sx} ${cy+5.5}V${y+3.5}Q${sx} ${y+9.5} ${sx+6} ${y+9.5}H${cx}`,class:'cftk'},gs);pill(b.k==='jump'?'⤴ '+b.c:retTxt(b),cx,y,mw,b.k==='jump'?'cfj':'cfr'+(/^raise\b/.test(b.c||'')?' x':''));y+=27}
+        else{y+=chips(n,cx,y+2,mw);n.arms.forEach((a,j)=>{const ay=y+7;if(j||n.s)E('path',{d:`M${sx} ${ay}H${cx-3}`,class:'cftk'},gs);if(j)mk(ay);
+            y+=one(a.c,cx,y+1,10.5,'cfq',mw);if(a.s)y+=para(a.s,cx,y,11,'cfs cft',mw,3);y+=5;
+            const r=seq(a.body,x+IND,y,w-IND);if(r.first!=null)E('path',{d:`M${cx+2} ${ay+8}Q${cx+2} ${r.first} ${x+IND+5} ${r.first}`,class:'cftk'},gs);y=r.y+2})}}
+      });
+    if(y0!=null)sp.setAttribute('d',`M${sx} ${y0}V${y1}`);return {y,first:y0,last:y1,open}}
+  let y=cont?41:59;if(T.length){y=seq(T,PAD,y,W-2*PAD).y}else{y+=one('（没有可解析的代码结构）',PAD,y,10.5,'af',W-2*PAD)+8}
+  if(more){E('text',{x:W-PAD,y:y+9,'font-size':10.5,'text-anchor':'end',class:'as cfs'},gt,'接下栏 →');y+=16}
+  frame.setAttribute('height',y+4);return {h:y+4,calls}}
+LAY.cfg=function(M,R,items,A){const n=items.length;if(!n)return;const W=M.tall?R.w/1.25:clamp((R.w-76)/3,250,300),GX=38,GY=M.tall?16:22,HEAD=63,HEADC=45,MORE=16;
+  // every top-level node's height is independent of its neighbours: measure once, then a function too tall for the page
+  // flows into a continuation column (newspaper style) instead of shrinking the whole picture into unreadable text
+  const tmp=()=>E('g',{});const meas=items.map(it=>{const cid=itemCards(it)[0],T=(cid&&CARDS[cid]&&CARDS[cid].cd.cfg)||[];return T.length?T.map(nd=>cfgFrame(M,it,W,tmp(),tmp(),[nd]).h-HEAD):null});
+  const plan=f=>{const Hm=(R.h-14)/f;let ok=true;const per=items.map((it,i)=>{const hs=meas[i];if(!hs)return [{it,h:HEAD+22}];const T=CARDS[itemCards(it)[0]].cd.cfg,out=[];let cur=[],h=HEAD;
+      hs.forEach((nh,j)=>{if(cur.length&&h+nh+MORE>Hm&&!M.tall){out.push({it,nodes:cur,h:h+MORE,cont:out.length>0,more:true});cur=[];h=HEADC}cur.push(T[j]);h+=nh});
+      out.push({it,nodes:cur,h,cont:out.length>0});if(!M.tall&&out.some(u=>u.h>Hm))ok=false;return out});
+    const pack=stack=>{const cols=[];per.forEach(us=>{us.forEach(u=>{const L=cols[cols.length-1];if(L&&(M.tall||(stack&&us.length===1&&!L.split&&L.h+GY+u.h<=Hm))){L.us.push(u);L.h+=GY+u.h}else cols.push({us:[u],h:u.h,split:us.length>1})})});return cols};
+    let cols=pack(false);if(!M.tall&&cols.length*W+(cols.length-1)*GX>R.w/f)cols=pack(true);const nw=cols.length*W+(cols.length-1)*GX;return {cols,nw,nh:Math.max(...cols.map(c=>c.h)),ok:ok&&nw<=R.w/f+.5}};
+  let best=null,f=1.25;if(M.tall)best=plan(f);else{for(const c of [1.3,1.2,1.1,1,.92,.85,.78,.72,.66,.6,.55,.5,.45,.4,.35]){const p=plan(c);if(!best&&c<=.35){best=p;f=c}if(!p.ok)continue;const sc=c*(1-.1*p.cols.filter(k=>k.us[0].cont).length);if(!best||sc>best.sc+.001){best=p;best.sc=sc;f=c}}if(!best.ok)f=Math.min(f,R.w/best.nw,(R.h-14)/best.nh)}
+  const {cols,nw,nh}=best;const ox=R.x+(R.w-nw*f)/2,oy=M.tall?R.y:R.y+Math.max(14*f,(R.h-nh*f)/2);M.cfgH=oy+nh*f+8;const byCard={},fr=[];
+  const wrapG={};items.forEach(it=>{const o=E('g',{},M.gA),t=E('g',{},M.gAT);wrapG[it.id]={gs:E('g',{},o),gt:t};it._g=o;it._lab=t;it._cfg=true;it._r=null});
+  cols.forEach((col,ci)=>{let yy=0;col.us.forEach(u=>{const it=u.it,x=ox+ci*(W+GX)*f,y=oy+yy,tr=`translate(${x},${y}) scale(${f})`;const gs=E('g',{transform:tr},wrapG[it.id].gs),gt=E('g',{transform:tr},wrapG[it.id].gt);
+      const F=cfgFrame(M,it,W,gs,gt,u.nodes,u.cont,u.more);F.it=it;F.x=x;F.y=y;F.cont=u.cont;fr.push(F);yy+=(F.h+GY)*f;const r={x,y,w:W*f,h:F.h*f,rx:10*f};
+      if(!it._r){it._r=r;it._cell=r;M.anch[it.id]=r;M.l0.push({t:it.short||it.label,x:x+W*f/2,y:y+24*f,anc:'middle',base:'middle',mw:W*f-6,mh:44*f});itemCards(it).forEach(cid=>{byCard[cid]=F;regCard(cid,M,r,r,'item',it)})}
+      else{const a=it._r,x1=Math.max(a.x+a.w,r.x+r.w),y1=Math.max(a.y+a.h,r.y+r.h);a.x=Math.min(a.x,r.x);a.y=Math.min(a.y,r.y);a.w=x1-a.x;a.h=y1-a.y}})});
+  // calls between the functions of this module: from the call chip to the callee's header
+  for(const F of fr)for(const k of F.calls){const T=byCard[k.c];if(!T)continue;const hy=T.y+24*f;let p1,p2,d;
+    const step=(W+GX)*f,far=Math.abs(T.x-F.x)>step*1.5;let down=false;
+    if(far){const right=T.x>F.x;p1=[F.x+(right?k.x:k.x0)*f+(right?2:-2),F.y+k.y*f];const gx=right?F.x+W*f+GX*f*.5:F.x-GX*f*.5,ly=oy-11*f,tx=T.x+(right?W*f*.3:W*f*.7),q=7*f,sg=right?1:-1;p2=[tx,T.y-3];down=true;
+      d=`M${p1}H${gx-q*sg}Q${gx} ${p1[1]} ${gx} ${p1[1]-q}V${ly+q}Q${gx} ${ly} ${gx+q*sg} ${ly}H${tx-q*sg}Q${tx} ${ly} ${tx} ${ly+q}V${p2[1]}`}
+    else if(T.x>F.x+1){p1=[F.x+k.x*f+2,F.y+k.y*f];p2=[T.x-3,hy];const mx=Math.max(p1[0]+14,(F.x+W*f+T.x)/2);d=`M${p1}C${mx} ${p1[1]} ${mx} ${p2[1]} ${p2}`}
+    else if(T.x<F.x-1){p1=[F.x+k.x0*f-2,F.y+k.y*f];p2=[T.x+W*f+3,hy];const mx=(T.x+W*f+F.x)/2;d=`M${p1}C${mx} ${p1[1]} ${mx} ${p2[1]} ${p2}`}
+    else{p1=[F.x+k.x*f+2,F.y+k.y*f];p2=[T.x+W*f+3,hy];const ex=F.x+W*f+GX*f*.55;d=`M${p1}C${ex} ${p1[1]} ${ex} ${p2[1]} ${p2}`}
+    E('path',{d,class:'cfca'},M.gA);const dir=p2[0]<(T.x+W*f/2)?1:-1;E('path',{d:down?`M${p2[0]-4} ${p2[1]-7}L${p2[0]} ${p2[1]}L${p2[0]+4} ${p2[1]-7}Z`:`M${p2[0]-7*dir} ${p2[1]-4}L${p2[0]} ${p2[1]}L${p2[0]-7*dir} ${p2[1]+4}Z`,class:'cfcah'},M.gA)}};
 function grow(r,R,f){const w=r.w*f,h=r.h*f;return {x:clamp(r.x+r.w/2-w/2,R.x,R.x+R.w-w),y:clamp(r.y+r.h/2-h/2,R.y,R.y+R.h-h),w:Math.min(w,R.w),h:Math.min(h,R.h)}}
 function edgeBetween(M,a,b,lab,sty){const ac=[a.x+a.w/2,a.y+a.h/2],bc=[b.x+b.w/2,b.y+b.h/2];
   const clip=(r,c,o)=>{const dx=o[0]-c[0],dy=o[1]-c[1];if(r.circle){const L=Math.hypot(dx,dy)||1;return [c[0]+dx/L*(r.w/2+3),c[1]+dy/L*(r.h/2+3)]}
@@ -460,7 +564,7 @@ function edgeBetween(M,a,b,lab,sty){const ac=[a.x+a.w/2,a.y+a.h/2],bc=[b.x+b.w/2
   const qx=mx-(p2[1]-p1[1])/L*bend,qy=my+(p2[0]-p1[0])/L*bend;
   E('path',{d:`M${p1} Q${qx} ${qy} ${p2}`,class:'ae'+(sty==='dash'?' dash':''),'marker-end':'url(#ar-an)'},M.gA);
   if(lab){const fs=11;E('text',{x:qx,y:qy-4,'text-anchor':'middle','font-size':fs,class:'ael'},M.gAT,fitStr(lab,Math.max(8,L/fs/1.1)))}}
-function drawItem(M,it){const r=it._r;if(!r)return;const cards=itemCards(it);const g=E('g',{},M.gA);const tg=E('g',{},M.gAT);it._lab=tg;
+function drawItem(M,it){const r=it._r;if(!r||it._cfg)return;const cards=itemCards(it);const g=E('g',{},M.gA);const tg=E('g',{},M.gAT);it._lab=tg;
   it._g=g;let sh;const cls='ab'+(it._ctr?' ctr':'')+(cards.length?' hit':'');
   if(r.circle)sh=E('circle',{cx:r.x+r.w/2,cy:r.y+r.h/2,r:r.w/2,class:cls},g);
   else if(r.diamond)sh=E('path',{d:`M${r.x+r.w/2} ${r.y}L${r.x+r.w} ${r.y+r.h/2}L${r.x+r.w/2} ${r.y+r.h}L${r.x} ${r.y+r.h/2}Z`,class:cls},g);
@@ -820,8 +924,8 @@ const tf=(el,k,tx,ty)=>{el.style.transform=`translate(${tx}px,${ty}px) scale(${k
 
 /* ====================== pages ====================== */
 // A page fills the free area. It exposes: el (layer), frame (rect of its main content), rectOf(key) for children, hit(x,y) → child key to enter.
-function drawAnat(svgParent,M,x,y,w,h,opts){const VW=clamp(w/(opts.scale||1),opts.mini?440:440,opts.mini?640:980),VH=clamp(VW*h/w,220,1600),s=Math.min(w/VW,h/VH);
-  const c={...M,VW,VH,s,tx:x+(w-VW*s)/2,ty:y+(h-VH*s)/2,l0:[],anch:{},items:{}};c.g=E('g',{transform:`translate(${c.tx},${c.ty}) scale(${s})`},svgParent);c.gA=E('g',{},c.g);c.gAT=E('g',{},c.g);c.gL0=E('g',{},c.g);
+function drawAnat(svgParent,M,x,y,w,h,opts){const tall=!!opts.tall,VW=clamp(w/(opts.scale||1),opts.mini?440:440,opts.mini?640:980),VH=tall?6000:clamp(VW*h/w,220,1600),s=tall?w/VW:Math.min(w/VW,h/VH);
+  const c={...M,VW,VH,s,tall,tx:x+(w-VW*s)/2,ty:tall?y:y+(h-VH*s)/2,l0:[],anch:{},items:{}};c.g=E('g',{transform:`translate(${c.tx},${c.ty}) scale(${s})`},svgParent);c.gA=E('g',{},c.g);c.gAT=E('g',{},c.g);c.gL0=E('g',{},c.g);
   layoutAnatomy(c);
   const tag=(it,key)=>{if(!it||!it._g)return;const sh=it._g.firstElementChild;const cs=itemCards(it);if(sh&&cs.length){sh.dataset.key=key;sh.dataset.cards=cs.join(',')}};
   for(const it of Object.values(c.items))tag(it,'item:'+it.id);tag(c.centerIt,'item:center');for(const f of c.fieldsL||[])tag(f,'item:'+f.name);
@@ -856,14 +960,18 @@ function pageMod(id){const M=MOD[id];const a=area();const el=HT('div','layer',st
   const F=rc(a.x,a.y,a.w,a.h);E('rect',{x:F.x,y:F.y,width:F.w,height:F.h,rx:16,class:'frame'},svg);E('rect',{x:F.x,y:F.y+16,width:4,height:34,rx:2,fill:col},svg);
   const tF=phone()?17:21;E('text',{x:F.x+18,y:F.y+14+tF,class:'mttl','font-size':tF},svg,M.title);const sF=phone()?12:13.5;const sub=wrap(M.oneliner||'',(F.w-36)/sF,2);sub.forEach((s,i)=>E('text',{x:F.x+18,y:F.y+14+tF+sF*(1.5+i*1.3),class:'msub','font-size':sF},svg,s));
   const HB=14+tF+sF*(1+sub.length*1.3)+12;const modCard=M.card&&CARDS[M.card]?M.card:null;const CHIP=modCard?52:0;
-  const c=drawAnat(svg,M,F.x+12,F.y+HB,F.w-24,F.h-HB-12-CHIP,{scale:phone()?.85:1.12});c.gL0.remove();
+  const tall=phone()&&(M.anatomy||{}).primitive==='cfg';const ax=F.x+12,ay=F.y+HB,aw=F.w-24,ah=F.h-HB-12-CHIP;let host=svg;
+  if(tall){const cp=E('clipPath',{id:'cfclip-'+id},svg);E('rect',{x:ax-8,y:ay-2,width:aw+16,height:ah+4,rx:8},cp);host=E('g',{'clip-path':`url(#cfclip-${id})`},svg)}
+  const c=drawAnat(host,M,ax,ay,aw,ah,{scale:phone()?.85:1.12,tall});c.gL0.remove();
+  const over=tall?Math.max(0,(c.cfgH||0)*c.s-ah):0,ty0=c.ty;let py=0,tip=null;const setPy=v=>{py=clamp(v,-over,0);c.ty=ty0+py;c.g.setAttribute('transform',`translate(${c.tx},${c.ty}) scale(${c.s})`)};
+  if(over>0){tip=E('g',{class:'cftip'},svg);const t='↕ 上下拖动 · 还有更多';const w2=tw(t)*11.5+22;E('rect',{x:F.x+(F.w-w2)/2,y:ay+ah-30,width:w2,height:24,rx:12},tip);E('text',{x:F.x+F.w/2,y:ay+ah-13.5,'text-anchor':'middle','font-size':11.5},tip,t)}
   let chipR=null;if(modCard){const cw=Math.min(F.w-36,460),cx=F.x+(F.w-cw)/2,cy=F.y+F.h-CHIP-4;chipR=rc(cx,cy,cw,40);const r=E('rect',{x:cx,y:cy,width:cw,height:40,rx:10,class:'chipc'},svg);r.dataset.key='chip';r.dataset.cards=modCard;
     E('text',{x:cx+14,y:cy+25,'font-size':13.5,class:'ctl'},svg,fitStr(CARDS[modCard].cd.title,(cw-110)/8.2));E('text',{x:cx+cw-14,y:cy+25,'font-size':12,'text-anchor':'end',fill:'var(--hot)'},svg,'函数卡 ›')}
   const fx=E('g',{},svg);
   const rectOfItem=k=>{if(k==='chip')return chipR;const nm=k.slice(5);const r=c.anch[nm];return r?c.toStage(r):null};
-  return {type:'mod',id,el,frame:F,rectOf:key=>{if(key.startsWith('cards:')){const ids=key.slice(6).split(',');const t=[...svg.querySelectorAll('[data-cards]')].find(e=>e.dataset.cards.split(',').some(x=>ids.includes(x)));return t?rectOfItem(t.dataset.key):null}return rectOfItem(key)},
+  return {type:'mod',id,el,frame:F,pan:over>0?((dx,dy)=>{setPy(py+dy);if(tip){tip.remove();tip=null}}):null,rectOf:key=>{if(key.startsWith('cards:')){const ids=key.slice(6).split(',');const t=[...svg.querySelectorAll('[data-cards]')].find(e=>e.dataset.cards.split(',').some(x=>ids.includes(x)));return t?rectOfItem(t.dataset.key):null}return rectOfItem(key)},
     targetAt(x,y){let best=null,bd=1e9;svg.querySelectorAll('[data-cards]').forEach(e=>{const r=rectOfItem(e.dataset.key);if(!r)return;const d=Math.hypot(Math.max(r.x-x,0,x-r.x-r.w),Math.max(r.y-y,0,y-r.y-r.h));if(d<bd){bd=d;best=e}});return best?{type:'card',ids:best.dataset.cards.split(','),mod:id}:null},
-    mark(key,val){fx.innerHTML='';const r=rectOfItem('item:'+key);if(!r)return;E('rect',{x:r.x-5,y:r.y-5,width:r.w+10,height:r.h+10,rx:Math.min(r.w,r.h)/2+5>40?12:Math.min(r.w,r.h)/2+5,class:'pulse'},fx);if(val)E('text',{x:r.x+r.w/2,y:r.y-12,'text-anchor':'middle',class:'vtag'},fx,val)}}}
+    mark(key,val){fx.innerHTML='';let r=rectOfItem('item:'+key);if(!r)return;if(over>0&&(r.y<ay||r.y+Math.min(r.h,ah*.6)>ay+ah)){setPy(py+ay+10-r.y);r=rectOfItem('item:'+key)}E('rect',{x:r.x-5,y:r.y-5,width:r.w+10,height:r.h+10,rx:Math.min(r.w,r.h)/2+5>40?12:Math.min(r.w,r.h)/2+5,class:'pulse'},fx);if(val)E('text',{x:r.x+r.w/2,y:r.y-12,'text-anchor':'middle',class:'vtag'},fx,val)}}}
 function segsOf(C){const lines=C.cd.code||[];const nums=lines.filter(l=>l[0]).map(l=>l[0]);const blocks=(C.cd.blocks||[]).map(b=>Array.isArray(b)?b:[b.lines[0],b.lines[1],b.summary]).filter(b=>nums.includes(b[0])&&nums.includes(b[1])).sort((a,b)=>a[0]-b[0]);
   const segs=[];let cur=[];const flush=()=>{if(cur.length){segs.push({gap:true,lines:cur});cur=[]}};let bi=0;
   for(let i=0;i<lines.length;i++){const ln=lines[i][0];if(bi<blocks.length&&ln&&ln===blocks[bi][0]){flush();const [a,b,lab]=blocks[bi];const L=[];while(i<lines.length&&(!lines[i][0]||lines[i][0]<=b)){L.push(lines[i]);i++}i--;segs.push({a,b,lab,lines:L});bi++}else cur.push(lines[i])}
@@ -967,7 +1075,7 @@ stage.addEventListener('wheel',e=>{const scroller=e.target.closest('.cardpg');co
   e.preventDefault();hideHint();scrub(-e.deltaY*(e.ctrlKey?.012:.0026),e.clientX,e.clientY)},{passive:false});
 const ptrs=new Map();let pinch=null,down=null;
 stage.addEventListener('pointerdown',e=>{ptrs.set(e.pointerId,[e.clientX,e.clientY]);down={x:e.clientX,y:e.clientY,t:e.target,moved:0};if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a[0]-b[0],a[1]-b[1]),last:0}}});
-stage.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,[e.clientX,e.clientY]);if(down){down.moved=Math.max(down.moved,Math.hypot(e.clientX-down.x,e.clientY-down.y));if(ptrs.size===1&&cur.pan&&!TR&&!busy){cur.pan(e.clientX-(down.lx??down.x));hideHint()}down.lx=e.clientX}
+stage.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,[e.clientX,e.clientY]);if(down){down.moved=Math.max(down.moved,Math.hypot(e.clientX-down.x,e.clientY-down.y));if(ptrs.size===1&&cur.pan&&!TR&&!busy){cur.pan(e.clientX-(down.lx??down.x),e.clientY-(down.ly??down.y));hideHint()}down.lx=e.clientX;down.ly=e.clientY}
   if(ptrs.size===2&&pinch){const [a,b]=[...ptrs.values()];const v=Math.log(Math.hypot(a[0]-b[0],a[1]-b[1])/pinch.d)/Math.log(2.4);scrub(v-pinch.last,(a[0]+b[0])/2,(a[1]+b[1])/2);pinch.last=v;e.preventDefault()}},{passive:false});
 function pup(e){ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;if(down&&down.moved<6&&ptrs.size===0&&!TR&&!busy)click(down.t,e.clientX,e.clientY);if(ptrs.size===0)down=null}
 stage.addEventListener('pointerup',pup);stage.addEventListener('pointercancel',e=>{ptrs.delete(e.pointerId);pinch=null;down=null});

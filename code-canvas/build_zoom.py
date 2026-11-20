@@ -12,8 +12,10 @@ import argparse, json, re, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import cfg_extract  # noqa: E402
 TEMPLATE = HERE / "template" / "zoom.html"
-PRIMS = {"loop", "pipeline", "dispatch", "pool", "statemachine", "flow", "tree", "layers", "grid", "structs"}
+PRIMS = {"cfg", "loop", "pipeline", "dispatch", "pool", "statemachine", "flow", "tree", "layers", "grid", "structs"}
 SHAPES = {"queue", "list", "stack", "map", "table", "set", "pool", "ring", "wheel", "tree", "bitmap", "array", "lock", "flag", "scalar"}
 KINDS = {"thread", "queue", "component", "store", "external", "loop", "api", "state"}
 CH_KINDS = {"flow", "call", "queue", "return", "async", "control", "data", "error"}
@@ -76,6 +78,35 @@ def fill_code(spec, repo, R):
         nm = c.get("name") or re.sub(r"\(.*$", "", str(c.get("title", ""))).split(".")[-1].split("::")[-1].strip()
         if nm and len(nm) > 2 and not any(nm in t for _, t in c["code"]):
             R.w(f"card {cid}: name '{nm}' not found in its lines {rs} — wrong range?")
+
+
+def derive_cfg(spec, R):
+    """cfg modules: attach a mechanically derived control tree to every card their items point at."""
+    cards = {c.get("id"): c for c in spec.get("cards") or []}
+    names = {}
+    for c in cards.values():
+        nm = c.get("name") or re.sub(r"\(.*$", "", str(c.get("title", ""))).split(".")[-1].split("::")[-1].strip()
+        if nm:
+            names[nm] = c.get("id")
+    for m in spec.get("modules") or []:
+        A = m.get("anatomy") or {}
+        if A.get("primitive") != "cfg":
+            continue
+        for it in A.get("items") or []:
+            cs = it.get("card")
+            cs = cs if isinstance(cs, list) else [cs] if cs else []
+            if len(cs) != 1 or cs[0] not in cards:
+                R.e(f"module {m.get('id')}/{it.get('id')}: a cfg item needs exactly one card (the function it draws)")
+                continue
+            c = cards[cs[0]]
+            if "cfg" in c:
+                continue
+            tree, ok = cfg_extract.card_cfg(c, names)
+            c["cfg"] = tree
+            if not ok:
+                R.w(f"card {c.get('id')}: cfg structure is only derived for Python — drawn as its blocks in order")
+            elif not tree:
+                R.w(f"card {c.get('id')}: no statements found for the cfg skeleton")
 
 
 def validate(spec, R):
@@ -286,6 +317,7 @@ def main():
         spec["scene"] = json.loads(sib.read_text(encoding="utf-8"))
     fill_code(spec, a.repo, R)
     validate(spec, R)
+    derive_cfg(spec, R)
     sc = spec.get("scene")
     if sc:
         mods = {m["id"] for m in spec.get("modules") or []}
