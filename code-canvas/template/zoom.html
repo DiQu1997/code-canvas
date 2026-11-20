@@ -79,6 +79,7 @@ button:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
 .legend svg{width:28px;height:10px}
 .story{left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom,0px));width:min(700px,calc(100% - 20px));padding:9px 12px;display:flex;flex-direction:column;gap:5px}
 body.withInfo .story{left:calc(50% - 180px);width:min(700px,calc(100% - 400px))}
+.story[hidden]{display:none}
 .story .row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .story .meta{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
 .story .txt{font-size:14px;line-height:1.55;height:4.65em;overflow:auto}
@@ -531,17 +532,17 @@ function cfgFrame(M,it,W,gs,gt,nodes,cont,more){const cid=itemCards(it)[0],C=cid
   let y=cont?41:59;if(T.length){y=seq(T,PAD,y,W-2*PAD).y}else{y+=one('（没有可解析的代码结构）',PAD,y,10.5,'af',W-2*PAD)+8}
   if(more){E('text',{x:W-PAD,y:y+9,'font-size':10.5,'text-anchor':'end',class:'as cfs'},gt,'接下栏 →');y+=16}
   frame.setAttribute('height',y+4);return {h:y+4,calls}}
-LAY.cfg=function(M,R,items,A){const n=items.length;if(!n)return;const W=M.tall?R.w/1.25:clamp((R.w-76)/3,250,300),GX=38,GY=M.tall?16:22,HEAD=63,HEADC=45,MORE=16;
+LAY.cfg=function(M,R,items,A){const n=items.length;if(!n)return;const one=M.tall===true,free=M.tall==='cols';const W=one?R.w/1.25:clamp((R.w-76)/3,250,300),GX=38,GY=one?16:22,HEAD=63,HEADC=45,MORE=16;
   // every top-level node's height is independent of its neighbours: measure once, then a function too tall for the page
   // flows into a continuation column (newspaper style) instead of shrinking the whole picture into unreadable text
   const tmp=()=>E('g',{});const meas=items.map(it=>{const cid=itemCards(it)[0],T=(cid&&CARDS[cid]&&CARDS[cid].cd.cfg)||[];return T.length?T.map(nd=>cfgFrame(M,it,W,tmp(),tmp(),[nd]).h-HEAD):null});
   const plan=f=>{const Hm=(R.h-14)/f;let ok=true;const per=items.map((it,i)=>{const hs=meas[i];if(!hs)return [{it,h:HEAD+22}];const T=CARDS[itemCards(it)[0]].cd.cfg,out=[];let cur=[],h=HEAD;
       hs.forEach((nh,j)=>{if(cur.length&&h+nh+MORE>Hm&&!M.tall){out.push({it,nodes:cur,h:h+MORE,cont:out.length>0,more:true});cur=[];h=HEADC}cur.push(T[j]);h+=nh});
       out.push({it,nodes:cur,h,cont:out.length>0});if(!M.tall&&out.some(u=>u.h>Hm))ok=false;return out});
-    const pack=stack=>{const cols=[];per.forEach(us=>{us.forEach(u=>{const L=cols[cols.length-1];if(L&&(M.tall||(stack&&us.length===1&&!L.split&&L.h+GY+u.h<=Hm))){L.us.push(u);L.h+=GY+u.h}else cols.push({us:[u],h:u.h,split:us.length>1})})});return cols};
+    const pack=stack=>{const cols=[];per.forEach(us=>{us.forEach(u=>{const L=cols[cols.length-1];if(L&&(one||(stack&&us.length===1&&!L.split&&L.h+GY+u.h<=Hm))){L.us.push(u);L.h+=GY+u.h}else cols.push({us:[u],h:u.h,split:us.length>1})})});return cols};
     let cols=pack(false);if(!M.tall&&cols.length*W+(cols.length-1)*GX>R.w/f)cols=pack(true);const nw=cols.length*W+(cols.length-1)*GX;return {cols,nw,nh:Math.max(...cols.map(c=>c.h)),ok:ok&&nw<=R.w/f+.5}};
-  let best=null,f=1.25;if(M.tall)best=plan(f);else{for(const c of [1.3,1.2,1.1,1,.92,.85,.78,.72,.66,.6,.55,.5,.45,.4,.35]){const p=plan(c);if(!best&&c<=.35){best=p;f=c}if(!p.ok)continue;const sc=c*(1-.1*p.cols.filter(k=>k.us[0].cont).length);if(!best||sc>best.sc+.001){best=p;best.sc=sc;f=c}}if(!best.ok)f=Math.min(f,R.w/best.nw,(R.h-14)/best.nh)}
-  const {cols,nw,nh}=best;const ox=R.x+(R.w-nw*f)/2,oy=M.tall?R.y:R.y+Math.max(14*f,(R.h-nh*f)/2);M.cfgH=oy+nh*f+8;const byCard={},fr=[];
+  let best=null,f=1.25;if(one)best=plan(f);else if(free){best=plan(1);f=clamp(R.w/best.nw,.8,1)}else{for(const c of [1.3,1.2,1.1,1,.92,.85,.78,.72,.66,.6,.55,.5,.45,.4,.35]){const p=plan(c);if(!best&&c<=.35){best=p;f=c}if(!p.ok)continue;const sc=c*(1-.1*p.cols.filter(k=>k.us[0].cont).length);if(!best||sc>best.sc+.001){best=p;best.sc=sc;f=c}}if(!best.ok)f=Math.min(f,R.w/best.nw,(R.h-14)/best.nh)}M.cfgF=f;
+  const {cols,nw,nh}=best;const ox=R.x+Math.max(0,(R.w-nw*f)/2),oy=M.tall?R.y:R.y+Math.max(14*f,(R.h-nh*f)/2);M.cfgH=oy+nh*f+8;M.cfgW=ox+nw*f+8;const byCard={},fr=[];
   const wrapG={};items.forEach(it=>{const o=E('g',{},M.gA),t=E('g',{},M.gAT);wrapG[it.id]={gs:E('g',{},o),gt:t};it._g=o;it._lab=t;it._cfg=true;it._r=null});
   cols.forEach((col,ci)=>{let yy=0;col.us.forEach(u=>{const it=u.it,x=ox+ci*(W+GX)*f,y=oy+yy,tr=`translate(${x},${y}) scale(${f})`;const gs=E('g',{transform:tr},wrapG[it.id].gs),gt=E('g',{transform:tr},wrapG[it.id].gt);
       const F=cfgFrame(M,it,W,gs,gt,u.nodes,u.cont,u.more);F.it=it;F.x=x;F.y=y;F.cont=u.cont;fr.push(F);yy+=(F.h+GY)*f;const r={x,y,w:W*f,h:F.h*f,rx:10*f};
@@ -925,7 +926,7 @@ const tf=(el,k,tx,ty)=>{el.style.transform=`translate(${tx}px,${ty}px) scale(${k
 /* ====================== pages ====================== */
 // A page fills the free area. It exposes: el (layer), frame (rect of its main content), rectOf(key) for children, hit(x,y) → child key to enter.
 function drawAnat(svgParent,M,x,y,w,h,opts){const tall=!!opts.tall,VW=clamp(w/(opts.scale||1),opts.mini?440:440,opts.mini?640:980),VH=tall?6000:clamp(VW*h/w,220,1600),s=tall?w/VW:Math.min(w/VW,h/VH);
-  const c={...M,VW,VH,s,tall,tx:x+(w-VW*s)/2,ty:tall?y:y+(h-VH*s)/2,l0:[],anch:{},items:{}};c.g=E('g',{transform:`translate(${c.tx},${c.ty}) scale(${s})`},svgParent);c.gA=E('g',{},c.g);c.gAT=E('g',{},c.g);c.gL0=E('g',{},c.g);
+  const c={...M,VW,VH,s,tall:opts.tall||false,tx:x+(w-VW*s)/2,ty:tall?y:y+(h-VH*s)/2,l0:[],anch:{},items:{}};c.g=E('g',{transform:`translate(${c.tx},${c.ty}) scale(${s})`},svgParent);c.gA=E('g',{},c.g);c.gAT=E('g',{},c.g);c.gL0=E('g',{},c.g);
   layoutAnatomy(c);
   const tag=(it,key)=>{if(!it||!it._g)return;const sh=it._g.firstElementChild;const cs=itemCards(it);if(sh&&cs.length){sh.dataset.key=key;sh.dataset.cards=cs.join(',')}};
   for(const it of Object.values(c.items))tag(it,'item:'+it.id);tag(c.centerIt,'item:center');for(const f of c.fieldsL||[])tag(f,'item:'+f.name);
@@ -960,16 +961,21 @@ function pageMod(id){const M=MOD[id];const a=area();const el=HT('div','layer',st
   const F=rc(a.x,a.y,a.w,a.h);E('rect',{x:F.x,y:F.y,width:F.w,height:F.h,rx:16,class:'frame'},svg);E('rect',{x:F.x,y:F.y+16,width:4,height:34,rx:2,fill:col},svg);
   const tF=phone()?17:21;E('text',{x:F.x+18,y:F.y+14+tF,class:'mttl','font-size':tF},svg,M.title);const sF=phone()?12:13.5;const sub=wrap(M.oneliner||'',(F.w-36)/sF,2);sub.forEach((s,i)=>E('text',{x:F.x+18,y:F.y+14+tF+sF*(1.5+i*1.3),class:'msub','font-size':sF},svg,s));
   const HB=14+tF+sF*(1+sub.length*1.3)+12;const modCard=M.card&&CARDS[M.card]?M.card:null;const CHIP=modCard?52:0;
-  const tall=phone()&&(M.anatomy||{}).primitive==='cfg';const ax=F.x+12,ay=F.y+HB,aw=F.w-24,ah=F.h-HB-12-CHIP;let host=svg;
-  if(tall){const cp=E('clipPath',{id:'cfclip-'+id},svg);E('rect',{x:ax-8,y:ay-2,width:aw+16,height:ah+4,rx:8},cp);host=E('g',{'clip-path':`url(#cfclip-${id})`},svg)}
-  const c=drawAnat(host,M,ax,ay,aw,ah,{scale:phone()?.85:1.12,tall});c.gL0.remove();
-  const over=tall?Math.max(0,(c.cfgH||0)*c.s-ah):0,ty0=c.ty;let py=0,tip=null;const setPy=v=>{py=clamp(v,-over,0);c.ty=ty0+py;c.g.setAttribute('transform',`translate(${c.tx},${c.ty}) scale(${c.s})`)};
-  if(over>0){tip=E('g',{class:'cftip'},svg);const t='↕ 上下拖动 · 还有更多';const w2=tw(t)*11.5+22;E('rect',{x:F.x+(F.w-w2)/2,y:ay+ah-30,width:w2,height:24,rx:12},tip);E('text',{x:F.x+F.w/2,y:ay+ah-13.5,'text-anchor':'middle','font-size':11.5},tip,t)}
+  const isCfg=(M.anatomy||{}).primitive==='cfg';let tall=phone()&&isCfg;const ax=F.x+12,ay=F.y+HB,aw=F.w-24,ah=F.h-HB-12-CHIP;let host=svg;
+  const clipHost=()=>{const cp=E('clipPath',{id:'cfclip-'+id},svg);E('rect',{x:ax-8,y:ay-2,width:aw+16,height:ah+4,rx:8},cp);host=E('g',{'clip-path':`url(#cfclip-${id})`},svg)};
+  if(tall)clipHost();
+  let c=drawAnat(host,M,ax,ay,aw,ah,{scale:phone()?.85:1.12,tall});
+  // a module whose functions only fit the page as unreadable specks is drawn at a readable size instead and scrolled
+  if(isCfg&&!tall&&c.cfgF<.62){c.g.remove();tall='cols';clipHost();c=drawAnat(host,M,ax,ay,aw,ah,{scale:1.12,tall})}
+  c.gL0.remove();
+  const over=tall?Math.max(0,(c.cfgH||0)*c.s-ah):0,overX=tall==='cols'?Math.max(0,(c.cfgW||0)*c.s-aw):0,ty0=c.ty,tx0=c.tx;let py=0,px=0,tip=null;
+  const setPy=(v,vx)=>{py=clamp(v,-over,0);if(vx!=null)px=clamp(vx,-overX,0);c.ty=ty0+py;c.tx=tx0+px;c.g.setAttribute('transform',`translate(${c.tx},${c.ty}) scale(${c.s})`)};
+  if(over>0||overX>0){tip=E('g',{class:'cftip'},svg);const t=tall==='cols'?'↕ 滚轮或拖动 · 还有更多':'↕ 上下拖动 · 还有更多';const w2=tw(t)*11.5+22;E('rect',{x:F.x+(F.w-w2)/2,y:ay+ah-30,width:w2,height:24,rx:12},tip);E('text',{x:F.x+F.w/2,y:ay+ah-13.5,'text-anchor':'middle','font-size':11.5},tip,t)}
   let chipR=null;if(modCard){const cw=Math.min(F.w-36,460),cx=F.x+(F.w-cw)/2,cy=F.y+F.h-CHIP-4;chipR=rc(cx,cy,cw,40);const r=E('rect',{x:cx,y:cy,width:cw,height:40,rx:10,class:'chipc'},svg);r.dataset.key='chip';r.dataset.cards=modCard;
     E('text',{x:cx+14,y:cy+25,'font-size':13.5,class:'ctl'},svg,fitStr(CARDS[modCard].cd.title,(cw-110)/8.2));E('text',{x:cx+cw-14,y:cy+25,'font-size':12,'text-anchor':'end',fill:'var(--hot)'},svg,'函数卡 ›')}
   const fx=E('g',{},svg);
   const rectOfItem=k=>{if(k==='chip')return chipR;const nm=k.slice(5);const r=c.anch[nm];return r?c.toStage(r):null};
-  return {type:'mod',id,el,frame:F,pan:over>0?((dx,dy)=>{setPy(py+dy);if(tip){tip.remove();tip=null}}):null,rectOf:key=>{if(key.startsWith('cards:')){const ids=key.slice(6).split(',');const t=[...svg.querySelectorAll('[data-cards]')].find(e=>e.dataset.cards.split(',').some(x=>ids.includes(x)));return t?rectOfItem(t.dataset.key):null}return rectOfItem(key)},
+  return {type:'mod',id,el,frame:F,pan:over>0||overX>0?((dx,dy)=>{const y0=py,x0=px;setPy(py+dy,px+dx);if(tip){tip.remove();tip=null}return py!==y0||px!==x0}):null,wheelPan:tall==='cols'&&over>0,rectOf:key=>{if(key.startsWith('cards:')){const ids=key.slice(6).split(',');const t=[...svg.querySelectorAll('[data-cards]')].find(e=>e.dataset.cards.split(',').some(x=>ids.includes(x)));return t?rectOfItem(t.dataset.key):null}return rectOfItem(key)},
     targetAt(x,y){let best=null,bd=1e9;svg.querySelectorAll('[data-cards]').forEach(e=>{const r=rectOfItem(e.dataset.key);if(!r)return;const d=Math.hypot(Math.max(r.x-x,0,x-r.x-r.w),Math.max(r.y-y,0,y-r.y-r.h));if(d<bd){bd=d;best=e}});return best?{type:'card',ids:best.dataset.cards.split(','),mod:id}:null},
     mark(key,val){fx.innerHTML='';let r=rectOfItem('item:'+key);if(!r)return;if(over>0&&(r.y<ay||r.y+Math.min(r.h,ah*.6)>ay+ah)){setPy(py+ay+10-r.y);r=rectOfItem('item:'+key)}E('rect',{x:r.x-5,y:r.y-5,width:r.w+10,height:r.h+10,rx:Math.min(r.w,r.h)/2+5>40?12:Math.min(r.w,r.h)/2+5,class:'pulse'},fx);if(val)E('text',{x:r.x+r.w/2,y:r.y-12,'text-anchor':'middle',class:'vtag'},fx,val)}}}
 function segsOf(C){const lines=C.cd.code||[];const nums=lines.filter(l=>l[0]).map(l=>l[0]);const blocks=(C.cd.blocks||[]).map(b=>Array.isArray(b)?b:[b.lines[0],b.lines[1],b.summary]).filter(b=>nums.includes(b[0])&&nums.includes(b[1])).sort((a,b)=>a[0]-b[0]);
@@ -1072,6 +1078,7 @@ function scrub(d,x,y){if(busy)return;if(!TR){if(d>0){const t=cur.targetAt(x,y);i
   const T=TR;drive(T,clamp(T.t+d,0,1));clearTimeout(gIdle);gIdle=setTimeout(()=>{if(!TR)return;const from=TR.dir==='in'?0:1;const moved=Math.abs(TR.t-from);settle(moved>.22?1-from:from,420)},150)}
 stage.addEventListener('wheel',e=>{const scroller=e.target.closest('.cardpg');const canScroll=scroller&&scroller.scrollHeight>scroller.clientHeight+2&&!TR;
   if(canScroll&&!e.ctrlKey){if(!(scroller.scrollTop<=0&&e.deltaY<-40&&cur.type!=='card'))return;}  // let code scroll; a firm scroll-up at the very top zooms out
+  if(cur.wheelPan&&!e.ctrlKey&&!TR&&!busy){const moved=cur.pan(e.shiftKey?-e.deltaY:-e.deltaX,e.shiftKey?0:-e.deltaY);const now=performance.now();if(moved||Math.abs(e.deltaY)<40||now-(cur._wp||0)<450){cur._wp=now;e.preventDefault();hideHint();return}}  // a long module scrolls first; only a fresh scroll at either end zooms (not the tail of the one that got there)
   e.preventDefault();hideHint();scrub(-e.deltaY*(e.ctrlKey?.012:.0026),e.clientX,e.clientY)},{passive:false});
 const ptrs=new Map();let pinch=null,down=null;
 stage.addEventListener('pointerdown',e=>{ptrs.set(e.pointerId,[e.clientX,e.clientY]);down={x:e.clientX,y:e.clientY,t:e.target,moved:0};if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a[0]-b[0],a[1]-b[1]),last:0}}});

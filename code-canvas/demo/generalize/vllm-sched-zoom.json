@@ -1,0 +1,62 @@
+{"meta":{"mode":"zoom","title":"vLLM 调度器：请求和 KV 块的生死","short":"vllm sched","subtitle":"泛化测试：请求入队 → 分配块 → 抢占 → 结束释放",
+"audience":"第一次读 vllm/v1/core 的工程师","overview":["Scheduler 管请求的状态和队列，BlockPool 管 KV 块的引用计数和空闲队列。","这张画布只用来测试 cfg 图元在别的 Python 仓库上的效果。"]},
+"layout":{"colw":330,"rowh":260,"gap":44},
+"groups":[{"title":"Scheduler","modules":["req","preempt"]},{"title":"BlockPool","modules":["alloc","free"]}],
+"modules":[
+{"id":"caller","title":"EngineCore","kind":"external","pos":[0,1.2],"span":[0.6,0.9],"oneliner":"每一步调 schedule / update_from_output"},
+{"id":"req","title":"请求进出","kind":"component","pos":[1.1,0.3],"span":[1.3,1.25],"oneliner":"入队、外部终止、释放",
+ "anatomy":{"primitive":"cfg","items":[
+  {"id":"add","label":"新请求入队","sub":"add_request()","card":"add_request","short":"入队"},
+  {"id":"fin","label":"外部终止一批请求","sub":"finish_requests()","card":"finish_requests","short":"终止"},
+  {"id":"fr","label":"释放一个请求","sub":"_free_request()","card":"free_request","short":"释放"},
+  {"id":"fb","label":"还块并除名","sub":"_free_blocks()","card":"free_blocks_req","short":"还块"}],
+  "edges":[["add","fin","流式会话结束"],["fin","fr","逐个"],["fr","fb","不需要延迟时"]]},
+ "info":{"kicker":"Scheduler（scheduler.py:3112）","role":"请求从哪进来、怎么被外部终止、终止后按什么顺序清理。","not":"不决定这一步跑谁：那是 schedule()。","methods":[["add_request(request)","→ None","新请求或流式续段"],["finish_requests(ids, status)","→ list[Request]","外部终止"]]}},
+{"id":"preempt","title":"抢占","kind":"component","pos":[1.1,1.9],"span":[1.3,1.1],"oneliner":"把在跑的请求打回等待队列",
+ "anatomy":{"primitive":"cfg","items":[{"id":"pre","label":"抢占一个在跑的请求","sub":"_preempt_request()","card":"preempt","short":"抢占"}],"edges":[]},
+ "info":{"kicker":"Scheduler._preempt_request（scheduler.py:1831）","role":"块不够时牺牲一个 running 请求：还块、清零进度、放回 waiting 队首。","not":"不选谁被抢占：调用方已经把它从 running 里弹出来了。","methods":[["_preempt_request(request, ts)","→ None","还块 + 重置 + 回队"]]}},
+{"id":"alloc","title":"拿块","kind":"component","pos":[3.0,0.3],"span":[1.3,1.25],"oneliner":"查缓存命中、从空闲队列拿新块",
+ "anatomy":{"primitive":"cfg","items":[
+  {"id":"gc","label":"按哈希查缓存块","sub":"get_cached_block()","card":"get_cached_block","short":"查缓存"},
+  {"id":"gn","label":"从空闲队列拿新块","sub":"get_new_blocks()","card":"get_new_blocks","short":"拿新块"},
+  {"id":"me","label":"顺手把旧缓存身份抹掉","sub":"_maybe_evict_cached_block()","card":"maybe_evict","short":"抹哈希"},
+  {"id":"to","label":"命中的块引用 +1","sub":"touch()","card":"touch","short":"touch"}],
+  "edges":[["gn","me","块带着旧哈希"]]},
+ "info":{"kicker":"BlockPool（block_pool.py:175）","role":"所有 KV 块的唯一分配点。空闲队列同时就是 LRU 淘汰顺序：被拿走的块如果还挂着哈希，就在这一刻被淘汰。","not":"不算哈希，也不决定一个请求要几个块。","methods":[["get_new_blocks(n)","→ list[KVCacheBlock]","不够直接抛错"],["touch(blocks)","→ None","命中复用"]]}},
+{"id":"free","title":"还块","kind":"component","pos":[3.0,1.9],"span":[1.3,1.1],"oneliner":"引用减到 0 的块按淘汰优先级回到空闲队列",
+ "anatomy":{"primitive":"cfg","items":[
+  {"id":"fbk","label":"还一批块","sub":"free_blocks()","card":"free_blocks","short":"还块"},
+  {"id":"evb","label":"按块号踢出缓存","sub":"evict_blocks()","card":"evict_blocks","short":"踢出"}],
+  "edges":[]},
+ "info":{"kicker":"BlockPool.free_blocks（block_pool.py:798）","role":"ref_cnt 减 1；归零的块没哈希的放队首（马上复用），有哈希的放队尾（最后才淘汰）。","not":"不清哈希：缓存身份保留到块被重新分配那一刻。","methods":[["free_blocks(blocks, evict_first)","→ None","按优先级回队"]]}}
+],
+"channels":[
+ {"from":"caller","to":"req","label":"add / finish","kind":"call"},
+ {"from":"caller","to":"preempt","label":"块不够时","kind":"call"},
+ {"from":"req","to":"free","label":"_free_request_blocks","kind":"call"},
+ {"from":"preempt","to":"free","label":"_free_request_blocks","kind":"call"},
+ {"from":"alloc","to":"free","label":"同一条 free_block_queue","kind":"data","sides":"bt"}],
+"cards":[
+{"id":"add_request","title":"add_request()","file":"vllm/v1/core/sched/scheduler.py","lines":[3112,3148],"blocks":[
+ [3113,3114,"这个 id 已经存在 → 是流式会话的下一段输入"],[3115,3119,"会话还在跑：把这段排进它自己的 streaming_queue"],[3120,3122,"会话正等着输入：直接接上这一段"],[3123,3125,"没有新内容 = 会话结束，走终止流程"],
+ [3126,3128,"全新的请求"],[3129,3133,"先告诉 KV connector，再进等待队列并登记到 requests"],[3134,3137,"需要的话建推测解码指标"],[3138,3143,"P/D 分离的请求一到就记为“等待远端 KV”"],[3144,3148,"记 QUEUED 事件，通知编码器缓存 connector"]]},
+{"id":"finish_requests","title":"finish_requests()","file":"vllm/v1/core/sched/scheduler.py","lines":[3150,3218],"blocks":[
+ [3165,3171,"把入参统一成一组 id；None 表示全部"],[3173,3175,"三个收集桶"],[3178,3182,"第一遍：不存在或已结束的跳过"],[3184,3186,"在跑的记到 running 桶"],[3187,3190,"其余记到 waiting 桶"],
+ [3193,3194,"一次性从 running 里摘掉"],[3195,3199,"一次性从四个等待结构里摘掉"],[3202,3203,"第二遍：逐个改状态并释放"],[3204,3211,"正在等远端 KV 的：加载没报完就得延迟还块"],[3213,3214,"写入终止状态，释放请求"],[3215,3216,"延迟还块的记下来，等加载回报时再还"],[3218,3218,"返回这次真正终止的请求"]]},
+{"id":"free_request","title":"_free_request()","file":"vllm/v1/core/sched/scheduler.py","lines":[3220,3252],"blocks":[
+ [3223,3223,"只能释放已结束的请求"],[3225,3230,"通知各 connector，清掉预留；KV connector 可能要求延迟还块"],[3236,3239,"编码器缓存 connector 同理"],[3241,3246,"释放编码器缓存，登记到 finished_req_ids"],[3248,3250,"没人要求延迟 → 现在就还块"],[3252,3252,"把传输参数带回响应"]]},
+{"id":"free_blocks_req","title":"_free_blocks()","file":"vllm/v1/core/sched/scheduler.py","lines":[3254,3257],"blocks":[[3255,3257,"还掉 KV 块，再从 requests 里除名"]]},
+{"id":"preempt","title":"_preempt_request()","file":"vllm/v1/core/sched/scheduler.py","lines":[1831,1877],"blocks":[
+ [1844,1846,"只有 RUNNING 的请求能被抢占"],[1847,1852,"还掉 KV 块和编码器缓存，清掉在途登记"],[1853,1856,"状态改成 PREEMPTED，已算 token 清零：回来要从头算"],[1864,1867,"在途的输出标成“过期”，回来时不许再改计数"],[1868,1870,"占位清零，抢占次数 +1"],[1871,1873,"记指标和事件"],[1876,1877,"放回 waiting 队首，下一步优先恢复"]]},
+{"id":"get_cached_block","title":"get_cached_block()","file":"vllm/v1/core/block_pool.py","lines":[175,201],"blocks":[
+ [190,191,"每个 KV cache group 都要命中"],[192,197,"用（块哈希, group）去哈希表里找"],[198,199,"任何一个 group 没有 → 整体算未命中"],[200,201,"全部命中才返回"]]},
+{"id":"get_new_blocks","title":"get_new_blocks()","file":"vllm/v1/core/block_pool.py","lines":[681,722],"blocks":[
+ [693,694,"空闲块不够直接抛错：调用方要先抢占"],[696,696,"从空闲队列队首弹出 n 个"],[698,699,"有观察者就通知复用"],[702,708,"开了前缀缓存 + 有指标：逐块抹旧哈希、引用置 1、记指标"],[709,715,"没指标：只有带哈希的块才需要抹"],[716,721,"没开缓存：只置引用"],[722,722,"返回这批块"]]},
+{"id":"maybe_evict","title":"_maybe_evict_cached_block()","file":"vllm/v1/core/block_pool.py","lines":[751,772],"blocks":[
+ [763,764,"先清指标追踪"],[766,766,"把块的哈希从哈希表里摘掉"],[767,769,"本来就没哈希 → 不算淘汰"],[771,772,"发 BlockRemoved 事件"]]},
+{"id":"touch","title":"touch()","file":"vllm/v1/core/block_pool.py","lines":[774,792],"blocks":[
+ [783,785,"空块跳过"],[788,789,"引用为 0 说明它躺在空闲队列里等淘汰：先捞出来"],[790,792,"引用 +1，记一次访问"]]},
+{"id":"free_blocks","title":"free_blocks()","file":"vllm/v1/core/block_pool.py","lines":[798,839],"blocks":[
+ [813,815,"三个桶：先淘汰、后淘汰、别的池子的"],[816,818,"空块不计引用"],[819,823,"属于别的池子的块攒起来，稍后转交"],[824,825,"引用 -1；归零才回队"],[826,829,"没哈希 / 没开缓存 / 要求先淘汰 → 队首，下次最先被拿走"],[830,832,"有哈希 → 队尾，尽量晚淘汰（LRU）"],[835,837,"一次性放回空闲队列两端"],[838,839,"别的池子的块交给各自的池"]]},
+{"id":"evict_blocks","title":"evict_blocks()","file":"vllm/v1/core/block_pool.py","lines":[841,859],"blocks":[[852,857,"块号必须是调度器分配过的"],[858,859,"只把它踢出哈希表，不动引用"]]}
+]}

@@ -1,0 +1,877 @@
+{
+ "meta": {
+  "mode": "zoom",
+  "title": "Redis：内存淘汰和渐进式 rehash",
+  "short": "redis",
+  "subtitle": "泛化测试（C）：超过 maxmemory 时挑谁淘汰；dict 怎么一桶一桶搬家",
+  "audience": "第一次读 redis/src 的工程师",
+  "overview": [
+   "evict.c：每条写命令前检查内存，超了就采样、进淘汰池、删最该删的 key，直到腾够。",
+   "dict.c：扩缩容不一次搬完，每次操作顺手搬一个桶。",
+   "这张画布只用来测试 cfg 图元在 C 仓库上的效果。"
+  ]
+ },
+ "layout": {
+  "colw": 330,
+  "rowh": 260,
+  "gap": 44
+ },
+ "groups": [
+  {
+   "title": "evict.c",
+   "modules": [
+    "evict",
+    "pool"
+   ]
+  },
+  {
+   "title": "dict.c",
+   "modules": [
+    "rehash"
+   ]
+  }
+ ],
+ "modules": [
+  {
+   "id": "cmd",
+   "title": "processCommand",
+   "kind": "external",
+   "pos": [
+    0,
+    1.2
+   ],
+   "span": [
+    0.6,
+    0.9
+   ],
+   "oneliner": "每条写命令前先问内存够不够"
+  },
+  {
+   "id": "evict",
+   "title": "腾内存",
+   "kind": "component",
+   "pos": [
+    1.1,
+    0.3
+   ],
+   "span": [
+    1.6,
+    1.25
+   ],
+   "oneliner": "循环挑一个 key 删掉，直到腾够或超时",
+   "anatomy": {
+    "primitive": "cfg",
+    "items": [
+     {
+      "id": "pe",
+      "label": "淘汰直到内存够用",
+      "sub": "performEvictions() 主循环",
+      "card": "perform",
+      "short": "主循环"
+     },
+     {
+      "id": "pk",
+      "label": "靠淘汰池选 bestkey",
+      "sub": "LRU / LFU / TTL 分支（587–692）",
+      "card": "pickpool",
+      "short": "池选"
+     },
+     {
+      "id": "pr",
+      "label": "随机选 bestkey",
+      "sub": "random 分支（695–735）",
+      "card": "pickrand",
+      "short": "随机"
+     },
+     {
+      "id": "fi",
+      "label": "收尾和记账",
+      "sub": "cant_free / update_metrics（789–834）",
+      "card": "finish",
+      "short": "收尾"
+     }
+    ],
+    "edges": []
+   },
+   "info": {
+    "kicker": "performEvictions（evict.c:543）",
+    "role": "内存超过 maxmemory 时的主循环：按策略选出 bestkey，删掉并传播 DEL，累计释放量。",
+    "not": "不算内存用了多少（getMaxmemoryState），也不给 key 打分（evictionPoolPopulate）。",
+    "methods": [
+     [
+      "performEvictions()",
+      "→ EVICT_OK / RUNNING / FAIL",
+      "主循环"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "pool",
+   "title": "淘汰池采样",
+   "kind": "component",
+   "pos": [
+    1.1,
+    1.9
+   ],
+   "span": [
+    1.3,
+    1.1
+   ],
+   "oneliner": "随机采几个 key，按分数插进 16 格的有序池",
+   "anatomy": {
+    "primitive": "cfg",
+    "items": [
+     {
+      "id": "pp",
+      "label": "采样并填进淘汰池",
+      "sub": "evictionPoolPopulate()",
+      "card": "populate",
+      "short": "采样"
+     }
+    ],
+    "edges": []
+   },
+   "info": {
+    "kicker": "evictionPoolPopulate（evict.c:139）",
+    "role": "近似 LRU 的核心：不维护全局链表，每次采 maxmemory_samples 个 key，和池里已有的候选比分数。",
+    "not": "不删 key：只负责让池保持“分数从小到大”。",
+    "methods": [
+     [
+      "evictionPoolPopulate(db, kvs, pool, &candidates)",
+      "→ 采到几个",
+      "按 idle 分数插入排序"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "rehash",
+   "title": "渐进式 rehash",
+   "kind": "component",
+   "pos": [
+    3.0,
+    1.0
+   ],
+   "span": [
+    1.4,
+    1.4
+   ],
+   "oneliner": "每次搬 n 个桶，搬完把新表换成旧表",
+   "anatomy": {
+    "primitive": "cfg",
+    "items": [
+     {
+      "id": "st",
+      "label": "操作时顺手搬一步",
+      "sub": "_dictRehashStepIfNeeded()",
+      "card": "step",
+      "short": "顺手"
+     },
+     {
+      "id": "rh",
+      "label": "搬 n 个桶",
+      "sub": "dictRehash()",
+      "card": "rehash",
+      "short": "搬 n 桶"
+     },
+     {
+      "id": "bk",
+      "label": "搬空一个桶",
+      "sub": "rehashEntriesInBucketAtIndex()",
+      "card": "bucket",
+      "short": "搬一桶"
+     },
+     {
+      "id": "dn",
+      "label": "搬完了吗",
+      "sub": "dictCheckRehashingCompleted()",
+      "card": "done",
+      "short": "收尾"
+     }
+    ],
+    "edges": [
+     [
+      "st",
+      "rh",
+      "桶不在旧表"
+     ],
+     [
+      "rh",
+      "bk",
+      "每个非空桶"
+     ],
+     [
+      "rh",
+      "dn",
+      "最后"
+     ]
+    ]
+   },
+   "info": {
+    "kicker": "dictRehash（dict.c:406）",
+    "role": "dict 同时持有 ht_table[0]（旧）和 [1]（新），rehashidx 指向下一个要搬的旧桶。",
+    "not": "不决定何时扩缩容：那是 dictExpandIfNeeded / dictShrinkIfNeeded。",
+    "methods": [
+     [
+      "dictRehash(d, n)",
+      "→ 1 还没搬完 / 0 搬完",
+      "最多看 n*10 个空桶"
+     ]
+    ]
+   }
+  }
+ ],
+ "channels": [
+  {
+   "from": "cmd",
+   "to": "evict",
+   "label": "performEvictions",
+   "kind": "call"
+  },
+  {
+   "from": "evict",
+   "to": "pool",
+   "label": "每个 db 采样",
+   "kind": "call",
+   "sides": "bt"
+  },
+  {
+   "from": "evict",
+   "to": "rehash",
+   "label": "删 key → dict 操作",
+   "kind": "data"
+  }
+ ],
+ "cards": [
+  {
+   "id": "perform",
+   "title": "performEvictions()",
+   "file": "src/evict.c",
+   "ranges": [
+    [
+     543,
+     543
+    ],
+    [
+     546,
+     573
+    ],
+    [
+     576,
+     576
+    ],
+    [
+     579,
+     589
+    ],
+    [
+     692,
+     692
+    ],
+    [
+     695,
+     697
+    ],
+    [
+     735,
+     735
+    ],
+    [
+     738,
+     753
+    ],
+    [
+     758,
+     758
+    ],
+    [
+     767,
+     771
+    ],
+    [
+     776,
+     788
+    ]
+   ],
+   "blocks": [
+    [
+     546,
+     546,
+     "现在不适合淘汰（加载中、从库等）→ 当作没事"
+    ],
+    [
+     548,
+     554,
+     "本轮的计数器；result 先假设失败"
+    ],
+    [
+     556,
+     559,
+     "内存其实没超 → 直接去记指标"
+    ],
+    [
+     561,
+     564,
+     "策略是 noeviction → 失败"
+    ],
+    [
+     566,
+     576,
+     "算出本轮时间预算，开始计时"
+    ],
+    [
+     579,
+     585,
+     "还没腾够就继续：每一轮选出一个 bestkey"
+    ],
+    [
+     587,
+     589,
+     "LRU / LFU / TTL 策略：靠淘汰池选"
+    ],
+    [
+     695,
+     697,
+     "random 策略：不用池"
+    ],
+    [
+     738,
+     751,
+     "删掉 bestkey 并把 DEL 传播给从库 / AOF，累计释放量"
+    ],
+    [
+     753,
+     758,
+     "每删 16 个：先把从库缓冲刷出去"
+    ],
+    [
+     767,
+     771,
+     "lazyfree 在后台放内存：看一眼是不是已经够了"
+    ],
+    [
+     776,
+     780,
+     "超过时间预算 → 起定时器稍后继续，先退出"
+    ],
+    [
+     782,
+     784,
+     "没选出 key → 没得放了"
+    ],
+    [
+     787,
+     787,
+     "腾够了，或超时转后台"
+    ]
+   ]
+  },
+  {
+   "id": "pickpool",
+   "title": "performEvictions() · 靠淘汰池选",
+   "file": "src/evict.c",
+   "ranges": [
+    [
+     590,
+     595
+    ],
+    [
+     600,
+     617
+    ],
+    [
+     621,
+     626
+    ],
+    [
+     630,
+     634
+    ],
+    [
+     637,
+     647
+    ],
+    [
+     650,
+     653
+    ],
+    [
+     657,
+     658
+    ],
+    [
+     663,
+     670
+    ],
+    [
+     680,
+     691
+    ]
+   ],
+   "blocks": [
+    [
+     592,
+     595,
+     "池里选不出就反复采样"
+    ],
+    [
+     600,
+     611,
+     "每个 db 都采：allkeys 看全部 key，volatile 只看带过期的"
+    ],
+    [
+     612,
+     632,
+     "往池里填样本，直到这个 db 采够"
+    ],
+    [
+     634,
+     634,
+     "所有 db 都是空的 → 没得淘汰"
+    ],
+    [
+     637,
+     653,
+     "从池尾（分数最高）往前取，取出就清掉这一格"
+    ],
+    [
+     657,
+     665,
+     "key 还在而且没被标 NO-EVICT → 就是它"
+    ],
+    [
+     666,
+     668,
+     "key 已经不在了（幽灵）→ 看下一格"
+    ],
+    [
+     670,
+     670,
+     "选到了"
+    ],
+    [
+     680,
+     680,
+     "一个都没采到 → 放弃"
+    ],
+    [
+     682,
+     689,
+     "采到的全是 NO-EVICT：重试几轮后认输"
+    ],
+    [
+     690,
+     690,
+     "重置计数"
+    ]
+   ]
+  },
+  {
+   "id": "pickrand",
+   "title": "performEvictions() · 随机选",
+   "file": "src/evict.c",
+   "ranges": [
+    [
+     701,
+     734
+    ]
+   ],
+   "blocks": [
+    [
+     701,
+     701,
+     "重试计数"
+    ],
+    [
+     702,
+     712,
+     "轮流从每个 db 里挑"
+    ],
+    [
+     713,
+     714,
+     "挑一个随机 slot"
+    ],
+    [
+     716,
+     725,
+     "随机取几个 key，跳过 NO-EVICT 的"
+    ],
+    [
+     726,
+     726,
+     "选到了"
+    ],
+    [
+     728,
+     733,
+     "选到或没得选就停；全是 NO-EVICT 则重试有限次"
+    ]
+   ]
+  },
+  {
+   "id": "finish",
+   "title": "performEvictions() · 收尾",
+   "file": "src/evict.c",
+   "ranges": [
+    [
+     789,
+     790
+    ],
+    [
+     794,
+     806
+    ],
+    [
+     813,
+     834
+    ]
+   ],
+   "blocks": [
+    [
+     790,
+     795,
+     "失败时：也许 lazyfree 线程还在放内存"
+    ],
+    [
+     796,
+     803,
+     "短暂等一下后台释放，够了就算成功"
+    ],
+    [
+     804,
+     805,
+     "记延迟"
+    ],
+    [
+     813,
+     818,
+     "被 NO-EVICT 挡住的：允许有限超用"
+    ],
+    [
+     820,
+     821,
+     "记本轮延迟"
+    ],
+    [
+     824,
+     826,
+     "仍超限：开始累计超限时长"
+    ],
+    [
+     827,
+     831,
+     "恢复正常：结算超限时长"
+    ],
+    [
+     833,
+     833,
+     "返回结果"
+    ]
+   ]
+  },
+  {
+   "id": "populate",
+   "title": "evictionPoolPopulate()",
+   "file": "src/evict.c",
+   "blocks": [
+    [
+     140,
+     143,
+     "候选数清零"
+    ],
+    [
+     146,
+     147,
+     "公平地随机挑一个 slot；没有可用的就返回"
+    ],
+    [
+     148,
+     148,
+     "从这个 slot 随机取 maxmemory_samples 个 key"
+    ],
+    [
+     149,
+     154,
+     "逐个样本处理"
+    ],
+    [
+     157,
+     158,
+     "NO-EVICT 的 key 不参与"
+    ],
+    [
+     163,
+     164,
+     "LRU：分数 = 空闲时长"
+    ],
+    [
+     165,
+     173,
+     "LFU：分数 = 255 − 访问频率"
+    ],
+    [
+     174,
+     176,
+     "volatile-ttl：越快过期分数越高"
+    ],
+    [
+     177,
+     179,
+     "未知策略 → panic"
+    ],
+    [
+     184,
+     187,
+     "在池里找第一个分数不小于它的位置 k"
+    ],
+    [
+     188,
+     191,
+     "比池里最差的还差，而且池满了 → 丢弃"
+    ],
+    [
+     192,
+     193,
+     "正好落在空格上 → 直接放"
+    ],
+    [
+     194,
+     205,
+     "要插在中间、右边还有空 → 从 k 起整体右移一格"
+    ],
+    [
+     206,
+     215,
+     "右边没空 → 挤掉最左边（分数最低）的，左移"
+    ],
+    [
+     222,
+     224,
+     "key 太长：复制一份"
+    ],
+    [
+     225,
+     229,
+     "否则复用格子里预分配的缓冲"
+    ],
+    [
+     230,
+     232,
+     "写入分数、db、slot"
+    ],
+    [
+     235,
+     235,
+     "返回采到的样本数"
+    ]
+   ],
+   "ranges": [
+    [
+     139,
+     143
+    ],
+    [
+     146,
+     154
+    ],
+    [
+     157,
+     158
+    ],
+    [
+     163,
+     165
+    ],
+    [
+     173,
+     179
+    ],
+    [
+     184,
+     188
+    ],
+    [
+     191,
+     194
+    ],
+    [
+     197,
+     197
+    ],
+    [
+     202,
+     208
+    ],
+    [
+     211,
+     216
+    ],
+    [
+     222,
+     236
+    ]
+   ]
+  },
+  {
+   "id": "step",
+   "title": "_dictRehashStepIfNeeded()",
+   "file": "src/dict.c",
+   "lines": [
+    1775,
+    1788
+   ],
+   "blocks": [
+    [
+     1776,
+     1777,
+     "没在 rehash 或被暂停 → 什么都不做"
+    ],
+    [
+     1779,
+     1782,
+     "刚访问的桶还在旧表里 → 就搬这个桶（缓存友好）"
+    ],
+    [
+     1783,
+     1787,
+     "否则按 rehashidx 顺序搬一个"
+    ]
+   ]
+  },
+  {
+   "id": "rehash",
+   "title": "dictRehash()",
+   "file": "src/dict.c",
+   "lines": [
+    406,
+    437
+   ],
+   "blocks": [
+    [
+     407,
+     411,
+     "最多容忍 n*10 个空桶；读出全局开关"
+    ],
+    [
+     412,
+     412,
+     "禁止 resize 或没在 rehash → 返回"
+    ],
+    [
+     416,
+     421,
+     "有子进程时（AVOID）：新旧表差得不够多就先不搬，省写时复制"
+    ],
+    [
+     423,
+     426,
+     "搬 n 个桶，或旧表已空"
+    ],
+    [
+     427,
+     430,
+     "跳过空桶；空桶看太多就先返回，下次再来"
+    ],
+    [
+     432,
+     433,
+     "把这个桶里的所有 entry 搬到新表，游标前进"
+    ],
+    [
+     436,
+     436,
+     "旧表空了就收尾；返回是否还有剩"
+    ]
+   ]
+  },
+  {
+   "id": "bucket",
+   "title": "rehashEntriesInBucketAtIndex()",
+   "file": "src/dict.c",
+   "lines": [
+    337,
+    378
+   ],
+   "blocks": [
+    [
+     338,
+     343,
+     "沿这个桶的链表逐个 entry"
+    ],
+    [
+     345,
+     347,
+     "扩容：重新算哈希得到新桶号"
+    ],
+    [
+     348,
+     353,
+     "缩容：直接对旧桶号取模"
+    ],
+    [
+     354,
+     361,
+     "无值 dict + 目标桶为空：key 指针直接放进桶里，不要 entry"
+    ],
+    [
+     363,
+     365,
+     "目标桶非空但自己没有 entry → 现分配一个"
+    ],
+    [
+     366,
+     368,
+     "已有 entry → 头插"
+    ],
+    [
+     369,
+     371,
+     "普通 dict：头插到新桶"
+    ],
+    [
+     372,
+     375,
+     "新桶指向它；两张表的计数一减一加"
+    ],
+    [
+     377,
+     377,
+     "旧桶清空"
+    ]
+   ]
+  },
+  {
+   "id": "done",
+   "title": "dictCheckRehashingCompleted()",
+   "file": "src/dict.c",
+   "lines": [
+    381,
+    395
+   ],
+   "blocks": [
+    [
+     382,
+     382,
+     "旧表还有东西 → 没完"
+    ],
+    [
+     384,
+     386,
+     "通知回调"
+    ],
+    [
+     387,
+     391,
+     "释放旧表，把新表挪到 [0]"
+    ],
+    [
+     392,
+     394,
+     "清空 [1]，rehashidx = -1：rehash 结束"
+    ]
+   ]
+  }
+ ]
+}

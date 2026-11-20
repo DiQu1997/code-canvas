@@ -87,7 +87,7 @@ def derive_cfg(spec, R):
     for c in cards.values():
         nm = c.get("name") or re.sub(r"\(.*$", "", str(c.get("title", ""))).split(".")[-1].split("::")[-1].strip()
         if nm:
-            names[nm] = c.get("id")
+            names.setdefault(nm, c.get("id"))   # a long function split over several cards: calls point at the first
     for m in spec.get("modules") or []:
         A = m.get("anatomy") or {}
         if A.get("primitive") != "cfg":
@@ -104,7 +104,7 @@ def derive_cfg(spec, R):
             tree, ok = cfg_extract.card_cfg(c, names)
             c["cfg"] = tree
             if not ok:
-                R.w(f"card {c.get('id')}: cfg structure is only derived for Python — drawn as its blocks in order")
+                R.w(f"card {c.get('id')}: cfg structure is only derived for Python and C-family (brace) files — drawn as its blocks in order")
             elif not tree:
                 R.w(f"card {c.get('id')}: no statements found for the cfg skeleton")
 

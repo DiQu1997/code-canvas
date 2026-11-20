@@ -377,3 +377,17 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
   if 分支；kafka-zoom 在本容器缺源码仓库（build 报 file not found，属环境缺失），只确认了渲染无
   JS 报错，未看 Scala 模块换 cfg 的效果；未部署到 hub；L2 函数卡未复用 card.cfg（待办）；
   `scene-spec.md` 尚未补 tree / fn / phone 等字段说明（待办）。
+- **2026-11-20**：**cfg 图元泛化测试：vllm（Python）+ redis（C）**。作者要求换仓库看泛化。
+  vllm `scheduler.py`（请求进出 / 调度 / 抢占 / 释放，5 模块 11 卡）：提取器**不改一行**就出图；
+  暴露一个真 bug——没有 story 的画布，空播放条盖住内容（`.story[hidden]` 修掉）。
+  redis `evict.c` + `dict.c`（淘汰主循环 / 淘汰池 / 渐进式 rehash）：**第一次直接失败**——cfg 只认
+  Python，全部退化；且 `performEvictions` 292 行撞卡片 90 行上限（2 ERROR）。补救：① `cfg_extract.py`
+  加 C 系花括号解析（if / else-if / switch / for / while / do-while / goto / 标签、`->`/`.` 字段写入、
+  `++/--`，字符串里的函数名不算调用）；② 长函数由作者（agent）手拆成片段卡（骨架 + 两个选 key
+  分支 + 收尾）；③ 4 列长函数在桌面缩到 ~3px 不可读 → 新增「每函数一列 + 滚轮 / 拖动平移」模式
+  （到底后 450ms 内继续滚不会误退到系统层）。radix demo 重建 0 errors / 0 warnings 无回归；
+  全套回归与基线一致。泛化样例 json 存 `demo/generalize/`（需对应仓库源码才能 build，见该目录 README）。
+  **如实局限**：长 C 函数的拆分是人 / agent 手工做的，不是机械的（90 行上限 + 片段卡之间无连线，
+  片段卡会报 "name not found" WARN）；花括号语言只实测了 C；Go / Rust 仍退化；goto 目标不画箭头；
+  宏（`serverAssert`、`dictSetVal` 之类）当普通语句；长条件截断；滚动模式下一屏只见局部，
+  失去「一眼看全」；模块用不用 cfg 仍是 json 里人选的；zoom 画布仍无自动化测试。
