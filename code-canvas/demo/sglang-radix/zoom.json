@@ -126,7 +126,7 @@
     {"from": "caller", "to": "match", "label": "match_prefix", "kind": "call"},
     {"from": "caller", "to": "lock", "label": "lock / unlock", "kind": "call"},
     {"from": "caller", "to": "ckpt", "label": "checkpoint", "kind": "call"},
-    {"from": "match", "to": "tree", "label": "读 children / key，可能 split", "kind": "data"},
+    {"from": "match", "to": "tree", "label": "读 key，可能 split", "kind": "data"},
     {"from": "lock", "to": "tree", "label": "lock_ref ±1", "kind": "data"},
     {"from": "ckpt", "to": "tree", "label": "insert + 换锁", "kind": "data"},
     {"from": "insert", "to": "tree", "label": "挂新叶子", "kind": "data", "sides": "lr"},

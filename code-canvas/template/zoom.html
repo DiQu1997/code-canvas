@@ -608,7 +608,7 @@ function renderTree(e,x,animate){const U=TU,sg=JSON.stringify([x.nodes,x.order,x
     if(e.pb){const Q=e.pb;Q.x=lerp(Q.x0,Q.tx,q);Q.y=lerp(Q.y0,Q.ty,q);Q.o=Q.dead?1-q:Q.born?q:1;Q.g.setAttribute('transform',`translate(${Q.x},${Q.y})`);Q.g.setAttribute('opacity',Q.o)}
     for(const id in e.te){const T=e.tn[id],Q=T&&e.tn[T.par],ed=e.te[id];if(!Q){ed.p.setAttribute('opacity',0);if(ed.t)ed.t.setAttribute('opacity',0);continue}
       const x1=Q.x+Q.w/2,y1=Q.y+Q.h,x2=T.x+T.w/2,y2=T.y,my=(y1+y2)/2,o=Math.min(Q.o,T.o);ed.p.setAttribute('d',`M${x1} ${y1}C${x1} ${my} ${x2} ${my} ${x2} ${y2}`);ed.p.setAttribute('opacity',o);
-      if(ed.t){ed.t.setAttribute('x',x1+(x2-x1)*.216);ed.t.setAttribute('y',y1+(y2-y1)*.342+3);ed.t.setAttribute('opacity',o)}}};
+      if(ed.t){ed.t.setAttribute('x',x1+(x2-x1)*.216);ed.t.setAttribute('y',y1+(y2-y1)*.342+3);ed.t.setAttribute('opacity',pr&&pr.node===id?0:o)}}};
   const done=()=>{for(const id in e.tn){const T=e.tn[id];if(T.dead){T.g.remove();delete e.tn[id];const ed=e.te[id];if(ed){ed.p.remove();ed.t&&ed.t.remove();delete e.te[id]}}else T.born=false}
     if(e.pb){if(e.pb.dead){e.pb.g.remove();e.pb=null}else e.pb.born=false}};
   if(animate)pend.push(tween(720,draw,done));else{draw(1);done()}}
@@ -635,8 +635,8 @@ function buildEnt(e){ENT[e.id]=e;const g=e.g=E('g',{class:'ent st-'+(e.state||'i
     if(e.sub)E('text',{x:0,y:h+18,class:'es'},g,e.sub)}
   if(e.type==='bar'){E('text',{x:0,y:-22,class:'kind'},g,e.kind||'budget');E('text',{x:0,y:-6,class:'et'},g,e.title);e.cntT=E('text',{x:w,y:-6,'text-anchor':'end',class:'cnt'},g,'');
     E('rect',{width:w,height:h,rx:6,class:'pipe'},g);e.segG=E('g',{},g);if(e.sub)E('text',{x:0,y:h+18,class:'es'},g,e.sub)}
-  if(e.type==='fn'){E('rect',{width:w,height:h,rx:10,class:'box fnb'},g);E('rect',{x:0,y:9,width:3.5,height:h-18,rx:1.75,fill:col(e.color||'c2')},g);
-    E('text',{x:14,y:e.sub?h/2-3:h/2+5,class:'fnt'},g,e.title);if(e.sub)E('text',{x:14,y:h/2+15,class:'es'},g,e.sub)}
+  if(e.type==='fn'){E('rect',{width:w,height:h,rx:10,class:'box fnb','stroke-dasharray':e.ext?'5 5':null},g);if(!e.ext)E('rect',{x:0,y:9,width:3.5,height:h-18,rx:1.75,fill:e.color?col(e.color):'var(--muted)'},g);
+    E('text',{x:14,y:e.sub?h/2-3:h/2+5,class:e.ext?'et':'fnt'},g,fitStr(e.title,(w-24)/13.5));if(e.sub)E('text',{x:14,y:h/2+15,class:'es'},g,fitStr(e.sub,(w-24)/11.5))}
   if(e.type==='tree'){E('rect',{width:w,height:h,rx:14,class:'box'},g);E('text',{x:14,y:17,class:'kind'},g,e.kind||'tree');E('text',{x:14,y:36,class:'et'},g,e.title);if(e.sub)E('text',{x:14,y:52,class:'es'},g,e.sub);
     const U=TU;e.HEAD=e.sub?64:50;e.FOOT=(e.sets||[]).length?34:10;e.lane=U.kh+14;
     e.nodeH=U.hh+U.kh+(e.valLabel?U.vh+3:0)+((e.badges||[]).some(b=>b.row==='bottom')?U.br:0)+U.py;
@@ -648,7 +648,7 @@ function slotPos(loc,i,n,id){const [eid,slot]=loc;const e=ENT[eid];const s=tokSi
   if(e.type==='queue'){if(e.dir==='v')return {x:e.x+e.w/2,y:e.y+10+s.h/2+i*(s.h+7),o:(10+(i+1)*(s.h+7)>e.h+4)?0:1};
     const x=e.x+e.w-14-s.w/2-i*(s.w+7);return {x,y:e.y+e.h/2,o:x-s.w/2<e.x+4?0:1}}
   if(e.type==='store'){const r=e.rowY[slot]||Object.values(e.rowY)[0];return {x:e.x+r.x+s.w/2+i*(s.w+6),y:e.y+r.y,o:1}}
-  if(e.type==='fn')return {x:e.x+e.w-s.w/2-10,y:e.y+e.h/2,o:1};
+  if(e.type==='fn')return {x:e.x+e.w-s.w/2-8-i*(s.w+4),y:e.y+2,o:1};
   const gap=6;let tot=0;const ws=[];for(const t of n)ws.push(tokSize(t).w);tot=ws.reduce((a,b)=>a+b,0)+gap*(ws.length-1);let x=e.x+e.w/2-tot/2;for(let k=0;k<i;k++)x+=ws[k]+gap;
   return {x:x+s.w/2,y:e.y+e.h-45,o:1}}
 
@@ -660,7 +660,7 @@ function buildWire(w){WIRE[w.id]=w;const a=anchor(w.a),b=anchor(w.b);const d=Mat
   const c1=cp(a),c2=cp(b);const [c,dash]=WK[w.kind]||WK.call;
   const defs=svg.querySelector('defs')||E('defs',{},svg);if(!svg.querySelector('#ah-'+w.kind)){const m=E('marker',{id:'ah-'+w.kind,viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'},defs);E('path',{d:'M0 0L10 5L0 10z',fill:c},m)}
   w.el=E('path',{d:`M${a.p} C${c1} ${c2} ${b.p}`,class:'wire'+(w.hidden?' hid':''),stroke:c,'stroke-dasharray':dash,'marker-end':`url(#ah-${w.kind})`},LW);w.L=w.el.getTotalLength();w.color=c;
-  if(w.label){const m=w.el.getPointAtLength(w.L*(w.lt||.5));w.lab=E('text',{x:m.x,y:m.y-7,'text-anchor':'middle',class:'wl'+(w.hidden?' hid':''),fill:c},LWL,w.label)}}
+  if(w.label){const m=w.el.getPointAtLength(w.L*(w.lt||.5));w.lab=E('text',{x:m.x+(w.ldx||0),y:m.y-7+(w.ldy||0),'text-anchor':w.la||'middle',class:'wl'+(w.hidden?' hid':''),fill:c},LWL,w.label)}}
 const wpt=(w,t)=>{const p=w.el.getPointAtLength(w.L*t);return [p.x,p.y]};
 
 /* ---------------- state ---------------- */
@@ -713,16 +713,16 @@ function renderEnt(st,animate){for(const e of S.entities){const x=st.ent[e.id];i
     if(e.chipT){const t=x.state==='run'?'● running':x.state==='blocked'?'‖ blocked'+(x.on?' on '+x.on:''):('○ '+(x.on||'idle'));e.chipT.textContent=t;const wd=tw(t)*7.2+20;e.chipR.setAttribute('x',e.w/2-wd/2);e.chipR.setAttribute('width',wd)}
     if(e.type==='queue'){const n=(st.loc[e.id+'/hand']||[]).length;e.cntT.textContent=e.cap?`${n+(x.vars._base||0)} / ${e.cap}`:(e.count===false?'':`${n}`);if(e.fill)e.fill.setAttribute('width',Math.max(n?4:0,(e.w-20)*clamp((n+(x.vars._base||0))/(e.capShow||e.cap),0,1)))}
     // vars
-    const ks=Object.keys(x.vars).filter(k=>!k.startsWith('_'));ks.forEach((k,i)=>{let v=e.varEl[k];if(!v){const vg=E('g',{class:'var'},e.varG);v=e.varEl[k]={g:vg,k:E('text',{class:'k'},vg,k),v:E('text',{class:'v'},vg,''),val:null}}
-      const by=(e.type==='queue'||e.type==='grid'||e.type==='bar')?e.h+(e.sub?36:20)+(e.cap?8:0):e.h+(e.type==='thread'?30:18);if(e.type==='tree'){const vw=Math.max(...ks.map(q=>tw(q)*11.6))+9+26;v.g.setAttribute('transform',`translate(${e.w-vw-10},${22+i*17})`)}else v.g.setAttribute('transform',`translate(${e.varX||4},${by+i*17})`);v.v.setAttribute('x',tw(k)*11.6+9);
+    const ks=Object.keys(x.vars).filter(k=>!k.startsWith('_'));ks.forEach((k,i)=>{let v=e.varEl[k];const sv=(e.segVars||[]).find(q=>q[0]===k),sw=sv?15:0;if(!v){const vg=E('g',{class:'var'},e.varG);if(sv)E('rect',{x:0,y:-9.5,width:10,height:10,rx:2.5,fill:`color-mix(in srgb,${col(sv[1])} 62%,var(--panel))`},vg);v=e.varEl[k]={g:vg,k:E('text',{class:'k',x:sw},vg,k),v:E('text',{class:'v'},vg,''),val:null}}
+      const by=(e.type==='queue'||e.type==='grid'||e.type==='bar')?e.h+(e.sub?36:20)+(e.cap?8:0):e.h+(e.type==='thread'?30:18);if(e.type==='tree'){const vw=Math.max(...ks.map(q=>tw(q)*11.6))+9+26;v.g.setAttribute('transform',`translate(${e.w-vw-10},${22+i*17})`)}else v.g.setAttribute('transform',`translate(${e.varX||4},${by+i*17})`);v.v.setAttribute('x',sw+tw(k)*11.6+9);
       if(v.val!==x.vars[k]){roll(v,v.val,x.vars[k],animate);v.val=x.vars[k]}});
     for(const k in e.varEl)if(!(k in x.vars)){e.varEl[k].g.remove();delete e.varEl[k]}
     if(e.type==='log')for(const m of e.markers){const M=e.mk[m.id];const v=x.mk[m.id];if(M.v===null||!animate){M.v=v;placeMk(e,M)}else if(M.v!==v)tween(700,t=>{M.cur=lerp(M.from,v,ease(t));placeMk(e,M,M.cur)},()=>{M.v=v},M.from=M.v)}
     if(e.type==='tree')renderTree(e,x,animate);
     if(e.type==='grid'){let d=0,used=0;x.cells.forEach((who,i)=>{const f=who?`color-mix(in srgb,${tcol(who)} 62%,var(--panel))`:'var(--panel2)';const c=e.cells[i];if(c.dataset.f!==f){c.style.transitionDelay=animate?(d++*18)+'ms':'0ms';c.setAttribute('fill',f);c.dataset.f=f}
         e.hashes[i].style.opacity=x.hash[i]?.6:0;if(who)used++});e.cntT.textContent=e.count===false?'':`空闲 ${x.cells.length-used} 格`}
-    if(e.type==='bar'){const tot=e.total;let acc=0;const els=[...e.segG.children];x.segs.forEach(([who,n],i)=>{let r=els[i];if(!r)r=E('rect',{y:2,height:e.h-4,rx:4,x:0,width:0,style:'transition:all .6s'},e.segG);
-        r.setAttribute('fill',`color-mix(in srgb,${tcol(who)} 62%,var(--panel))`);r.setAttribute('x',2+(e.w-4)*acc/tot);r.setAttribute('width',Math.max(n?3:0,(e.w-4)*n/tot));acc+=n});els.forEach((r,i)=>r.style.opacity=i<x.segs.length?1:0);e.cntT.textContent=`剩 ${tot-acc} / ${tot}`}}
+    if(e.type==='bar'){const tot=e.total;let acc=0;const els=[...e.segG.children],segs=e.segVars?e.segVars.map(([k,c])=>[k,+x.vars[k]||0,col(c)]):x.segs.map(([who,n])=>[who,n,tcol(who)]);segs.forEach(([who,n,c],i)=>{let r=els[i];if(!r)r=E('rect',{y:2,height:e.h-4,rx:4,x:0,width:0,style:'transition:all .6s'},e.segG);
+        r.setAttribute('fill',`color-mix(in srgb,${c} 62%,var(--panel))`);r.setAttribute('x',2+(e.w-4)*acc/tot);r.setAttribute('width',Math.max(n?3:0,(e.w-4)*n/tot));acc+=n});els.forEach((r,i)=>r.style.opacity=i<segs.length?1:0);e.cntT.textContent=e.sumLabel?`${e.sumLabel} ${acc} / ${tot}`:`剩 ${tot-acc} / ${tot}`}}
   for(const w of S.wires||[]){const on=st.wires[w.id];w.el.classList.toggle('hid',!on);if(w.lab)w.lab.classList.toggle('hid',!on)}}
 function placeMk(e,M,v){v=v??M.v;const x=22+(e.w-44)*clamp((v-e.range[0])/(e.range[1]-e.range[0]),0,1);M.g.setAttribute('transform',`translate(${x},${e.ty})`);M.t.textContent=`${M.label} ${Math.round(v)}`}
 function roll(v,a,b,animate){const el=v.v;const na=String(a??'').match(/-?\d+(\.\d+)?/g),nb=String(b).match(/-?\d+(\.\d+)?/g);const shape=s=>String(s??'').replace(/-?\d+(\.\d+)?/g,'#');

@@ -326,6 +326,16 @@ def main():
                 R.e(f"scene entity {e['id']}: log needs range and markers")
             if e.get("type") == "bar" and not e.get("total"):
                 R.e(f"scene entity {e['id']}: bar needs total")
+            if e.get("segVars") is not None:
+                sv = e["segVars"]
+                if e.get("type") != "bar":
+                    R.e(f"scene entity {e['id']}: segVars only applies to a bar")
+                elif not (isinstance(sv, list) and sv and all(isinstance(q, list) and len(q) == 2 for q in sv)):
+                    R.e(f"scene entity {e['id']}: segVars must be a list of [var, color] pairs")
+                else:
+                    for q in sv:
+                        if q[0] not in (e.get("vars") or {}):
+                            R.e(f"scene entity {e['id']}: segVars names {q[0]}, which is not one of its vars")
             if e.get("type") == "store" and not e.get("rows"):
                 R.e(f"scene entity {e['id']}: store needs rows")
             if e.get("type") == "tree":
