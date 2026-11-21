@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redis 腾内存 · performEvictions() 一图读懂</title>
+<style>
+:root{
+  --bg:#f6f4ef; --card:#fffdf9; --ink:#1f2430; --mut:#667085; --line:#e4dfd3; --soft:#efebe1;
+  --c1:#64748b; --c2:#2563eb; --cB:#0d9488; --c3:#db2777; --c4:#b45309; --c5:#7c3aed;
+  --ok:#15803d; --run:#c2710c; --fail:#c81e1e;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono","WenQuanYi Zen Hei Mono",monospace;
+  --sans:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","WenQuanYi Zen Hei",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:58px;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--sans)}
+code,.mono{font-family:var(--mono)}
+a{color:inherit}
+.wrap{max-width:1240px;margin:0 auto;padding:0 28px}
+/* nav */
+nav{position:sticky;top:0;z-index:20;background:rgba(246,244,239,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;gap:6px;align-items:center;height:48px;overflow-x:auto;scrollbar-width:none}
+nav .wrap::-webkit-scrollbar{display:none}
+nav b{font-size:14px;margin-right:10px;white-space:nowrap}
+nav a{text-decoration:none;font-size:14px;padding:5px 12px;border-radius:99px;white-space:nowrap;color:var(--mut)}
+nav a.on{background:var(--ink);color:#fff}
+/* hero */
+header{padding:34px 0 8px}
+h1{font-size:34px;line-height:1.2;margin:0 0 6px;letter-spacing:.5px}
+.sub{color:var(--mut);font-size:14px}
+.sub code{background:var(--soft);padding:1px 6px;border-radius:5px}
+.tldr{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:20px 0 6px;padding:0;list-style:none;counter-reset:t}
+.tldr li{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px 14px 50px;position:relative;font-size:15.5px;line-height:1.6}
+.tldr li::before{counter-increment:t;content:counter(t);position:absolute;left:14px;top:14px;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-weight:700;text-align:center;line-height:26px;font-size:14px}
+h2{font-size:24px;margin:44px 0 4px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h2 small{font-size:14px;color:var(--mut);font-weight:400}
+h3{font-size:17px;margin:0 0 8px}
+p.lead{margin:2px 0 16px;color:#3b4252;max-width:860px}
+/* ref chip */
+.rf{display:inline-block;font:600 11.5px/1 var(--mono);padding:3px 5px;border-radius:5px;background:#e9e5da;color:#4b5563;text-decoration:none;cursor:pointer;margin:0 2px;vertical-align:1px;white-space:nowrap;border:1px solid transparent}
+.rf:hover,.rf:focus{border-color:#9aa3b2;background:#fff}
+code.q{font-size:.82em;background:#f0ede4;border-radius:5px;padding:1px 5px;color:#2b3345;word-break:break-word}
+.qq{display:inline}
+/* panorama */
+.pano{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 20px 22px;margin-top:10px}
+.callers{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.caller{border:1.5px solid var(--ink);border-radius:12px;padding:8px 14px;font-size:14px;background:#fff;max-width:440px}
+.caller b{font-family:var(--mono);font-size:14px}
+.caller span{color:var(--mut);display:block;font-size:13px;line-height:1.45}
+.down{height:26px;position:relative}
+.down::before{content:"";position:absolute;left:50%;top:2px;bottom:8px;width:2px;background:var(--ink)}
+.down::after{content:"";position:absolute;left:50%;bottom:2px;margin-left:-6px;border:6px solid transparent;border-top:8px solid var(--ink);border-bottom:0}
+.fn{border:2px solid var(--ink);border-radius:16px;padding:0 14px 16px;background:#fbfaf6}
+.fnhead{display:inline-block;background:var(--ink);color:#fff;font:600 14px var(--mono);padding:5px 14px;border-radius:0 0 10px 10px;margin-bottom:14px}
+.fnhead .rf{background:#3a4152;color:#e5e7eb}
+.stages{display:flex;align-items:stretch;gap:0}
+.stage{flex:1 1 0;border-radius:12px;padding:10px 12px;background:#fff;border:1.5px solid var(--sc);border-top:6px solid var(--sc);min-width:0;font-size:13.5px;line-height:1.5;position:relative}
+.stage h4{margin:0 0 4px;font-size:16px;color:var(--sc);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.stage h4 .num{display:inline-block;width:24px;height:24px;border-radius:50%;background:var(--sc);color:#fff;text-align:center;line-height:24px;font-size:14px;flex:none}
+.stage .rng{font:600 11.5px var(--mono);color:var(--mut);display:block;margin-top:6px}
+.stage ul{margin:4px 0 0;padding-left:16px}
+.stage li{margin:1px 0}
+.st0{--sc:#334155}.st1{--sc:var(--c1)}.st2{--sc:var(--c2)}.stB{--sc:var(--cB)}.st3{--sc:var(--c3)}.st4{--sc:var(--c4)}.st5{--sc:var(--c5)}.stX{--sc:var(--fail)}
+.arr{flex:none;width:26px;position:relative}
+.arr::before{content:"";position:absolute;top:50%;left:3px;right:8px;height:2px;background:var(--ink)}
+.arr::after{content:"";position:absolute;top:50%;right:2px;margin-top:-6px;border:6px solid transparent;border-left:8px solid var(--ink);border-right:0}
+.loopbox{flex:3.9 1 0;border:2px dashed #334155;border-radius:16px;padding:30px 10px 10px;position:relative;background:repeating-linear-gradient(135deg,#f3f1ea 0 10px,#f7f5ef 10px 20px)}
+.looptag{position:absolute;top:-1px;left:14px;right:14px;font-size:13px;line-height:1.3;padding:5px 0 0;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.looptag b{font-size:14px}
+.loopin{display:flex;align-items:stretch;height:100%}
+.loopin .stage.st2{flex:1.75}
+.lanes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.lane{border-radius:8px;padding:6px 8px;font-size:12.5px;line-height:1.45;background:#eef3ff;border-left:4px solid var(--c2)}
+.lane.b{background:#e8f6f4;border-left-color:var(--cB)}
+.lane b{display:block;font-size:13px}
+.rets{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.ret{border-radius:12px;padding:10px 14px;border:1.5px solid var(--rc);background:#fff;font-size:14px;line-height:1.5}
+.ret b{font:700 15px var(--mono);color:var(--rc);display:block}
+.ret .then{display:block;margin-top:4px;padding-top:4px;border-top:1px dashed var(--line);color:#3b4252;font-size:13.5px}
+.r-ok{--rc:var(--ok)}.r-run{--rc:var(--run)}.r-fail{--rc:var(--fail)}
+.touch{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;align-items:center;font-size:13.5px;color:var(--mut)}
+.touch a{text-decoration:none;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:4px 10px;color:var(--ink);font-family:var(--mono);font-size:12.5px}
+/* cards */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.card p{margin:8px 0;font-size:15px}
+.card ul{margin:8px 0;padding-left:20px;font-size:15px}
+.card li{margin:4px 0}
+.tag{display:inline-block;line-height:1.5;font-size:12px;color:var(--mut);border:1px solid var(--line);border-radius:6px;padding:1px 6px;margin-left:6px;font-weight:400;vertical-align:2px}
+/* memory bar */
+.mbar{display:flex;height:44px;border-radius:8px;overflow:hidden;font-size:12.5px;font-weight:600;color:#fff;margin-top:26px}
+.mbar div{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden}
+.m-max{flex:50;background:#3f7d58}.m-free{flex:24;background:repeating-linear-gradient(45deg,#c81e1e 0 8px,#e04a4a 8px 16px)}.m-ov{flex:26;background:#9aa3b2}
+.mbr{display:flex;font:600 12px var(--mono);color:var(--mut);margin-top:4px}
+.mbr div{border-top:2px solid #9aa3b2;padding-top:3px;text-align:center;margin-right:3px}
+.mline{position:relative;height:0}
+.mline i{position:absolute;left:50%;top:-66px;height:62px;border-left:2px dashed var(--ink);font:normal 600 12px var(--mono);padding-left:5px;white-space:nowrap;line-height:1}
+.prog{height:16px;border-radius:99px;background:#f3d6d6;margin:6px 0 2px;overflow:hidden;position:relative}
+.prog i{position:absolute;left:0;top:0;bottom:0;width:58%;background:#3f7d58;border-radius:99px;animation:fill 4s ease-in-out infinite}
+@keyframes fill{0%{width:4%}80%,100%{width:100%}}
+/* keyspace */
+.ks{display:flex;gap:8px;align-items:stretch;margin:10px 0 4px;flex-wrap:wrap}
+.db{flex:1 1 110px;border:1.5px solid #9aa3b2;border-radius:10px;padding:6px 8px;background:#fff;font:600 12.5px var(--mono)}
+.db .bk{display:block;margin-top:5px;border-radius:6px;padding:3px 6px;font-weight:600;color:#fff}
+.kv{font:600 12px var(--mono);border-radius:5px;padding:1px 6px;color:#fff}
+.k1,.bk.k1{background:#475569}.k2,.bk.k2{background:#a16207}
+.slots{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin:8px 0 2px}
+.slots i{height:20px;border-radius:4px;background:#d9d5ca}
+.slots i.e{background:transparent;border:1px dashed #c9c4b6}
+.slots i.pick{background:var(--c2);box-shadow:0 0 0 3px #bfd3ff}
+.cap{font-size:13px;color:var(--mut);line-height:1.5}
+#d-pol{grid-column:1/-1}
+table.pol{width:100%;border-collapse:collapse;font-size:15px;margin-top:8px;table-layout:fixed}
+table.pol th{font-size:13.5px;color:var(--mut);text-align:left;font-weight:600;padding:6px 8px;border-bottom:1.5px solid var(--line);vertical-align:bottom}
+table.pol td{padding:8px 8px;border-bottom:1px solid var(--soft);vertical-align:middle;line-height:1.5}
+table.pol tr:last-child td{border-bottom:0}
+table.pol code{font-size:14px;font-weight:600;margin-right:4px}
+table.pol td.na{color:#b0a99a}
+table.pol .why{display:inline-block;margin-left:8px}
+.pill{display:inline-block;font-size:12px;font-weight:700;color:#fff;background:var(--sc);border-radius:99px;padding:1px 9px;white-space:nowrap}
+/* bits */
+.bits{display:flex;margin:10px 0 2px;font:600 12.5px var(--mono);color:#fff;text-align:center;border-radius:8px;overflow:hidden}
+.bits div{padding:9px 4px;line-height:1.3}
+.bits small{display:block;font-weight:400;opacity:.9;font-size:11.5px;font-family:var(--sans)}
+/* pool */
+.pool{display:grid;grid-template-columns:repeat(16,1fr);gap:5px;margin:10px 0 4px}
+.cell{border-radius:8px;border:1.5px dashed #c9c4b6;min-height:58px;padding:3px 2px;text-align:center;position:relative;transition:background .25s,transform .25s,box-shadow .25s;background:transparent;line-height:1.2}
+.cell .ix{font:600 11.5px var(--mono);color:#98a0ae;display:block}
+.cell .v{font:700 15px var(--mono);display:block;margin-top:2px}
+.cell .kn{font:11.5px var(--mono);opacity:.85;display:block}
+.cell.full{border-style:solid;border-color:transparent;color:#fff}
+.cell.full .ix{color:rgba(255,255,255,.82)}
+.cell.new{box-shadow:0 0 0 3px #111;transform:translateY(-4px)}
+.cell.out{box-shadow:0 0 0 3px var(--fail);transform:translateY(-4px)}
+.pax{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mut)}
+.smp{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;min-height:34px;align-items:center}
+.smp span{font:600 12.5px var(--mono);border:1.5px solid #9aa3b2;border-radius:8px;padding:3px 8px;background:#fff;transition:opacity .2s}
+.smp span.done{opacity:.45}.smp span.cur{border-color:#111;box-shadow:0 0 0 2px #111}
+.smp span.bl{border-style:dashed;color:#a16207}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+button{font:600 14px var(--sans);border-radius:10px;border:1.5px solid var(--ink);background:#fff;color:var(--ink);padding:7px 14px;cursor:pointer}
+button.pri{background:var(--ink);color:#fff}
+button:disabled{opacity:.4}
+.plog{background:#f0ede4;border-radius:10px;padding:8px 12px;font-size:14px;min-height:64px;line-height:1.6}
+.plog b{font-family:var(--mono)}
+.cases{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:13.5px}
+.cases div{border:1px solid var(--line);border-radius:10px;padding:7px 10px;background:#fff;line-height:1.5;transition:box-shadow .2s,border-color .2s}
+.cases div.lit{border-color:#111;box-shadow:0 0 0 2px #111}
+.cases b{display:block}
+.struct{font:13px/1.7 var(--mono);background:#f0ede4;border-radius:10px;padding:8px 12px;margin:8px 0}
+.struct .f{position:relative;padding:2px 0 2px 98px}
+.struct .f b{position:absolute;left:0;top:2px}
+.struct .f span{font-family:var(--sans);color:#3b4252;font-size:13.5px}
+/* journey */
+.jr{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px 0;margin:6px 0 4px;counter-reset:j}
+.js{position:relative;padding:10px 20px 10px 12px;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--sc);border-radius:10px;margin-right:16px;font-size:13.5px;line-height:1.5}
+.js::before{counter-increment:j;content:counter(j);font:700 12px var(--mono);color:#fff;background:var(--sc);border-radius:50%;width:20px;height:20px;display:inline-block;text-align:center;line-height:20px;margin-right:6px}
+.js b{font-size:14.5px}
+.js::after{content:"";position:absolute;right:-13px;top:50%;margin-top:-6px;border:6px solid transparent;border-left:8px solid #9aa3b2;border-right:0}
+.js:last-child::after,.js:nth-child(6n)::after{display:none}
+.js .w,.wk{display:inline-block;font:600 11.5px/1.5 var(--mono);border-radius:5px;padding:0 6px;border:1.5px solid #475569}
+.js .w{margin-top:6px}
+.w.pe,.wk.pe{background:#475569;color:#fff}.w.pp,.wk.pp{background:#fff;color:#334155}.w.dbc,.wk.dbc{background:#fff;color:#334155;border-style:dashed}
+.jleg{font-size:13.5px;color:var(--mut);margin:0 0 8px;display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center}
+.where{font-size:12px;font-weight:700;border-radius:5px;padding:0 6px;color:#fff;background:var(--sc);margin-left:4px}
+/* line map */
+.lbr{display:flex;margin-top:12px}
+.lb{border:2px dashed #334155;border-bottom:0;border-radius:10px 10px 0 0;text-align:center;font-size:13px;line-height:1.2;padding:5px 4px 6px;color:#334155;text-decoration:none;cursor:pointer;white-space:nowrap;overflow:hidden;min-width:0;background:repeating-linear-gradient(135deg,#f3f1ea 0 10px,#f7f5ef 10px 20px)}
+.lmap{display:flex;height:52px;border-radius:0 0 10px 10px;overflow:hidden;margin:0 0 2px;border:1px solid var(--line)}
+.sg{background:var(--sc);color:#fff;text-decoration:none;display:flex;flex-direction:column;justify-content:center;padding:0 6px;min-width:0;border-right:2px solid var(--bg);cursor:pointer;overflow:hidden}
+.sg:last-child{border-right:0}
+.sg b{font-size:13.5px;white-space:nowrap;overflow:hidden;line-height:1.3;font-weight:600}
+.sg .s1{margin-right:4px}
+.sg.nar{padding:0 2px;align-items:center}
+.sg.nar .s2{display:none}
+.lleg{display:flex;flex-wrap:wrap;gap:6px 8px;margin:10px 0 0}
+.lg{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;text-decoration:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:3px 9px;cursor:pointer;flex-wrap:wrap}
+.lg:hover,.lb:hover{border-color:#111}
+.lg i{width:12px;height:12px;border-radius:3px;background:var(--sc);flex:none}
+.lg span{font:11.5px var(--mono);color:var(--mut)}
+.sg i{font:normal 11.5px var(--mono);opacity:.85;white-space:nowrap}
+.lax{display:flex;justify-content:space-between;font:11.5px var(--mono);color:var(--mut)}
+/* scenario */
+.scs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 8px;align-items:center}
+.scs .lbl{font-size:14px;color:var(--mut);margin-right:2px}
+button.sc{font-size:13.5px;padding:5px 12px;border-radius:99px;border-color:#9aa3b2}
+button.sc.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.scsay{display:none;background:#fff;border:1.5px solid var(--ink);border-radius:12px;padding:10px 14px;font-size:14.5px;margin-bottom:10px}
+.scsay.on{display:block}
+.scsay .res{font:700 14px var(--mono);border-radius:6px;padding:2px 8px;color:#fff;background:var(--ink);margin-right:8px;white-space:nowrap}
+.flowwrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
+.flow{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+.fr{display:flex;gap:8px;padding:6px 6px;border-radius:9px;align-items:flex-start;transition:opacity .2s,background .2s}
+.fr+.fr,.blk+.fr,.fr+.blk,.blk+.blk{margin-top:2px}
+.fr .ic{flex:none;width:22px;height:22px;border-radius:6px;background:var(--sc);color:#fff;text-align:center;line-height:22px;font-size:13px;font-weight:700;margin-top:2px}
+.fr.k-if .ic,.fr.k-else .ic{background:#fff;color:var(--sc);border:1.5px solid var(--sc);line-height:19px}
+.fr.k-loop .ic{border-radius:50%}
+.fb{min-width:0;flex:1}
+.fr .zh{font-size:14.5px;line-height:1.45;font-weight:500}
+.fr.k-loop>.fb>.zh{font-weight:700}
+.cq{margin-top:1px;line-height:1.7}
+.nb{white-space:nowrap}
+.cq code.q{font-size:12px;background:transparent;padding:0;color:#566074}
+.nt{font-size:12.5px;color:var(--mut);line-height:1.7}
+.ex{display:inline-block;font:700 11.5px/1.2 var(--mono);border-radius:6px;padding:3px 7px;margin-left:4px;color:#fff;white-space:normal;text-decoration:none}
+a.ex{cursor:pointer}
+a.ex:hover{outline:2px solid #111}
+.legbar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px;margin-bottom:10px;font-size:13.5px;color:#3b4252}
+.legbar .ic{display:inline-block;width:20px;height:20px;border-radius:6px;background:#475569;color:#fff;text-align:center;line-height:20px;font-size:12px;font-weight:700;margin-right:4px;font-style:normal}
+.legbar .ex{margin:0}
+.legbar .sep{width:1px;align-self:stretch;background:var(--line)}
+.legbar .cap{flex-basis:100%}
+.ex-break{background:#b45309}.ex-continue{background:#64748b}.ex-goto{background:#7c3aed}.ex-return{background:#111827}
+.kids{margin-left:16px;padding-left:10px;border-left:2px dashed #cfc9ba;margin-top:2px}
+.b-loop>.kids{border-left:3px solid var(--sc)}
+.fr.k-label{background:#f1ecfb;margin-top:8px}
+.fr.k-label .zh{font-weight:700}
+.blk.grp{border:1.5px solid var(--sc);border-radius:12px;padding:4px 6px 6px;margin:4px 0;background:#fff}
+.blk.grp[data-of=sB]{--sc:var(--cB)}
+.blk.grp[data-of=sB] .fr{--sc:var(--cB)}
+.blk.grp.shut>.kids{display:none}
+.tg{font-size:13px;padding:4px 12px;margin:2px 0 2px 36px;border-color:var(--sc);color:var(--sc);border-radius:99px}
+.flow.sc-on .fr{opacity:.32}
+.flow.sc-on .fr.hit{opacity:1;background:#fff6d6}
+.side{position:sticky;top:60px;max-height:calc(100vh - 70px);overflow:auto;scrollbar-width:thin}
+.side .card{padding:14px 16px;margin-bottom:14px}
+.only-m{display:none}
+.side h3{font-size:15.5px}
+table.rw{width:100%;border-collapse:collapse;font-size:13.5px}
+table.rw td{padding:4px 4px;border-bottom:1px solid var(--soft);vertical-align:top;line-height:1.5}
+.v-ok{color:var(--ok);font:700 12.5px var(--mono)}.v-run{color:var(--run);font:700 12.5px var(--mono)}.v-fail{color:var(--fail);font:700 12.5px var(--mono)}
+.leg{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:#3b4252}
+.leg span{white-space:nowrap}
+.leg .ic{display:inline-block;width:20px;height:20px;border-radius:6px;background:#475569;color:#fff;text-align:center;line-height:20px;font-size:12px;font-weight:700;margin-right:4px}
+/* code */
+.code{font:12.5px/1.6 var(--mono);background:#1c2030;color:#d7dce8;border-radius:10px;padding:8px 0;margin:8px 0;overflow:hidden;--iw:1.6ch}
+.cl{display:flex}
+.cl .n{flex:none;width:44px;text-align:right;padding-right:10px;color:#6b7590;user-select:none}
+.cl .t{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;padding-left:calc(var(--i)*var(--iw) + 2ch);text-indent:-2ch;padding-right:10px}
+.cl .t .ig{font-size:0}
+.cl.hl{background:#3b3a1c}
+.cl.hl .n{color:#ffd84a;font-weight:700}
+.code i{font-style:normal}
+.code .cm{color:#7f8aa3}.code .kw{color:#8fb4ff}.code .jp{color:#ff9f6b;font-weight:700}.code .st{color:#b6d99a}.code .cn{color:#e2b8ff}.code .fx{color:#f3e0a0}.code .nu{color:#f0a8a8}
+.gapm{color:#8a93a8;padding:2px 0 2px 44px;font-size:12px}
+details.unit{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:8px 0;padding:0 14px}
+details.unit[open]{padding-bottom:10px}
+summary{cursor:pointer;padding:11px 0 11px 18px;position:relative;display:flex;gap:4px 10px;align-items:baseline;flex-wrap:wrap;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸";color:var(--mut);position:absolute;left:0;top:11px}
+details[open]>summary::before{content:"▾"}
+.un{font:600 14.5px var(--mono)}
+.sub .un{font-family:var(--sans);font-size:14.5px}
+.ud{font-size:13.5px;color:var(--mut);flex:1}
+.ul{font:12px var(--mono);color:var(--mut);margin-left:auto}
+details.sub{border-top:1px solid var(--soft);margin-left:10px}
+details.sub summary{padding:8px 0 8px 18px}details.sub summary::before{top:8px}
+/* drawer */
+.dim{position:fixed;inset:0;background:rgba(20,22,30,.35);z-index:40;display:none}
+.dim.on{display:block}
+.drawer{position:fixed;z-index:41;top:0;right:0;bottom:0;width:min(680px,94vw);background:#1c2030;color:#d7dce8;transform:translateX(102%);transition:transform .22s;display:flex;flex-direction:column}
+.drawer.on{transform:none;box-shadow:-10px 0 30px rgba(0,0,0,.25)}
+.dh{display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid #343a50;flex:none}
+.dh b{font:600 14px var(--mono);flex:1;min-width:0;line-height:1.4}
+.dh small{display:block;font:12px var(--sans);color:#9aa3b8;font-weight:400}
+.dh button{background:#2a3044;color:#fff;border-color:#4a5270;padding:5px 12px;flex:none}
+.dbody{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
+.dbody .code{border-radius:0;margin:0;background:transparent;padding-bottom:40px}
+footer{color:var(--mut);font-size:13px;padding:30px 0 60px}
+@media (max-width:1100px){
+  .flowwrap{grid-template-columns:1fr}
+  .side{position:static;max-height:none;overflow:visible}
+  .jr{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .js:nth-child(3n)::after{display:none}
+}
+@media (max-width:760px){
+  .wrap{padding:0 16px}
+  header{padding:22px 0 4px}
+  h1{font-size:27px}
+  h2{font-size:21px;margin-top:36px}
+  .tldr{grid-template-columns:1fr;gap:10px}
+  .tldr li{font-size:15.5px}
+  .pano{padding:14px 12px 16px;border-radius:14px}
+  .callers{flex-direction:column;gap:8px}
+  .caller{max-width:none}
+  .stages,.loopin{flex-direction:column}
+  .arr{width:auto;height:22px}
+  .arr::before{top:2px;bottom:8px;left:50%;right:auto;width:2px;height:auto}
+  .arr::after{top:auto;bottom:2px;right:auto;left:50%;margin:0 0 0 -6px;border:6px solid transparent;border-top:8px solid var(--ink);border-bottom:0}
+  .loopbox{padding:44px 8px 8px}
+  .looptag{white-space:normal}
+  .stage{font-size:14px}
+  .rets{grid-template-columns:1fr;gap:8px}
+  .grid2{grid-template-columns:1fr}
+  .card{padding:14px 14px}
+  .pool{grid-template-columns:repeat(8,1fr)}
+  .cases{grid-template-columns:1fr}
+  .jr{grid-template-columns:minmax(0,1fr);gap:14px 0}
+  nav b{display:none}
+  nav a{padding:5px 10px}
+  .js{margin-right:0;padding:9px 12px 10px 12px;font-size:14.5px}
+  .js b{font-size:15.5px}
+  .js .w{float:right;margin:2px 0 0 8px}
+  .js::after,.js:nth-child(3n)::after,.js:nth-child(6n)::after{display:block;right:auto;left:18px;top:auto;bottom:-12px;margin:0;border:6px solid transparent;border-top:7px solid #9aa3b2;border-bottom:0}
+  .js:last-child::after{display:none}
+  .struct .f{padding-left:0}
+  .struct .f b{position:static;display:block}
+  .kids{margin-left:6px;padding-left:6px}
+  .fr{padding:6px 2px;gap:6px}
+  .tg{margin-left:28px}
+  .lmap{height:42px}
+  .sg{padding:0 2px;align-items:center}
+  .sg b{font-size:13px}
+  .sg .s2,.sg i,.sg.nar b{display:none}
+  .sg .s1{margin:0}
+  .lb{font-size:12.5px}
+  .lleg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .lg{font-size:13px;padding:4px 8px;gap:2px 6px}
+  .cq{line-height:1.5}
+  .cq code.q{overflow-wrap:anywhere;font-size:11.5px}
+  .nt{line-height:1.6}
+  .ud{flex-basis:100%;order:3;padding-left:18px}
+  .only-m{display:block}.only-d{display:none!important}
+  .legbar{padding:8px 10px;gap:6px 10px}
+  .legbar .sep{display:none}
+  .drawer{top:auto;left:0;right:0;width:auto;height:86vh;border-radius:16px 16px 0 0;transform:translateY(102%)}
+  .code{font-size:12px;--iw:1.1ch}
+  .cl .n{width:36px;padding-right:8px}
+  table.pol{font-size:13.5px}
+  table.pol th,table.pol td{padding:7px 4px}
+  table.pol th{font-size:12.5px}
+  table.pol code{font-size:12px;display:block;margin:0;word-break:break-word}
+  table.pol .why{display:block;margin:3px 0 0}
+  table.pol col.c1{width:34%}
+  .mbar{font-size:11.5px}
+}
+</style>
+</head>
+<body>
+<nav><div class="wrap"><b>腾内存</b><a href="#pano" class="on">全景</a><a href="#data">数据结构</a><a href="#flow">数据流</a><a href="#ctrl">控制流</a><a href="#code">源码</a></div></nav>
+
+<div class="wrap">
+<header>
+  <h1>Redis 怎么「腾内存」</h1>
+  <div class="sub"><code>performEvictions()</code> · <code>src/evict.c:543–834</code> · commit fd7710c · 页面里每个灰色小标签（如 <a class="rf" data-f="evict.c" data-a="543" data-b="543" data-q="int performEvictions(void) {">:543</a>）都是源码行号，点一下看原文</div>
+  <ol class="tldr">
+    <li><b>每条命令执行前</b>都先问一句「内存超了吗」——只要配了 maxmemory。<a class="rf" data-f="server.c" data-a="4949" data-b="4949" data-q="int out_of_memory = (performEvictions() == EVICT_FAIL);">server.c:4949</a></li>
+    <li>超了就<b>循环：挑一个 key → 删掉 → 记账</b>，直到腾出的量追上要腾的量。<a class="rf" data-f="evict.c" data-a="579" data-b="579" data-q="while (mem_freed &lt; (long long)mem_tofree) {">:579</a></li>
+    <li>它只求<b>改善</b>、不求一次解决：到时间就停手，挂个定时事件接力。<a class="rf" data-f="evict.c" data-a="528" data-b="528" data-q="The goal of this function is to improve the memory situation - not to">:528</a></li>
+  </ol>
+</header>
+
+<section id="pano">
+<h2>全景 <small>一次调用从哪来、过哪五步、带着什么结果回去</small></h2>
+<div class="pano">
+  <div class="callers">
+    <div class="caller"><b>processCommand()</b> <a class="rf" data-f="server.c" data-a="4948" data-b="4948" data-q="if (server.maxmemory &amp;&amp; !isInsideYieldingLongCommand()) {">server.c:4948</a><span>命令入口：每条命令执行前调一次</span></div>
+    <div class="caller"><b>evictionTimeProc()</b> <a class="rf" data-f="evict.c" data-a="459" data-b="459" data-q="if (performEvictions() == EVICT_RUNNING) return 0;  /* keep evicting */">:459</a><span>定时接力：上次没腾完时，由事件循环反复调，直到不再是 RUNNING</span></div>
+  </div>
+  <div class="down"></div>
+  <div class="fn">
+    <div class="fnhead">performEvictions() <a class="rf" data-f="evict.c" data-a="543" data-b="543" data-q="int performEvictions(void) {">:543</a></div>
+    <div class="stages">
+      <div class="stage st1"><h4><span class="num">1</span>闸门</h4>三道门，任何一道都能让它提前回去：
+        <ul><li>此刻<b>能不能</b>腾 <a class="rf" data-f="evict.c" data-a="546" data-b="546" data-q="if (!isSafeToPerformEvictions()) return EVICT_OK;">:546</a></li><li><b>用不用</b>腾 <a class="rf" data-f="evict.c" data-a="556" data-b="556" data-q="if (getMaxmemoryState(&amp;mem_reported,NULL,&amp;mem_tofree,NULL) == C_OK) {">:556</a></li><li>策略<b>让不让</b>腾 <a class="rf" data-f="evict.c" data-a="561" data-b="561" data-q="if (server.maxmemory_policy == MAXMEMORY_NO_EVICTION) {">:561</a></li></ul>
+        <span class="rng">:543–564 · 22 行</span></div>
+      <span class="arr"></span>
+      <div class="loopbox">
+        <div class="looptag"><b>↻ 主循环</b>：一圈淘汰一个 key，直到腾够 <a class="rf" data-f="evict.c" data-a="579" data-b="579" data-q="while (mem_freed &lt; (long long)mem_tofree) {">:579</a></div>
+        <div class="loopin">
+          <div class="stage st2"><h4><span class="num">2</span>挑一个 key</h4>结果放进 <code>bestkey</code>。按策略二选一：
+            <div class="lanes">
+              <div class="lane"><b>A 评分池</b>抽样 → 打分 → 进 16 格池 → 取分最高的 <a class="rf" data-f="evict.c" data-a="587" data-b="692" data-q="if (server.maxmemory_policy &amp; (MAXMEMORY_FLAG_LRU|MAXMEMORY_FLAG_LFU|MAXMEMORY_FLAG_LRM) ||">:587–692</a></div>
+              <div class="lane b"><b>B 随机</b>随机抽，抽到受保护的就再抽 <a class="rf" data-f="evict.c" data-a="695" data-b="735" data-q="else if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM ||">:695–735</a></div>
+            </div>
+            <span class="rng">:587–735 · 149 行（全函数的一半）</span></div>
+          <span class="arr"></span>
+          <div class="stage st3"><h4><span class="num">3</span>删掉它</h4>删除、把 DEL 传播出去 <a class="rf" data-f="evict.c" data-a="744" data-b="744" data-q="deleteEvictedKeyAndPropagate(db, keyobj, &amp;key_mem_freed);">:744</a>，再记账 <a class="rf" data-f="evict.c" data-a="750" data-b="750" data-q="mem_freed += key_mem_freed;">:750</a>
+            <span class="rng">:738–751</span></div>
+          <span class="arr"></span>
+          <div class="stage st4"><h4><span class="num">4</span>检查点</h4>每删满 16 个 <a class="rf" data-f="evict.c" data-a="753" data-b="753" data-q="if (keys_freed % 16 == 0) {">:753</a> 看一眼：已达标？<a class="rf" data-f="evict.c" data-a="768" data-b="768" data-q="if (getMaxmemoryState(NULL,NULL,NULL,NULL) == C_OK) {">:768</a> 超时？<a class="rf" data-f="evict.c" data-a="776" data-b="776" data-q="if (elapsedUs(evictionTimer) &gt; eviction_time_limit_us) {">:776</a> 是就出循环
+            <span class="rng">:753–781</span></div>
+        </div>
+      </div>
+      <span class="arr"></span>
+      <div class="stage st5"><h4><span class="num">5</span>收尾</h4>定下返回值 <a class="rf" data-f="evict.c" data-a="787" data-b="787" data-q="result = (isEvictionProcRunning) ? EVICT_RUNNING : EVICT_OK;">:787</a>；没得删时再等等后台释放 <a class="rf" data-f="evict.c" data-a="796" data-b="796" data-q="while (bioPendingJobsOfType(BIO_LAZY_FREE) &amp;&amp;">:796</a>；更新统计 <a class="rf" data-f="evict.c" data-a="824" data-b="824" data-q="if (result == EVICT_RUNNING || result == EVICT_FAIL) {">:824</a>
+        <span class="rng">:787–833 · 47 行</span></div>
+    </div>
+  </div>
+  <div class="down"></div>
+  <div class="rets">
+    <div class="ret r-ok"><b>EVICT_OK</b>内存达标，或此刻不宜淘汰 <a class="rf" data-f="evict.c" data-a="539" data-b="539" data-q="EVICT_OK       - memory is OK or it&#x27;s not possible to perform evictions now">:539</a><span class="then">→ 命令照常执行</span></div>
+    <div class="ret r-run"><b>EVICT_RUNNING</b>还超着，但淘汰仍在进行 <a class="rf" data-f="evict.c" data-a="540" data-b="540" data-q="EVICT_RUNNING  - memory is over the limit, but eviction is still processing">:540</a><span class="then">→ 命令照常执行；定时事件继续腾</span></div>
+    <div class="ret r-fail"><b>EVICT_FAIL</b>还超着，而且没东西可删 <a class="rf" data-f="evict.c" data-a="541" data-b="541" data-q="EVICT_FAIL     - memory is over the limit, and there&#x27;s nothing to evict">:541</a><span class="then">→ 会涨内存的命令被拒（OOM）<a class="rf" data-f="server.c" data-a="4961" data-b="4962" data-q="if (out_of_memory &amp;&amp; is_denyoom_command) {" data-q2="rejectCommand(c, shared.oomerr);">server.c:4961–4962</a></span></div>
+  </div>
+  <div class="touch">它读写的东西：<a href="#d-mem">内存账本 mem_tofree / mem_freed</a><a href="#d-ks">server.db[i].keys / .expires</a><a href="#d-obj">对象上的 lru 字段、no_evict 位</a><a href="#d-pool">EvictionPoolLRU[16]</a></div>
+</div>
+</section>
+
+<section id="data">
+<h2>数据结构 <small>四样东西，看懂就看懂了一大半</small></h2>
+<div class="grid2">
+  <div class="card" id="d-mem">
+    <h3>① 内存账本：要腾多少<span class="tag">比例为示意</span></h3>
+    <div class="mbar"><div class="m-max">maxmemory 以内</div><div class="m-free">mem_tofree</div><div class="m-ov">不算数的缓冲</div></div>
+    <div class="mline"><i>maxmemory</i></div>
+    <div class="mbr"><div style="flex:74">mem_used</div><div style="flex:26;border-color:transparent"></div></div>
+    <div class="mbr"><div style="flex:100;margin-right:0">mem_reported</div></div>
+    <ul>
+      <li><b>mem_reported</b>：分配器报的总量 <a class="rf" data-f="evict.c" data-a="400" data-b="400" data-q="mem_reported = zmalloc_used_memory();">:400</a></li>
+      <li>先扣掉<b>不算数的缓冲</b> <a class="rf" data-f="evict.c" data-a="413" data-b="414" data-q="size_t overhead = freeMemoryGetNotCountedMemory();" data-q2="mem_used = (mem_used &gt; overhead) ? mem_used-overhead : 0;">:413–414</a>：副本缓冲超出 backlog 的部分 <a class="rf" data-f="evict.c" data-a="356" data-b="356" data-q="overhead += (server.repl_buffer_mem - counted_mem);">:356</a>、迁移输出缓冲 <a class="rf" data-f="evict.c" data-a="363" data-b="363" data-q="overhead += asmGetMigrateOutputMemoryUsage();">:363</a>、AOF 缓冲 <a class="rf" data-f="evict.c" data-a="366" data-b="366" data-q="overhead += sdsAllocSize(server.aof_buf);">:366</a>。不扣的话，删 key 产生的 DEL 会把缓冲撑大、又触发更多淘汰 <a class="rf" data-f="evict.c" data-a="323" data-b="323" data-q="it can cause feedback-loop when we push DELs into them, putting">:323</a></li>
+      <li><b>mem_tofree</b> = 剩下的 − maxmemory <a class="rf" data-f="evict.c" data-a="425" data-b="425" data-q="mem_tofree = mem_used - server.maxmemory;">:425</a></li>
+    </ul>
+    <p style="margin-bottom:2px"><b>mem_freed</b> 追 mem_tofree：每删一个 key 加一笔 <a class="rf" data-f="evict.c" data-a="750" data-b="750" data-q="mem_freed += key_mem_freed;">:750</a></p>
+    <div class="prog"><i></i></div>
+    <p class="cap">这一笔 = 删除前后「总量 − 不算数缓冲」之差 <a class="rf" data-f="db.c" data-a="3010" data-b="3010" data-q="if (key_mem_freed) *key_mem_freed = (long long) zmalloc_used_memory() - freeMemoryGetNotCountedMemory();">db.c:3010</a> <a class="rf" data-f="db.c" data-a="3015" data-b="3015" data-q="if (key_mem_freed) *key_mem_freed -= (long long) zmalloc_used_memory() - freeMemoryGetNotCountedMemory();">db.c:3015</a>，可能为负 <a class="rf" data-f="evict.c" data-a="550" data-b="550" data-q="long long mem_freed; /* May be negative */">:550</a></p>
+  </div>
+
+  <div class="card" id="d-ks">
+    <h3>② 键空间：去哪找候选</h3>
+    <div class="ks">
+      <div class="db">server.db[0]<span class="bk k1">keys</span><span class="bk k2">expires</span></div>
+      <div class="db">server.db[1]<span class="bk k1">keys</span><span class="bk k2">expires</span></div>
+      <div class="db" style="border-style:dashed">… 共 dbnum 个<span class="bk k1">keys</span><span class="bk k2">expires</span></div>
+    </div>
+    <p>每个 db 有两本 kvstore：<span class="kv k1">keys</span> 记全部键 <a class="rf" data-f="server.h" data-a="1270" data-b="1270" data-q="kvstore *keys;">server.h:1270</a>，<span class="kv k2">expires</span> 只记带过期时间的键 <a class="rf" data-f="server.h" data-a="1271" data-b="1271" data-q="kvstore *expires;">server.h:1271</a>。策略带 ALLKEYS 标志就用前者，否则用后者 <a class="rf" data-f="evict.c" data-a="603" data-b="607" data-q="if (server.maxmemory_policy &amp; MAXMEMORY_FLAG_ALLKEYS) {" data-q2="}">:603–607</a>。</p>
+    <div class="slots"><i></i><i class="e"></i><i></i><i></i><i class="e"></i><i class="pick"></i><i></i><i class="e"></i><i></i><i></i><i class="e"></i><i></i></div>
+    <p class="cap">一本 kvstore 里是很多个字典（slot）。抽样不是全库扫：先随机挑<b>一个</b>非空 slot <a class="rf" data-f="evict.c" data-a="146" data-b="146" data-q="int slot = kvstoreGetFairRandomDictIndex(samplekvs, randomEvictionShouldSkipDictIndex, 1, 0);">:146</a>，再从里面抓几个 <a class="rf" data-f="evict.c" data-a="148" data-b="148" data-q="count = kvstoreDictGetSomeKeys(samplekvs,slot,samples,server.maxmemory_samples);">:148</a>。</p>
+    <ul>
+      <li>每一圈主循环把<b>所有库</b>都抽一遍 <a class="rf" data-f="evict.c" data-a="600" data-b="600" data-q="for (i = 0; i &lt; server.dbnum; i++) {">:600</a>，空库跳过 <a class="rf" data-f="evict.c" data-a="610" data-b="610" data-q="if (current_db_keys == 0) continue;">:610</a></li>
+      <li>一个库里抽够 maxmemory_samples 个候选就换下一个库 <a class="rf" data-f="evict.c" data-a="625" data-b="626" data-q="if (sampled_keys &gt;= (unsigned long) server.maxmemory_samples)" data-q2="break;">:625–626</a></li>
+      <li>正在导入的 slot 不参与抽样 <a class="rf" data-f="evict.c" data-a="93" data-b="93" data-q="return !clusterCanAccessKeysInSlot(didx);">:93</a></li>
+      <li>所有库加起来一个键都没有 → 这一圈没得挑 <a class="rf" data-f="evict.c" data-a="634" data-b="634" data-q="if (!total_keys) break; /* No keys to evict. */">:634</a></li>
+    </ul>
+  </div>
+
+  <div class="card" id="d-pol">
+    <h3>maxmemory-policy：10 个取值，其实只是两个问题的组合</h3>
+    <p class="cap" style="margin:0">「在哪些键里挑」（列）× 「谁最该删」（行）。带 ALLKEYS 标志的抽 <span class="kv k1">keys</span>，其余抽 <span class="kv k2">expires</span> <a class="rf" data-f="evict.c" data-a="603" data-b="607" data-q="if (server.maxmemory_policy &amp; MAXMEMORY_FLAG_ALLKEYS) {" data-q2="}">:603–607</a>；走哪条路线由 <a class="rf" data-f="evict.c" data-a="587" data-b="588" data-q="if (server.maxmemory_policy &amp; (MAXMEMORY_FLAG_LRU|MAXMEMORY_FLAG_LFU|MAXMEMORY_FLAG_LRM) ||" data-q2="server.maxmemory_policy == MAXMEMORY_VOLATILE_TTL)">:587–588</a> 和 <a class="rf" data-f="evict.c" data-a="695" data-b="696" data-q="else if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM ||" data-q2="server.maxmemory_policy == MAXMEMORY_VOLATILE_RANDOM)">:695–696</a> 决定。表里的行号指向各常量的定义。</p>
+    <table class="pol"><colgroup><col class="c1"><col><col></colgroup>
+    <tr><th>谁最该删</th><th>在全部键里挑 <span class="kv k1">keys</span></th><th>只在带过期时间的键里挑 <span class="kv k2">expires</span></th></tr>
+    <tr><td><b>空闲最久的</b><span class="why"><span class="pill st2">A 评分池</span></span></td><td><code>allkeys-lru</code><a class="rf" data-f="server.h" data-a="752" data-b="752" data-q="#define MAXMEMORY_ALLKEYS_LRU ">server.h:752</a></td><td><code>volatile-lru</code><a class="rf" data-f="server.h" data-a="748" data-b="748" data-q="#define MAXMEMORY_VOLATILE_LRU ">server.h:748</a></td></tr>
+<tr><td><b>访问最少的</b><span class="why"><span class="pill st2">A 评分池</span></span></td><td><code>allkeys-lfu</code><a class="rf" data-f="server.h" data-a="753" data-b="753" data-q="#define MAXMEMORY_ALLKEYS_LFU ">server.h:753</a></td><td><code>volatile-lfu</code><a class="rf" data-f="server.h" data-a="749" data-b="749" data-q="#define MAXMEMORY_VOLATILE_LFU ">server.h:749</a></td></tr>
+<tr><td><b>最久没被修改的</b><span class="why"><span class="pill st2">A 评分池</span></span></td><td><code>allkeys-lrm</code><a class="rf" data-f="server.h" data-a="757" data-b="757" data-q="#define MAXMEMORY_ALLKEYS_LRM ">server.h:757</a></td><td><code>volatile-lrm</code><a class="rf" data-f="server.h" data-a="756" data-b="756" data-q="#define MAXMEMORY_VOLATILE_LRM ">server.h:756</a></td></tr>
+<tr><td><b>最快过期的</b><span class="why"><span class="pill st2">A 评分池</span></span></td><td class="na">—</td><td><code>volatile-ttl</code><a class="rf" data-f="server.h" data-a="750" data-b="750" data-q="#define MAXMEMORY_VOLATILE_TTL ">server.h:750</a></td></tr>
+<tr><td><b>随便哪个</b><span class="why"><span class="pill stB">B 随机</span></span></td><td><code>allkeys-random</code><a class="rf" data-f="server.h" data-a="754" data-b="754" data-q="#define MAXMEMORY_ALLKEYS_RANDOM ">server.h:754</a></td><td><code>volatile-random</code><a class="rf" data-f="server.h" data-a="751" data-b="751" data-q="#define MAXMEMORY_VOLATILE_RANDOM ">server.h:751</a></td></tr>
+<tr><td><b>都不删</b><span class="why"><span class="pill stX">直接 FAIL</span></span></td><td colspan="2"><code>noeviction</code><a class="rf" data-f="server.h" data-a="755" data-b="755" data-q="#define MAXMEMORY_NO_EVICTION ">server.h:755</a><span style="color:var(--mut);font-size:13.5px"> 第三道门就返回，不进主循环</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card" id="d-obj">
+    <h3>③ 每个 key 身上的两处标记</h3>
+    <p><b>24 位的 lru 字段</b> <a class="rf" data-f="object.h" data-a="94" data-b="94" data-q="#define LRU_BITS 24">object.h:94</a>——同一块位，按策略有两种读法：</p>
+    <div class="bits"><div style="flex:24;background:#2563eb">24 位：时钟读数<small>LRU：上次访问 · LRM：上次修改</small></div></div>
+    <p class="cap">分数 = 现在的时钟 − 它 <a class="rf" data-f="evict.c" data-a="83" data-b="83" data-q="return (lruclock - o-&gt;lru) * LRU_CLOCK_RESOLUTION;">:83</a>，时钟一格 1000 毫秒 <a class="rf" data-f="object.h" data-a="96" data-b="96" data-q="#define LRU_CLOCK_RESOLUTION 1000 /* LRU clock resolution in ms */">object.h:96</a>。谁来写它：读到 key 时写当前时钟，但 LRM 策略下读不算数 <a class="rf" data-f="db.c" data-a="343" data-b="345" data-q="} else if (!(server.maxmemory_policy &amp; MAXMEMORY_FLAG_LRM)) {" data-q2="val-&gt;lru = LRU_CLOCK();">db.c:343–345</a>，改到 key 时才写 <a class="rf" data-f="db.c" data-a="65" data-b="66" data-q="if (server.maxmemory_policy &amp; MAXMEMORY_FLAG_LRM) {" data-q2="o-&gt;lru = LRU_CLOCK();">db.c:65–66</a></p>
+    <div class="bits"><div style="flex:16;background:#0f766e">高 16 位：上次访问<small>以分钟计</small></div><div style="flex:8;background:#b45309">低 8 位<small>访问计数</small></div></div>
+    <p class="cap">LFU 策略下的读法 <a class="rf" data-f="evict.c" data-a="249" data-b="249" data-q="+ Last access time | LOG_C  |">:249</a>：拆成两段 <a class="rf" data-f="evict.c" data-a="313" data-b="313" data-q="unsigned long ldt = o-&gt;lru &gt;&gt; 8;">:313</a> <a class="rf" data-f="evict.c" data-a="314" data-b="314" data-q="unsigned long counter = o-&gt;lru &amp; 255;">:314</a>，时间以分钟计 <a class="rf" data-f="evict.c" data-a="277" data-b="277" data-q="return (server.unixtime/60) &amp; 65535;">:277</a>。打分时按流逝的时间给计数打折 <a class="rf" data-f="evict.c" data-a="317" data-b="317" data-q="counter = (num_periods &gt; counter) ? 0 : counter - num_periods;">:317</a>，只算不回写 <a class="rf" data-f="evict.c" data-a="302" data-b="303" data-q="/* If the object&#x27;s ldt (last access time) is reached, decrement the LFU counter but" data-q2="* do not update LFU fields of the object, we update the access time">:302–303</a></p>
+    <p><b>1 位 no_evict</b>（代码里叫 blessed）<a class="rf" data-f="object.h" data-a="130" data-b="130" data-q="unsigned no_evict : 1;    /* Protected from maxmemory eviction. */">object.h:130</a>：置位的 key 永远不当候选。读它的函数 <a class="rf" data-f="bless.c" data-a="101" data-b="101" data-q="return kvobjBits(kv)-&gt;no_evict;">bless.c:101</a> 在 evict.c 里被查 3 次：入池前 <a class="rf" data-f="evict.c" data-a="157" data-b="157" data-q="if (blessIsNoEvict(kv)) continue;">:157</a>、出池时 <a class="rf" data-f="evict.c" data-a="663" data-b="663" data-q="if (blessIsNoEvict(kv)) continue;">:663</a>、随机路线 <a class="rf" data-f="evict.c" data-a="721" data-b="721" data-q="if (blessIsNoEvict(kv)) continue;">:721</a>。</p>
+  </div>
+
+  <div class="card" id="d-pool">
+    <h3>④ 淘汰池：16 格的「候选排行榜」</h3>
+    <div class="struct">
+      <div class="f"><b>idle</b><span>分数。越大越该删</span> <a class="rf" data-f="evict.c" data-a="44" data-b="44" data-q="unsigned long long idle;    /* Object idle time (inverse frequency for LFU) */">:44</a></div>
+      <div class="f"><b>key</b><span>键名；NULL 表示这格是空的</span> <a class="rf" data-f="evict.c" data-a="45" data-b="45" data-q="sds key;                    /* Key name. */">:45</a> <a class="rf" data-f="evict.c" data-a="35" data-b="35" data-q="Empty entries have the key pointer set to NULL. */">:35</a></div>
+      <div class="f"><b>cached</b><span>每格自带的 255 字节缓冲，短键名直接抄进来，省得反复分配</span> <a class="rf" data-f="evict.c" data-a="46" data-b="46" data-q="sds cached;                 /* Cached SDS object for key name. */">:46</a> <a class="rf" data-f="evict.c" data-a="125" data-b="125" data-q="ep[j].cached = sdsnewlen(NULL,EVPOOL_CACHED_SDS_SIZE);">:125</a></div>
+      <div class="f"><b>dbid · slot</b><span>它来自哪个库、哪个 slot，取出时凭这个回去查</span> <a class="rf" data-f="evict.c" data-a="47" data-b="47" data-q="int dbid;                   /* Key DB number. */">:47</a> <a class="rf" data-f="evict.c" data-a="48" data-b="48" data-q="int slot;                   /* Slot. */">:48</a></div>
+    </div>
+    <ul>
+      <li><b>全局只有一个，跨调用存活</b> <a class="rf" data-f="evict.c" data-a="51" data-b="51" data-q="static struct evictionPoolEntry *EvictionPoolLRU;">:51</a>，启动时分配 16 格 <a class="rf" data-f="evict.c" data-a="36" data-b="36" data-q="#define EVPOOL_SIZE 16">:36</a> <a class="rf" data-f="server.c" data-a="3199" data-b="3199" data-q="evictionPoolAlloc(); /* Initialize the LRU keys pool. */">server.c:3199</a></li>
+      <li><b>始终升序</b>：分数小的在左，大的在右 <a class="rf" data-f="evict.c" data-a="136" data-b="138" data-q="We insert keys on place in ascending order, so keys with the smaller" data-q2="right. */">:136–138</a> → 取的时候从最右边拿</li>
+      <li><b>只存名字，不存对象</b>：key 被别处删了，池里不会同步清掉 <a class="rf" data-f="evict.c" data-a="108" data-b="109" data-q="However note that we don&#x27;t remove keys from the pool when they are deleted" data-q2="so the pool may contain keys that no longer exist.">:108–109</a> → 取出时必须回字典确认，查不到的叫「幽灵」</li>
+    </ul>
+    <p class="cap">下一节可以亲手往池子里塞样本，看它怎么保持有序。</p>
+  </div>
+</div>
+</section>
+
+<section id="flow">
+<h2>数据流 <small>一个 key 从「被抽中」到「被删掉」（路线 A · 评分池）</small></h2>
+<div class="jleg">每张卡片底部的标签 = 这一步写在哪个函数里：<span class="wk pe">performEvictions</span><span class="wk pp">evictionPoolPopulate</span><span class="wk dbc">db.c</span></div>
+<div class="jr">
+  <div class="js st2"><b>挨个库</b><br>每个 db 都抽，不偏心 <a class="rf" data-f="evict.c" data-a="600" data-b="600" data-q="for (i = 0; i &lt; server.dbnum; i++) {">:600</a><span class="w pe">performEvictions</span></div>
+  <div class="js st2"><b>挑一个 slot</b><br>公平随机；正在导入的 slot 跳过 <a class="rf" data-f="evict.c" data-a="146" data-b="146" data-q="int slot = kvstoreGetFairRandomDictIndex(samplekvs, randomEvictionShouldSkipDictIndex, 1, 0);">:146</a> <a class="rf" data-f="evict.c" data-a="93" data-b="93" data-q="return !clusterCanAccessKeysInSlot(didx);">:93</a><span class="w pp">evictionPoolPopulate</span></div>
+  <div class="js st2"><b>抓几个样本</b><br>最多 maxmemory_samples 个，默认 5 <a class="rf" data-f="evict.c" data-a="148" data-b="148" data-q="count = kvstoreDictGetSomeKeys(samplekvs,slot,samples,server.maxmemory_samples);">:148</a> <a class="rf" data-f="config.c" data-a="4326" data-b="4326" data-q="createIntConfig(&quot;maxmemory-samples&quot;, NULL, MODIFIABLE_CONFIG, 1, 64, server.maxmemory_samples, 5, INTEGER_CONFIG, NULL, NULL),">config.c:4326</a><span class="w pp">evictionPoolPopulate</span></div>
+  <div class="js st2"><b>筛掉受保护的</b><br>blessed 键不算候选 <a class="rf" data-f="evict.c" data-a="157" data-b="157" data-q="if (blessIsNoEvict(kv)) continue;">:157</a><span class="w pp">evictionPoolPopulate</span></div>
+  <div class="js st2"><b>打分</b><br>LRU/LRM：空闲时间 <a class="rf" data-f="evict.c" data-a="164" data-b="164" data-q="idle = estimateObjectIdleTime(kv);">:164</a><br>LFU：255 − 频率 <a class="rf" data-f="evict.c" data-a="173" data-b="173" data-q="idle = 255-LFUDecrAndReturn(kv);">:173</a><br>TTL：越早过期越大 <a class="rf" data-f="evict.c" data-a="176" data-b="176" data-q="idle = ULLONG_MAX - kvobjGetExpire(kv);">:176</a><span class="w pp">evictionPoolPopulate</span></div>
+  <div class="js st2"><b>入池</b><br>按分数插到该在的位置；太差就进不去 <a class="rf" data-f="evict.c" data-a="185" data-b="187" data-q="while (k &lt; EVPOOL_SIZE &amp;&amp;" data-q2="pool[k].idle &lt; idle) k++;">:185–187</a><span class="w pp">evictionPoolPopulate</span></div>
+  <div class="js st2"><b>从右往左取</b><br>最右 = 分数最高 <a class="rf" data-f="evict.c" data-a="637" data-b="637" data-q="for (k = EVPOOL_SIZE-1; k &gt;= 0; k--) {">:637</a><span class="w pe">performEvictions</span></div>
+  <div class="js st2"><b>回字典确认</b><br>凭 dbid + slot + 键名去查 <a class="rf" data-f="evict.c" data-a="647" data-b="647" data-q="de = kvstoreDictFind(kvs, pool[k].slot, pool[k].key);">:647</a>，然后这格立即清空 <a class="rf" data-f="evict.c" data-a="652" data-b="652" data-q="pool[k].key = NULL;">:652</a><span class="w pe">performEvictions</span></div>
+  <div class="js st2"><b>定为 bestkey</b><br>还在、且没被保护 <a class="rf" data-f="evict.c" data-a="664" data-b="664" data-q="bestkey = kvobjGetKey(kv);">:664</a><span class="w pe">performEvictions</span></div>
+  <div class="js st3"><b>删除 + 传播</b><br><a class="rf" data-f="evict.c" data-a="744" data-b="744" data-q="deleteEvictedKeyAndPropagate(db, keyobj, &amp;key_mem_freed);">:744</a> 内部真正删 <a class="rf" data-f="db.c" data-a="3012" data-b="3012" data-q="dbGenericDelete(db, keyobj, lazy_flag, del_flag);">db.c:3012</a> 并发 DEL/UNLINK <a class="rf" data-f="db.c" data-a="3019" data-b="3019" data-q="propagateDeletion(db, keyobj, lazy_flag);">db.c:3019</a><span class="w dbc">db.c</span></div>
+  <div class="js st3"><b>记账</b><br>腾出的字节数累加 <a class="rf" data-f="evict.c" data-a="750" data-b="750" data-q="mem_freed += key_mem_freed;">:750</a><span class="w pe">performEvictions</span></div>
+  <div class="js st0"><b>回到循环条件</b><br>够了吗？<a class="rf" data-f="evict.c" data-a="579" data-b="579" data-q="while (mem_freed &lt; (long long)mem_tofree) {">:579</a><span class="w pe">performEvictions</span></div>
+</div>
+<p class="cap" style="margin:8px 0 18px">路线 B（随机）没有池子，短得多：挑 slot <a class="rf" data-f="evict.c" data-a="713" data-b="713" data-q="int slot = kvstoreGetFairRandomDictIndex(kvs, randomEvictionShouldSkipDictIndex, 16, 0);">:713</a> → 随机抽一个 <a class="rf" data-f="evict.c" data-a="717" data-b="717" data-q="de = kvstoreDictGetRandomKey(kvs, slot);">:717</a> → 是 blessed 就再抽 <a class="rf" data-f="evict.c" data-a="721" data-b="721" data-q="if (blessIsNoEvict(kv)) continue;">:721</a> → 定为 bestkey <a class="rf" data-f="evict.c" data-a="722" data-b="722" data-q="bestkey = kvobjGetKey(kv);">:722</a>，之后同样走「删除 + 记账」。</p>
+
+<div class="card" id="play">
+  <h3>动手试：样本怎么进池、怎么出池<span class="tag">键名和分数是演示用的假数据；插入规则照 :184–232 逐条实现</span></h3>
+  <div class="btns"><button class="pri" id="bSample">抽 5 个样本入池</button><button id="bPop">取最该删的那个</button><button id="bReset">清空</button></div>
+  <div class="smp" id="smp"><span style="border:0;background:none;color:var(--mut);font-family:var(--sans);font-weight:400">点「抽 5 个样本入池」开始。多点几次，看池子被填满后会发生什么。</span></div>
+  <div class="pool" id="pool"></div>
+  <div class="pax only-d"><span>← 分数小（不急着删）</span><span>分数大（最该删）→</span></div>
+  <div class="cap only-m">手机上 16 格折成两排：上排第 0–7 格，下排第 8–15 格。格子上的小数字是下标，<b>下标越大分数越大</b>，第 15 格最该删。</div>
+  <div class="plog" id="plog">池子现在是空的：16 格的 key 都是 NULL。</div>
+  <div class="cases">
+    <div data-c="skip"><b>进不去</b>池已满，而且它比最左边那个还小 <a class="rf" data-f="evict.c" data-a="188" data-b="188" data-q="if (k == 0 &amp;&amp; pool[EVPOOL_SIZE-1].key != NULL) {">:188</a></div>
+    <div data-c="empty"><b>落在空格</b>直接放，不用挪 <a class="rf" data-f="evict.c" data-a="192" data-b="192" data-q="} else if (k &lt; EVPOOL_SIZE &amp;&amp; pool[k].key == NULL) {">:192</a></div>
+    <div data-c="right"><b>右边还有空</b>k 及其右边整体右移一格，腾出 k <a class="rf" data-f="evict.c" data-a="197" data-b="197" data-q="if (pool[EVPOOL_SIZE-1].key == NULL) {">:197</a> <a class="rf" data-f="evict.c" data-a="203" data-b="204" data-q="memmove(pool+k+1,pool+k," data-q2="sizeof(pool[0])*(EVPOOL_SIZE-k-1));">:203–204</a></div>
+    <div data-c="left"><b>池满了</b>挤掉最左边（分数最小）那个：k 减一，左边整体左移 <a class="rf" data-f="evict.c" data-a="206" data-b="208" data-q="} else {" data-q2="k--;">:206–208</a> <a class="rf" data-f="evict.c" data-a="213" data-b="213" data-q="memmove(pool,pool+1,sizeof(pool[0])*k);">:213</a></div>
+  </div>
+  <div id="pmsg" hidden>
+    <span data-m="bl"><a class="rf" data-f="evict.c" data-a="157" data-b="157" data-q="if (blessIsNoEvict(kv)) continue;">:157</a></span>
+    <span data-m="scan"><a class="rf" data-f="evict.c" data-a="185" data-b="187" data-q="while (k &lt; EVPOOL_SIZE &amp;&amp;" data-q2="pool[k].idle &lt; idle) k++;">:185–187</a></span>
+    <span data-m="write"><a class="rf" data-f="evict.c" data-a="230" data-b="230" data-q="pool[k].idle = idle;">:230</a></span>
+    <span data-m="popscan"><a class="rf" data-f="evict.c" data-a="637" data-b="638" data-q="for (k = EVPOOL_SIZE-1; k &gt;= 0; k--) {" data-q2="if (pool[k].key == NULL) continue;">:637–638</a></span>
+    <span data-m="find"><a class="rf" data-f="evict.c" data-a="647" data-b="647" data-q="de = kvstoreDictFind(kvs, pool[k].slot, pool[k].key);">:647</a></span>
+    <span data-m="clear"><a class="rf" data-f="evict.c" data-a="652" data-b="653" data-q="pool[k].key = NULL;" data-q2="pool[k].idle = 0;">:652–653</a></span>
+    <span data-m="best"><a class="rf" data-f="evict.c" data-a="664" data-b="664" data-q="bestkey = kvobjGetKey(kv);">:664</a></span>
+    <span data-m="none"><a class="rf" data-f="evict.c" data-a="680" data-b="680" data-q="if (!total_sampled_keys) break;">:680</a> <a class="rf" data-f="evict.c" data-a="682" data-b="682" data-q="if (!total_candidates) {">:682</a></span>
+    <span data-m="ghost"><a class="rf" data-f="evict.c" data-a="666" data-b="667" data-q="} else {" data-q2="/* Ghost... Iterate again. */">:666–667</a></span>
+  </div>
+</div>
+</section>
+
+<section id="ctrl">
+<h2>控制流 <small>292 行的长函数，先看它把篇幅花在哪</small></h2>
+<p class="lead">下面这条色带按行数等比例画出 performEvictions() 的 8 段，虚线框是主循环的范围。<b>一半篇幅在「挑 key」</b>，真正删除只有十几行。点任意一段看原文。</p>
+<div class="lbr"><span style="flex:36"></span><a class="lb" style="flex:207" data-f="evict.c" data-a="579" data-b="579">↻ 主循环 :579–785 · 207 行</a><span style="flex:49"></span></div>
+<div class="lmap"><a class="sg st1" style="flex:22" data-f="evict.c" data-a="543" data-b="564" title="① 闸门"><b><span class="s1">①</span><span class="s2">闸门</span></b><i>22 行</i></a><a class="sg st1 nar" style="flex:14" data-f="evict.c" data-a="565" data-b="578" title=" 准备"><b><span class="s1"></span><span class="s2">准备</span></b><i>14 行</i></a><a class="sg st0 nar" style="flex:8" data-f="evict.c" data-a="579" data-b="586" title=" 循环头"><b><span class="s1"></span><span class="s2">循环头</span></b><i>8 行</i></a><a class="sg st2" style="flex:107" data-f="evict.c" data-a="587" data-b="693" title="②A 挑 key · 评分池"><b><span class="s1">②A</span><span class="s2">挑 key · 评分池</span></b><i>107 行</i></a><a class="sg stB" style="flex:43" data-f="evict.c" data-a="694" data-b="736" title="②B 挑 key · 随机"><b><span class="s1">②B</span><span class="s2">挑 key · 随机</span></b><i>43 行</i></a><a class="sg st3 nar" style="flex:16" data-f="evict.c" data-a="737" data-b="752" title="③ 删除"><b><span class="s1">③</span><span class="s2">删除</span></b><i>16 行</i></a><a class="sg st4" style="flex:33" data-f="evict.c" data-a="753" data-b="785" title="④ 检查点"><b><span class="s1">④</span><span class="s2">检查点</span></b><i>33 行</i></a><a class="sg st5" style="flex:49" data-f="evict.c" data-a="786" data-b="834" title="⑤ 收尾"><b><span class="s1">⑤</span><span class="s2">收尾</span></b><i>49 行</i></a></div>
+<div class="lax"><span>:543</span><span>:834</span></div>
+<div class="lleg"><a class="lg st1" data-f="evict.c" data-a="543" data-b="564"><i></i>① 闸门<span>:543–564 · 22 行</span></a><a class="lg st1" data-f="evict.c" data-a="565" data-b="578"><i></i>准备<span>:565–578 · 14 行</span></a><a class="lg st0" data-f="evict.c" data-a="579" data-b="586"><i></i>循环头<span>:579–586 · 8 行</span></a><a class="lg st2" data-f="evict.c" data-a="587" data-b="693"><i></i>②A 挑 key · 评分池<span>:587–693 · 107 行</span></a><a class="lg stB" data-f="evict.c" data-a="694" data-b="736"><i></i>②B 挑 key · 随机<span>:694–736 · 43 行</span></a><a class="lg st3" data-f="evict.c" data-a="737" data-b="752"><i></i>③ 删除<span>:737–752 · 16 行</span></a><a class="lg st4" data-f="evict.c" data-a="753" data-b="785"><i></i>④ 检查点<span>:753–785 · 33 行</span></a><a class="lg st5" data-f="evict.c" data-a="786" data-b="834"><i></i>⑤ 收尾<span>:786–834 · 49 行</span></a></div>
+<p class="cap" style="margin:10px 0 0">这 8 段是为了导读切的，切口不全落在源码的块边界上：<b>③ 和 ④ 其实同在一个块里</b> <a class="rf" data-f="evict.c" data-a="738" data-b="738" data-q="if (bestkey) {">:738</a>，这个 if 的 else <a class="rf" data-f="evict.c" data-a="782" data-b="783" data-q="} else {" data-q2="goto cant_free; /* nothing to free... */">:782–783</a> 被算在 ④ 的末尾；②B 是 ②A 那个 if 的 else if 臂。真实的嵌套关系以下面的展开图为准。</p>
+<h3 style="margin:30px 0 4px;font-size:19px">逐步展开：缩进 = 嵌套，彩色小牌 = 从这里跳走</h3>
+<p class="lead" style="margin-bottom:8px">这个函数里的 <b>9 个循环、40 个 if、26 处 break / continue / goto / return 全都在图里</b>，没有合并也没有省略（交付前用脚本对着源码逐个核过）。两条「挑 key」路线默认收起：先选一个情境走一遍，再展开看细节。</p>
+
+<div class="scs"><span class="lbl">走一遍：</span><button class="sc" data-s="s_ok">正常腾够</button><button class="sc" data-s="s_gate">内存没超</button><button class="sc" data-s="s_unsafe">此刻不宜淘汰</button><button class="sc" data-s="s_noev">策略是 noeviction</button><button class="sc" data-s="s_time">超时没腾完</button><button class="sc" data-s="s_none">没东西可删</button><button class="sc" data-s="s_bless">被 blessed 键挡住</button><button class="sc" data-s="">全部显示</button></div>
+<div class="scsay" id="scsay"></div>
+
+<div class="legbar"><span><i class="ic" style="border-radius:50%">↻</i>循环（实线包住循环体）</span><span><i class="ic" style="background:#fff;color:#475569;border:1.5px solid #475569">◇</i>判断</span><span><i class="ic">▪</i>动作</span><span><i class="ic">ƒ</i>调用</span><span><i class="ic">⚑</i>goto 标号</span><span class="sep"></span><span><i class="ex ex-break">break</i> <i class="ex ex-continue">continue</i> <i class="ex ex-goto">goto</i> <i class="ex ex-return">return</i> 跳走，箭头后是落点；点它看那一行</span><span class="cap">每步下面的灰色代码是该行源码原文：「…」= 这一行只引了一部分，「⏎…」= 语句在下一行才写完。</span></div>
+<div class="flowwrap">
+  <div class="flow" id="flowbox">
+<div class="fr k-if st1" data-id="g1" data-ln="546"><span class="ic">◇</span><div class="fb"><div class="zh">第一道门：此刻不宜淘汰 → 直接返回，连统计都不碰</div><div class="cq"><code class="q">if (<wbr>!isSafeToPerformEvictions(<wbr>)) return EVICT_OK;</code><a class="rf" data-f="evict.c" data-a="546" data-b="546" data-q="if (!isSafeToPerformEvictions()) return EVICT_OK;">:546</a><a class="ex ex-return" data-f="evict.c" data-a="546" data-b="546" data-q="return" data-jl="546" data-tgt="">return EVICT_OK</a></div><div class="nt">「不宜」共 4 种：脚本超时中或正在加载 <a class="rf" data-f="evict.c" data-a="482" data-b="482" data-q="if (isInsideYieldingLongCommand() || server.loading) return 0;">:482</a>、副本忽略 maxmemory <a class="rf" data-f="evict.c" data-a="486" data-b="486" data-q="if (server.masterhost &amp;&amp; server.repl_slave_ignore_maxmemory) return 0;">:486</a>、当前客户端在做槽位导入 <a class="rf" data-f="evict.c" data-a="491" data-b="493" data-q="if (server.current_client &amp;&amp; server.current_client-&gt;flags &amp; CLIENT_MASTER &amp;&amp;" data-q2="return 0;">:491–493</a>、淘汰动作被暂停 <a class="rf" data-f="evict.c" data-a="496" data-b="496" data-q="if (isPausedActionsWithUpdate(PAUSE_ACTION_EVICT)) return 0;">:496</a></div></div></div>
+<div class="fr k-set st1" data-id="i1" data-ln="553"><span class="ic">✎</span><div class="fb"><div class="zh">result 先悲观地记成 FAIL —— 后面谁也没改它，就是 FAIL</div><div class="cq"><code class="q">int result = EVICT_FAIL;</code><a class="rf" data-f="evict.c" data-a="553" data-b="553" data-q="int result = EVICT_FAIL;">:553</a></div></div></div>
+<div class="fr k-if st1" data-id="g2" data-ln="556"><span class="ic">◇</span><div class="fb"><div class="zh">第二道门：内存没超限 → OK</div><div class="cq"><code class="q">if (<wbr>getMaxmemoryState(<wbr>&amp;mem_reported,<wbr>NULL,<wbr>&amp;mem_tofree,<wbr>NULL) == C_OK) {</code><a class="rf" data-f="evict.c" data-a="556" data-b="556" data-q="if (getMaxmemoryState(&amp;mem_reported,NULL,&amp;mem_tofree,NULL) == C_OK) {">:556</a><a class="ex ex-goto" data-f="evict.c" data-a="558" data-b="558" data-q="goto" data-jl="558" data-tgt="823">:558 goto update_metrics</a></div><div class="nt">顺手拿到了要腾多少：mem_tofree。改判 <a class="rf" data-f="evict.c" data-a="557" data-b="557" data-q="result = EVICT_OK;">:557</a></div></div></div>
+<div class="fr k-if st1" data-id="g3" data-ln="561"><span class="ic">◇</span><div class="fb"><div class="zh">第三道门：策略是 noeviction → FAIL</div><div class="cq"><code class="q">if (<wbr>server.maxmemory_policy == MAXMEMORY_NO_EVICTION) {</code><a class="rf" data-f="evict.c" data-a="561" data-b="561" data-q="if (server.maxmemory_policy == MAXMEMORY_NO_EVICTION) {">:561</a><a class="ex ex-goto" data-f="evict.c" data-a="563" data-b="563" data-q="goto" data-jl="563" data-tgt="823">:563 goto update_metrics</a></div><div class="nt">result 再写一次 FAIL <a class="rf" data-f="evict.c" data-a="562" data-b="562" data-q="result = EVICT_FAIL;  /* We need to free memory, but policy forbids. */">:562</a></div></div></div>
+<div class="fr k-act st1" data-id="p1" data-ln="566"><span class="ic">▪</span><div class="fb"><div class="zh">准备：算出本次时间预算、已腾量清零、开始计时</div><div class="cq"><code class="q">unsigned long eviction_time_limit_us = evictionTimeLimitUs(<wbr>);</code><a class="rf" data-f="evict.c" data-a="566" data-b="566" data-q="unsigned long eviction_time_limit_us = evictionTimeLimitUs();">:566</a></div><div class="nt">已腾量清零 <a class="rf" data-f="evict.c" data-a="568" data-b="568" data-q="mem_freed = 0;">:568</a> · 开始计时 <a class="rf" data-f="evict.c" data-a="573" data-b="573" data-q="elapsedStart(&amp;evictionTimer);">:573</a></div></div></div>
+<div class="blk b-loop st0" data-of="L"><div class="fr k-loop st0" data-id="L" data-ln="579"><span class="ic">↻</span><div class="fb"><div class="zh">主循环：还没腾够，就再淘汰一个 key</div><div class="cq"><code class="q">while (<wbr>mem_freed &lt; (<wbr>long long)mem_tofree) {</code><a class="rf" data-f="evict.c" data-a="579" data-b="579" data-q="while (mem_freed &lt; (long long)mem_tofree) {">:579</a></div></div></div><div class="kids">
+<div class="blk b-if st2 grp shut" data-of="sA"><div class="fr k-if st2" data-id="sA" data-ln="587" data-grp="1"><span class="ic">◇</span><div class="fb"><div class="zh">路线 A · 评分池：策略带 LRU / LFU / LRM 标志，或是 volatile-ttl</div><div class="cq"><code class="q">if (<wbr>server.maxmemory_policy &amp; (<wbr>MAXMEMORY_FLAG_LRU|<wbr>MAXMEMORY_FLAG_LFU|<wbr>MAXMEMORY_FLAG_LRM) || ⏎…</code><a class="rf" data-f="evict.c" data-a="587" data-b="587" data-q="if (server.maxmemory_policy &amp; (MAXMEMORY_FLAG_LRU|MAXMEMORY_FLAG_LFU|MAXMEMORY_FLAG_LRM) ||">:587</a></div></div></div><button class="tg" data-n="25">展开这条路线的 25 步</button><div class="kids">
+<div class="blk b-loop st2" data-of="A1"><div class="fr k-loop st2" data-id="A1" data-ln="592"><span class="ic">↻</span><div class="fb"><div class="zh">一直试到选出 bestkey（或中途放弃）</div><div class="cq"><code class="q">while (<wbr>bestkey == NULL) {</code><a class="rf" data-f="evict.c" data-a="592" data-b="592" data-q="while (bestkey == NULL) {">:592</a></div></div></div><div class="kids">
+<div class="blk b-loop st2" data-of="A2"><div class="fr k-loop st2" data-id="A2" data-ln="600"><span class="ic">↻</span><div class="fb"><div class="zh">采样：每个 db 都抽一点</div><div class="cq"><code class="q">for (<wbr>i = 0; i &lt; server.dbnum; i<span class="nb">++</span>) {</code><a class="rf" data-f="evict.c" data-a="600" data-b="600" data-q="for (i = 0; i &lt; server.dbnum; i++) {">:600</a></div></div></div><div class="kids">
+<div class="fr k-if st2" data-id="A3" data-ln="603"><span class="ic">◇</span><div class="fb"><div class="zh">allkeys 策略抽 db-&gt;keys，否则只抽 db-&gt;expires</div><div class="cq"><code class="q">if (<wbr>server.maxmemory_policy &amp; MAXMEMORY_FLAG_ALLKEYS) {</code><a class="rf" data-f="evict.c" data-a="603" data-b="603" data-q="if (server.maxmemory_policy &amp; MAXMEMORY_FLAG_ALLKEYS) {">:603</a></div><div class="nt">两臂各只有一句赋值 <a class="rf" data-f="evict.c" data-a="604" data-b="604" data-q="kvs = db-&gt;keys;">:604</a> / <a class="rf" data-f="evict.c" data-a="605" data-b="606" data-q="} else {" data-q2="kvs = db-&gt;expires;">:605–606</a></div></div></div>
+<div class="fr k-if st2" data-id="A4" data-ln="610"><span class="ic">◇</span><div class="fb"><div class="zh">这个库没有键</div><div class="cq"><code class="q">if (<wbr>current_db_keys == 0) continue;</code><a class="rf" data-f="evict.c" data-a="610" data-b="610" data-q="if (current_db_keys == 0) continue;">:610</a><a class="ex ex-continue" data-f="evict.c" data-a="610" data-b="610" data-q="continue;" data-jl="610" data-tgt="600">continue → 下一个 db</a></div></div></div>
+<div class="blk b-loop st2" data-of="A5"><div class="fr k-loop st2" data-id="A5" data-ln="615"><span class="ic">↻</span><div class="fb"><div class="zh">最多转「非空 slot 数」圈</div><div class="cq"><code class="q">while (<wbr>l<span class="nb">--</span>) {</code><a class="rf" data-f="evict.c" data-a="615" data-b="615" data-q="while (l--) {">:615</a></div><div class="nt">圈数上限 l 的来历 <a class="rf" data-f="evict.c" data-a="613" data-b="613" data-q="int l = kvstoreNumNonEmptyDicts(kvs);">:613</a></div></div></div><div class="kids">
+<div class="fr k-call st2" data-id="A6" data-ln="617"><span class="ic">ƒ</span><div class="fb"><div class="zh">抽一个 slot 的样本，打分入池</div><div class="cq"><code class="q">int sampled = evictionPoolPopulate(<wbr>db, kvs, pool, &amp;candidates);</code><a class="rf" data-f="evict.c" data-a="617" data-b="617" data-q="int sampled = evictionPoolPopulate(db, kvs, pool, &amp;candidates);">:617</a></div></div></div>
+<div class="fr k-if st2" data-id="A7" data-ln="625"><span class="ic">◇</span><div class="fb"><div class="zh">这个 db 的可淘汰样本够数了</div><div class="cq"><code class="q">if (<wbr>sampled_keys &gt;= (<wbr>unsigned long) server.maxmemory_samples) ⏎…</code><a class="rf" data-f="evict.c" data-a="625" data-b="625" data-q="if (sampled_keys &gt;= (unsigned long) server.maxmemory_samples)">:625</a><a class="ex ex-break" data-f="evict.c" data-a="626" data-b="626" data-q="break;" data-jl="626" data-tgt="615">:626 break → 出 :615</a></div></div></div>
+<div class="fr k-if st2" data-id="A8" data-ln="630"><span class="ic">◇</span><div class="fb"><div class="zh">库太小（键数 &lt; 样本数×10），不硬凑</div><div class="cq"><code class="q">if (<wbr>current_db_keys &lt; (<wbr>unsigned long) server.maxmemory_samples*10) ⏎…</code><a class="rf" data-f="evict.c" data-a="630" data-b="630" data-q="if (current_db_keys &lt; (unsigned long) server.maxmemory_samples*10)">:630</a><a class="ex ex-break" data-f="evict.c" data-a="631" data-b="631" data-q="break;" data-jl="631" data-tgt="615">:631 break → 出 :615</a></div></div></div>
+</div></div>
+</div></div>
+<div class="fr k-if st2" data-id="A9" data-ln="634"><span class="ic">◇</span><div class="fb"><div class="zh">所有库加起来都没键 → 放弃</div><div class="cq"><code class="q">if (<wbr>!total_keys) break; /* No keys to evict. */</code><a class="rf" data-f="evict.c" data-a="634" data-b="634" data-q="if (!total_keys) break; /* No keys to evict. */">:634</a><a class="ex ex-break" data-f="evict.c" data-a="634" data-b="634" data-q="break;" data-jl="634" data-tgt="592">break → 出 :592，bestkey 仍为空</a></div></div></div>
+<div class="blk b-loop st2" data-of="A10"><div class="fr k-loop st2" data-id="A10" data-ln="637"><span class="ic">↻</span><div class="fb"><div class="zh">取键：从池子最右（最该删）往左扫</div><div class="cq"><code class="q">for (<wbr>k = EVPOOL_SIZE-1; k &gt;= 0; k<span class="nb">--</span>) {</code><a class="rf" data-f="evict.c" data-a="637" data-b="637" data-q="for (k = EVPOOL_SIZE-1; k &gt;= 0; k--) {">:637</a></div></div></div><div class="kids">
+<div class="fr k-if st2" data-id="A11" data-ln="638"><span class="ic">◇</span><div class="fb"><div class="zh">空格子</div><div class="cq"><code class="q">if (<wbr>pool[k].key == NULL) continue;</code><a class="rf" data-f="evict.c" data-a="638" data-b="638" data-q="if (pool[k].key == NULL) continue;">:638</a><a class="ex ex-continue" data-f="evict.c" data-a="638" data-b="638" data-q="continue;" data-jl="638" data-tgt="637">continue → 左边一格</a></div></div></div>
+<div class="fr k-if st2" data-id="A11b" data-ln="642"><span class="ic">◇</span><div class="fb"><div class="zh">去哪张表里找它：allkeys 策略查 keys，否则查 expires</div><div class="cq"><code class="q">if (<wbr>server.maxmemory_policy &amp; MAXMEMORY_FLAG_ALLKEYS) {</code><a class="rf" data-f="evict.c" data-a="642" data-b="642" data-q="if (server.maxmemory_policy &amp; MAXMEMORY_FLAG_ALLKEYS) {">:642</a></div><div class="nt">库号取自池格 <a class="rf" data-f="evict.c" data-a="639" data-b="639" data-q="bestdbid = pool[k].dbid;">:639</a> · 两臂各只有一句赋值 <a class="rf" data-f="evict.c" data-a="643" data-b="643" data-q="kvs = server.db[bestdbid].keys;">:643</a> / <a class="rf" data-f="evict.c" data-a="644" data-b="645" data-q="} else {" data-q2="kvs = server.db[bestdbid].expires;">:644–645</a></div></div></div>
+<div class="fr k-act st2" data-id="A12" data-ln="647"><span class="ic">▪</span><div class="fb"><div class="zh">回字典确认这个 key 还在不在</div><div class="cq"><code class="q">de = kvstoreDictFind(<wbr>kvs, pool[k].slot, pool[k].key);</code><a class="rf" data-f="evict.c" data-a="647" data-b="647" data-q="de = kvstoreDictFind(kvs, pool[k].slot, pool[k].key);">:647</a></div></div></div>
+<div class="fr k-if st2" data-id="A12b" data-ln="650"><span class="ic">◇</span><div class="fb"><div class="zh">格里的键名若是另外分配的字符串（没用那块预分配缓冲）→ 先释放</div><div class="cq"><code class="q">if (<wbr>pool[k].key != pool[k].cached) ⏎…</code><a class="rf" data-f="evict.c" data-a="650" data-b="650" data-q="if (pool[k].key != pool[k].cached)">:650</a></div><div class="nt">释放 <a class="rf" data-f="evict.c" data-a="651" data-b="651" data-q="sdsfree(pool[k].key);">:651</a></div></div></div>
+<div class="fr k-act st2" data-id="A13" data-ln="652"><span class="ic">▪</span><div class="fb"><div class="zh">不管在不在，这一格先清空</div><div class="cq"><code class="q">pool[k].key = NULL;</code><a class="rf" data-f="evict.c" data-a="652" data-b="652" data-q="pool[k].key = NULL;">:652</a></div><div class="nt">分数也归零 <a class="rf" data-f="evict.c" data-a="653" data-b="653" data-q="pool[k].idle = 0;">:653</a></div></div></div>
+<div class="blk b-if st2" data-of="A14"><div class="fr k-if st2" data-id="A14" data-ln="657"><span class="ic">◇</span><div class="fb"><div class="zh">key 还在</div><div class="cq"><code class="q">if (<wbr>de) {</code><a class="rf" data-f="evict.c" data-a="657" data-b="657" data-q="if (de) {">:657</a></div></div></div><div class="kids">
+<div class="fr k-if st2" data-id="A15" data-ln="663"><span class="ic">◇</span><div class="fb"><div class="zh">但它入池之后被标成了 NO-EVICT</div><div class="cq"><code class="q">if (<wbr>blessIsNoEvict(<wbr>kv)) continue;</code><a class="rf" data-f="evict.c" data-a="663" data-b="663" data-q="if (blessIsNoEvict(kv)) continue;">:663</a><a class="ex ex-continue" data-f="evict.c" data-a="663" data-b="663" data-q="continue;" data-jl="663" data-tgt="637">continue → 左边一格</a></div></div></div>
+<div class="fr k-act st2" data-id="A16" data-ln="664"><span class="ic">▪</span><div class="fb"><div class="zh">就是它了</div><div class="cq"><code class="q">bestkey = kvobjGetKey(<wbr>kv);</code><a class="rf" data-f="evict.c" data-a="664" data-b="664" data-q="bestkey = kvobjGetKey(kv);">:664</a><a class="ex ex-break" data-f="evict.c" data-a="665" data-b="665" data-q="break;" data-jl="665" data-tgt="637">:665 break → 出 :637</a></div></div></div>
+</div></div>
+<div class="fr k-else st2" data-id="A17" data-ln="666"><span class="ic">◇</span><div class="fb"><div class="zh">key 已经不在了（幽灵）→ 什么都不做，继续往左</div><div class="cq"><code class="q">} else {</code><a class="rf" data-f="evict.c" data-a="666" data-b="666" data-q="} else {">:666</a></div><div class="nt">这个分支里源码只有一句注释 <a class="rf" data-f="evict.c" data-a="667" data-b="667" data-q="/* Ghost... Iterate again. */">:667</a></div></div></div>
+</div></div>
+<div class="fr k-if st2" data-id="A18" data-ln="670"><span class="ic">◇</span><div class="fb"><div class="zh">选到了</div><div class="cq"><code class="q">if (<wbr>bestkey) break;</code><a class="rf" data-f="evict.c" data-a="670" data-b="670" data-q="if (bestkey) break;">:670</a><a class="ex ex-break" data-f="evict.c" data-a="670" data-b="670" data-q="break;" data-jl="670" data-tgt="592">break → 出 :592</a></div></div></div>
+<div class="fr k-if st2" data-id="A19" data-ln="680"><span class="ic">◇</span><div class="fb"><div class="zh">这一轮一个样本都没抽到 → 放弃</div><div class="cq"><code class="q">if (<wbr>!total_sampled_keys) break;</code><a class="rf" data-f="evict.c" data-a="680" data-b="680" data-q="if (!total_sampled_keys) break;">:680</a><a class="ex ex-break" data-f="evict.c" data-a="680" data-b="680" data-q="break;" data-jl="680" data-tgt="592">break → 出 :592，bestkey 仍为空</a></div></div></div>
+<div class="blk b-if st2" data-of="A20"><div class="fr k-if st2" data-id="A20" data-ln="682"><span class="ic">◇</span><div class="fb"><div class="zh">抽到了，但全是 blessed（NO-EVICT）键</div><div class="cq"><code class="q">if (<wbr>!total_candidates) {</code><a class="rf" data-f="evict.c" data-a="682" data-b="682" data-q="if (!total_candidates) {">:682</a></div></div></div><div class="kids">
+<div class="fr k-if st2" data-id="A21" data-ln="684"><span class="ic">◇</span><div class="fb"><div class="zh">已经连续 8 轮这样 → 记下「被 blessed 挡住」并放弃</div><div class="cq"><code class="q">if (<wbr><span class="nb">++</span>blessed_only_rounds &gt;= EVICTION_MAX_BLESSED_ONLY_ROUNDS) {</code><a class="rf" data-f="evict.c" data-a="684" data-b="684" data-q="if (++blessed_only_rounds &gt;= EVICTION_MAX_BLESSED_ONLY_ROUNDS) {">:684</a><a class="ex ex-break" data-f="evict.c" data-a="686" data-b="686" data-q="break;" data-jl="686" data-tgt="592">:686 break → 出 :592</a></div><div class="nt">置位 <a class="rf" data-f="evict.c" data-a="685" data-b="685" data-q="blessed_blocked = 1;">:685</a> · 上限 8 轮 <a class="rf" data-f="evict.c" data-a="38" data-b="38" data-q="#define EVICTION_MAX_BLESSED_ONLY_ROUNDS 8">:38</a></div></div></div>
+<div class="fr k-act st2" data-id="A22" data-ln="688"><span class="ic">▪</span><div class="fb"><div class="zh">否则再抽一轮</div><div class="cq"><code class="q">continue;</code><a class="rf" data-f="evict.c" data-a="688" data-b="688" data-q="continue;">:688</a><a class="ex ex-continue" data-f="evict.c" data-a="688" data-b="688" data-q="continue;" data-jl="688" data-tgt="592">continue → 回 :592</a></div></div></div>
+</div></div>
+<div class="fr k-act st2" data-id="A23" data-ln="690"><span class="ic">▪</span><div class="fb"><div class="zh">有候选、但池里没取到活键 → 连续计数清零，回 :592 再来</div><div class="cq"><code class="q">blessed_only_rounds = 0;</code><a class="rf" data-f="evict.c" data-a="690" data-b="690" data-q="blessed_only_rounds = 0;">:690</a></div></div></div>
+</div></div>
+</div></div>
+<div class="blk b-else st2 grp shut" data-of="sB"><div class="fr k-else st2" data-id="sB" data-ln="695" data-grp="1"><span class="ic">◇</span><div class="fb"><div class="zh">路线 B · 随机：策略是 allkeys-random 或 volatile-random</div><div class="cq"><code class="q">else if (<wbr>server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM || ⏎…</code><a class="rf" data-f="evict.c" data-a="695" data-b="695" data-q="else if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM ||">:695</a></div></div></div><button class="tg" data-n="13">展开这条路线的 13 步</button><div class="kids">
+<div class="blk b-loop st2" data-of="B1"><div class="fr k-loop st2" data-id="B1" data-ln="702"><span class="ic">↻</span><div class="fb"><div class="zh">一直试到选出 bestkey（或中途放弃）</div><div class="cq"><code class="q">while (<wbr>bestkey == NULL) {</code><a class="rf" data-f="evict.c" data-a="702" data-b="702" data-q="while (bestkey == NULL) {">:702</a></div></div></div><div class="kids">
+<div class="blk b-loop st2" data-of="B2"><div class="fr k-loop st2" data-id="B2" data-ln="704"><span class="ic">↻</span><div class="fb"><div class="zh">轮流看每个 db；static 的 next_db 记着上次看到哪</div><div class="cq"><code class="q">for (<wbr>i = 0; i &lt; server.dbnum; i<span class="nb">++</span>) {</code><a class="rf" data-f="evict.c" data-a="704" data-b="704" data-q="for (i = 0; i &lt; server.dbnum; i++) {">:704</a></div><div class="nt">库号 j 的算法 <a class="rf" data-f="evict.c" data-a="705" data-b="705" data-q="j = (++next_db) % server.dbnum;">:705</a> · next_db 是 static <a class="rf" data-f="evict.c" data-a="581" data-b="581" data-q="static unsigned int next_db = 0;">:581</a></div></div></div><div class="kids">
+<div class="fr k-if st2" data-id="B3" data-ln="708"><span class="ic">◇</span><div class="fb"><div class="zh">allkeys-random 抽 db-&gt;keys，否则抽 db-&gt;expires</div><div class="cq"><code class="q">if (<wbr>server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM) {</code><a class="rf" data-f="evict.c" data-a="708" data-b="708" data-q="if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM) {">:708</a></div><div class="nt">两臂各只有一句赋值 <a class="rf" data-f="evict.c" data-a="709" data-b="709" data-q="kvs = db-&gt;keys;">:709</a> / <a class="rf" data-f="evict.c" data-a="710" data-b="711" data-q="} else {" data-q2="kvs = db-&gt;expires;">:710–711</a></div></div></div>
+<div class="fr k-act st2" data-id="B4" data-ln="713"><span class="ic">▪</span><div class="fb"><div class="zh">公平随机地选一个 slot</div><div class="cq"><code class="q">int slot = kvstoreGetFairRandomDictIndex(<wbr>kvs, randomEvictionShouldSkipDictIndex, 16, 0);</code><a class="rf" data-f="evict.c" data-a="713" data-b="713" data-q="int slot = kvstoreGetFairRandomDictIndex(kvs, randomEvictionShouldSkipDictIndex, 16, 0);">:713</a></div></div></div>
+<div class="fr k-if st2" data-id="B5" data-ln="714"><span class="ic">◇</span><div class="fb"><div class="zh">没有可用的 slot</div><div class="cq"><code class="q">if (<wbr>slot == -1) continue;</code><a class="rf" data-f="evict.c" data-a="714" data-b="714" data-q="if (slot == -1) continue;">:714</a><a class="ex ex-continue" data-f="evict.c" data-a="714" data-b="714" data-q="continue;" data-jl="714" data-tgt="704">continue → 下一个 db</a></div></div></div>
+<div class="blk b-loop st2" data-of="B6"><div class="fr k-loop st2" data-id="B6" data-ln="716"><span class="ic">↻</span><div class="fb"><div class="zh">最多抽 maxmemory_samples 次</div><div class="cq"><code class="q">for (<wbr>int attempts = 0; attempts &lt; server.maxmemory_samples; attempts<span class="nb">++</span>) {</code><a class="rf" data-f="evict.c" data-a="716" data-b="716" data-q="for (int attempts = 0; attempts &lt; server.maxmemory_samples; attempts++) {">:716</a></div></div></div><div class="kids">
+<div class="fr k-act st2" data-id="B7" data-ln="717"><span class="ic">▪</span><div class="fb"><div class="zh">随机抽一个 key</div><div class="cq"><code class="q">de = kvstoreDictGetRandomKey(<wbr>kvs, slot);</code><a class="rf" data-f="evict.c" data-a="717" data-b="717" data-q="de = kvstoreDictGetRandomKey(kvs, slot);">:717</a></div></div></div>
+<div class="fr k-if st2" data-id="B8" data-ln="718"><span class="ic">◇</span><div class="fb"><div class="zh">没抽到</div><div class="cq"><code class="q">if (<wbr>de == NULL) break;</code><a class="rf" data-f="evict.c" data-a="718" data-b="718" data-q="if (de == NULL) break;">:718</a><a class="ex ex-break" data-f="evict.c" data-a="718" data-b="718" data-q="break;" data-jl="718" data-tgt="716">break → 出 :716</a></div></div></div>
+<div class="fr k-if st2" data-id="B9" data-ln="721"><span class="ic">◇</span><div class="fb"><div class="zh">抽到的是 blessed 键 → 再抽</div><div class="cq"><code class="q">if (<wbr>blessIsNoEvict(<wbr>kv)) continue;</code><a class="rf" data-f="evict.c" data-a="721" data-b="721" data-q="if (blessIsNoEvict(kv)) continue;">:721</a><a class="ex ex-continue" data-f="evict.c" data-a="721" data-b="721" data-q="continue;" data-jl="721" data-tgt="716">continue → 回 :716</a></div></div></div>
+<div class="fr k-act st2" data-id="B10" data-ln="722"><span class="ic">▪</span><div class="fb"><div class="zh">就是它了</div><div class="cq"><code class="q">bestkey = kvobjGetKey(<wbr>kv);</code><a class="rf" data-f="evict.c" data-a="722" data-b="722" data-q="bestkey = kvobjGetKey(kv);">:722</a><a class="ex ex-break" data-f="evict.c" data-a="724" data-b="724" data-q="break;" data-jl="724" data-tgt="716">:724 break → 出 :716</a></div><div class="nt">记下它在哪个库 <a class="rf" data-f="evict.c" data-a="723" data-b="723" data-q="bestdbid = j;">:723</a></div></div></div>
+</div></div>
+<div class="fr k-if st2" data-id="B11" data-ln="726"><span class="ic">◇</span><div class="fb"><div class="zh">选到了就不用看别的 db</div><div class="cq"><code class="q">if (<wbr>bestkey) break;</code><a class="rf" data-f="evict.c" data-a="726" data-b="726" data-q="if (bestkey) break;">:726</a><a class="ex ex-break" data-f="evict.c" data-a="726" data-b="726" data-q="break;" data-jl="726" data-tgt="704">break → 出 :704</a></div></div></div>
+</div></div>
+<div class="fr k-if st2" data-id="B12" data-ln="728"><span class="ic">◇</span><div class="fb"><div class="zh">选到了；或者一个 key 都没抽到 → 结束</div><div class="cq"><code class="q">if (<wbr>bestkey || !total_sampled_keys) break;</code><a class="rf" data-f="evict.c" data-a="728" data-b="728" data-q="if (bestkey || !total_sampled_keys) break;">:728</a><a class="ex ex-break" data-f="evict.c" data-a="728" data-b="728" data-q="break;" data-jl="728" data-tgt="702">break → 出 :702</a></div></div></div>
+<div class="fr k-if st2" data-id="B13" data-ln="730"><span class="ic">◇</span><div class="fb"><div class="zh">抽到的全是 blessed，且已连续 8 轮 → 记下并放弃；不到 8 轮就回 :702 再来</div><div class="cq"><code class="q">if (<wbr><span class="nb">++</span>blessed_only_rounds &gt;= EVICTION_MAX_BLESSED_ONLY_ROUNDS) {</code><a class="rf" data-f="evict.c" data-a="730" data-b="730" data-q="if (++blessed_only_rounds &gt;= EVICTION_MAX_BLESSED_ONLY_ROUNDS) {">:730</a><a class="ex ex-break" data-f="evict.c" data-a="732" data-b="732" data-q="break;" data-jl="732" data-tgt="702">:732 break → 出 :702</a></div><div class="nt">置位 <a class="rf" data-f="evict.c" data-a="731" data-b="731" data-q="blessed_blocked = 1;">:731</a></div></div></div>
+</div></div>
+</div></div>
+<div class="blk b-if st3" data-of="D"><div class="fr k-if st3" data-id="D" data-ln="738"><span class="ic">◇</span><div class="fb"><div class="zh">选到了 bestkey</div><div class="cq"><code class="q">if (<wbr>bestkey) {</code><a class="rf" data-f="evict.c" data-a="738" data-b="738" data-q="if (bestkey) {">:738</a></div></div></div><div class="kids">
+<div class="fr k-call st3" data-id="D1" data-ln="744"><span class="ic">ƒ</span><div class="fb"><div class="zh">删掉它，并把 DEL 传播给副本 / AOF</div><div class="cq"><code class="q">deleteEvictedKeyAndPropagate(<wbr>db, keyobj, &amp;key_mem_freed);</code><a class="rf" data-f="evict.c" data-a="744" data-b="744" data-q="deleteEvictedKeyAndPropagate(db, keyobj, &amp;key_mem_freed);">:744</a></div><div class="nt">紧接着做执行单元的收尾 <a class="rf" data-f="evict.c" data-a="748" data-b="748" data-q="postExecutionUnitOperations();">:748</a></div></div></div>
+<div class="fr k-act st3" data-id="D2" data-ln="750"><span class="ic">▪</span><div class="fb"><div class="zh">记账：腾出了多少、删了几个</div><div class="cq"><code class="q">mem_freed += key_mem_freed;</code><a class="rf" data-f="evict.c" data-a="750" data-b="750" data-q="mem_freed += key_mem_freed;">:750</a></div><div class="nt">个数加一 <a class="rf" data-f="evict.c" data-a="751" data-b="751" data-q="keys_freed++;">:751</a></div></div></div>
+<div class="blk b-if st4" data-of="D3"><div class="fr k-if st4" data-id="D3" data-ln="753"><span class="ic">◇</span><div class="fb"><div class="zh">检查点：每删满 16 个 key 才进来一次</div><div class="cq"><code class="q">if (<wbr>keys_freed % 16 == 0) {</code><a class="rf" data-f="evict.c" data-a="753" data-b="753" data-q="if (keys_freed % 16 == 0) {">:753</a></div></div></div><div class="kids">
+<div class="fr k-if st4" data-id="D4" data-ln="758"><span class="ic">◇</span><div class="fb"><div class="zh">有副本 → 立刻把输出缓冲推出去</div><div class="cq"><code class="q">if (<wbr>slaves) flushSlavesOutputBuffers(<wbr>);</code><a class="rf" data-f="evict.c" data-a="758" data-b="758" data-q="if (slaves) flushSlavesOutputBuffers();">:758</a></div></div></div>
+<div class="blk b-if st4" data-of="D5"><div class="fr k-if st4" data-id="D5" data-ln="767"><span class="ic">◇</span><div class="fb"><div class="zh">开了惰性释放（后台线程一直在还内存）→ 重新量一次</div><div class="cq"><code class="q">if (<wbr>server.lazyfree_lazy_eviction) {</code><a class="rf" data-f="evict.c" data-a="767" data-b="767" data-q="if (server.lazyfree_lazy_eviction) {">:767</a></div></div></div><div class="kids">
+<div class="fr k-if st4" data-id="D5b" data-ln="768"><span class="ic">◇</span><div class="fb"><div class="zh">此刻内存已经达标 → 提前收工</div><div class="cq"><code class="q">if (<wbr>getMaxmemoryState(<wbr>NULL,<wbr>NULL,<wbr>NULL,<wbr>NULL) == C_OK) {</code><a class="rf" data-f="evict.c" data-a="768" data-b="768" data-q="if (getMaxmemoryState(NULL,NULL,NULL,NULL) == C_OK) {">:768</a><a class="ex ex-break" data-f="evict.c" data-a="769" data-b="769" data-q="break;" data-jl="769" data-tgt="579">:769 break → 出主循环 :579</a></div></div></div>
+</div></div>
+<div class="fr k-if st4" data-id="D6" data-ln="776"><span class="ic">◇</span><div class="fb"><div class="zh">超出时间预算 → 挂一个定时事件接力，本次收工</div><div class="cq"><code class="q">if (<wbr>elapsedUs(<wbr>evictionTimer) &gt; eviction_time_limit_us) {</code><a class="rf" data-f="evict.c" data-a="776" data-b="776" data-q="if (elapsedUs(evictionTimer) &gt; eviction_time_limit_us) {">:776</a><a class="ex ex-break" data-f="evict.c" data-a="779" data-b="779" data-q="break;" data-jl="779" data-tgt="579">:779 break → 出主循环 :579</a></div><div class="nt">挂定时事件 <a class="rf" data-f="evict.c" data-a="778" data-b="778" data-q="startEvictionTimeProc();">:778</a>，它会把接力标志置 1 <a class="rf" data-f="evict.c" data-a="469" data-b="469" data-q="isEvictionProcRunning = 1;">:469</a></div></div></div>
+</div></div>
+</div></div>
+<div class="fr k-else st3" data-id="E" data-ln="782"><span class="ic">◇</span><div class="fb"><div class="zh">没选到 bestkey → 没东西可删</div><div class="cq"><code class="q">} else {</code><a class="rf" data-f="evict.c" data-a="782" data-b="782" data-q="} else {">:782</a><a class="ex ex-goto" data-f="evict.c" data-a="783" data-b="783" data-q="goto" data-jl="783" data-tgt="789">:783 goto cant_free（跳过 :787，result 仍是 FAIL）</a></div></div></div>
+</div></div>
+<div class="fr k-set st5" data-id="R1" data-ln="787"><span class="ic">✎</span><div class="fb"><div class="zh">循环正常结束才会到这：内存达标，或到时间了</div><div class="cq"><code class="q">result = (<wbr>isEvictionProcRunning) ? EVICT_RUNNING : EVICT_OK;</code><a class="rf" data-f="evict.c" data-a="787" data-b="787" data-q="result = (isEvictionProcRunning) ? EVICT_RUNNING : EVICT_OK;">:787</a></div></div></div>
+<div class="fr k-label st5" data-id="C" data-ln="789"><span class="ic">⚑</span><div class="fb"><div class="zh">标号 cant_free：上面两条路在这里汇合</div><div class="cq"><code class="q">cant_free:</code><a class="rf" data-f="evict.c" data-a="789" data-b="789" data-q="cant_free:">:789</a></div></div></div>
+<div class="blk b-if st5" data-of="C1"><div class="fr k-if st5" data-id="C1" data-ln="790"><span class="ic">◇</span><div class="fb"><div class="zh">result 还是 FAIL（= 没东西可删）</div><div class="cq"><code class="q">if (<wbr>result == EVICT_FAIL) {</code><a class="rf" data-f="evict.c" data-a="790" data-b="790" data-q="if (result == EVICT_FAIL) {">:790</a></div></div></div><div class="kids">
+<div class="blk b-loop st5" data-of="C2"><div class="fr k-loop st5" data-id="C2" data-ln="796"><span class="ic">↻</span><div class="fb"><div class="zh">后台惰性释放还有活、且没超时 → 等等看</div><div class="cq"><code class="q">while (<wbr>bioPendingJobsOfType(<wbr>BIO_LAZY_FREE) &amp;&amp; ⏎…</code><a class="rf" data-f="evict.c" data-a="796" data-b="796" data-q="while (bioPendingJobsOfType(BIO_LAZY_FREE) &amp;&amp;">:796</a></div><div class="nt">条件的后半句 <a class="rf" data-f="evict.c" data-a="797" data-b="797" data-q="elapsedUs(evictionTimer) &lt; eviction_time_limit_us) {">:797</a></div></div></div><div class="kids">
+<div class="fr k-if st5" data-id="C3" data-ln="798"><span class="ic">◇</span><div class="fb"><div class="zh">等着等着内存达标了 → 改判 OK</div><div class="cq"><code class="q">if (<wbr>getMaxmemoryState(<wbr>NULL,<wbr>NULL,<wbr>NULL,<wbr>NULL) == C_OK) {</code><a class="rf" data-f="evict.c" data-a="798" data-b="798" data-q="if (getMaxmemoryState(NULL,NULL,NULL,NULL) == C_OK) {">:798</a><a class="ex ex-break" data-f="evict.c" data-a="800" data-b="800" data-q="break;" data-jl="800" data-tgt="796">:800 break → 出 :796</a></div><div class="nt">改判 <a class="rf" data-f="evict.c" data-a="799" data-b="799" data-q="result = EVICT_OK;">:799</a></div></div></div>
+<div class="fr k-act st5" data-id="C4" data-ln="802"><span class="ic">▪</span><div class="fb"><div class="zh">否则睡一小会（不超过 1ms）</div><div class="cq"><code class="q">usleep(<wbr>eviction_time_limit_us &lt; 1000 ? eviction_time_limit_us : 1000);</code><a class="rf" data-f="evict.c" data-a="802" data-b="802" data-q="usleep(eviction_time_limit_us &lt; 1000 ? eviction_time_limit_us : 1000);">:802</a></div></div></div>
+</div></div>
+</div></div>
+<div class="blk b-if st5" data-of="C5"><div class="fr k-if st5" data-id="C5" data-ln="813"><span class="ic">◇</span><div class="fb"><div class="zh">仍是 FAIL，而且是被 blessed 键挡住的</div><div class="cq"><code class="q">if (<wbr>result == EVICT_FAIL &amp;&amp; blessed_blocked) {</code><a class="rf" data-f="evict.c" data-a="813" data-b="813" data-q="if (result == EVICT_FAIL &amp;&amp; blessed_blocked) {">:813</a></div></div></div><div class="kids">
+<div class="fr k-if st5" data-id="C6" data-ln="815"><span class="ic">◇</span><div class="fb"><div class="zh">已达标，或超出量 ≤ maxmemory/4 → 容忍，改判 OK</div><div class="cq"><code class="q">if (<wbr>getMaxmemoryState(<wbr>NULL, NULL, &amp;mem_tofree, NULL) == C_OK || ⏎…</code><a class="rf" data-f="evict.c" data-a="815" data-b="815" data-q="if (getMaxmemoryState(NULL, NULL, &amp;mem_tofree, NULL) == C_OK ||">:815</a></div><div class="nt">条件的后半句 <a class="rf" data-f="evict.c" data-a="816" data-b="816" data-q="mem_tofree &lt;= server.maxmemory / EVICTION_OVERUSE_DIVISOR)">:816</a> · 改判 <a class="rf" data-f="evict.c" data-a="817" data-b="817" data-q="result = EVICT_OK;">:817</a> · 除数是 4 <a class="rf" data-f="evict.c" data-a="42" data-b="42" data-q="#define EVICTION_OVERUSE_DIVISOR 4">:42</a></div></div></div>
+</div></div>
+<div class="fr k-act st5" data-id="C7" data-ln="821"><span class="ic">▪</span><div class="fb"><div class="zh">记录这一轮淘汰花了多久</div><div class="cq"><code class="q">latencyAddSampleIfNeeded(<wbr>&quot;eviction-cycle&quot;,<wbr>latency);</code><a class="rf" data-f="evict.c" data-a="821" data-b="821" data-q="latencyAddSampleIfNeeded(&quot;eviction-cycle&quot;,latency);">:821</a></div></div></div>
+<div class="fr k-label st5" data-id="U" data-ln="823"><span class="ic">⚑</span><div class="fb"><div class="zh">标号 update_metrics：前两道门的 goto 也落在这</div><div class="cq"><code class="q">update_metrics:</code><a class="rf" data-f="evict.c" data-a="823" data-b="823" data-q="update_metrics:">:823</a></div></div></div>
+<div class="blk b-if st5" data-of="U1"><div class="fr k-if st5" data-id="U1" data-ln="824"><span class="ic">◇</span><div class="fb"><div class="zh">结果是 RUNNING 或 FAIL：内存此刻仍然超限</div><div class="cq"><code class="q">if (<wbr>result == EVICT_RUNNING || result == EVICT_FAIL) {</code><a class="rf" data-f="evict.c" data-a="824" data-b="824" data-q="if (result == EVICT_RUNNING || result == EVICT_FAIL) {">:824</a></div></div></div><div class="kids">
+<div class="fr k-if st5" data-id="U1b" data-ln="825"><span class="ic">◇</span><div class="fb"><div class="zh">还没在计时 → 开始计「超限时长」</div><div class="cq"><code class="q">if (<wbr>server.stat_last_eviction_exceeded_time == 0) ⏎…</code><a class="rf" data-f="evict.c" data-a="825" data-b="825" data-q="if (server.stat_last_eviction_exceeded_time == 0)">:825</a></div><div class="nt">开始计时 <a class="rf" data-f="evict.c" data-a="826" data-b="826" data-q="elapsedStart(&amp;server.stat_last_eviction_exceeded_time);">:826</a></div></div></div>
+</div></div>
+<div class="blk b-else st5" data-of="U2"><div class="fr k-else st5" data-id="U2" data-ln="827"><span class="ic">◇</span><div class="fb"><div class="zh">结果是 OK：内存回到限额以内</div><div class="cq"><code class="q">} else if (<wbr>result == EVICT_OK) {</code><a class="rf" data-f="evict.c" data-a="827" data-b="827" data-q="} else if (result == EVICT_OK) {">:827</a></div></div></div><div class="kids">
+<div class="fr k-if st5" data-id="U2b" data-ln="828"><span class="ic">◇</span><div class="fb"><div class="zh">正在计时 → 把这段时长累加进总数，然后清零</div><div class="cq"><code class="q">if (<wbr>server.stat_last_eviction_exceeded_time != 0) {</code><a class="rf" data-f="evict.c" data-a="828" data-b="828" data-q="if (server.stat_last_eviction_exceeded_time != 0) {">:828</a></div><div class="nt">累加 <a class="rf" data-f="evict.c" data-a="829" data-b="829" data-q="server.stat_total_eviction_exceeded_time += elapsedUs(server.stat_last_eviction_exceeded_time);">:829</a> · 清零 <a class="rf" data-f="evict.c" data-a="830" data-b="830" data-q="server.stat_last_eviction_exceeded_time = 0;">:830</a></div></div></div>
+</div></div>
+<div class="fr k-ret st5" data-id="Z" data-ln="833"><span class="ic">⏎</span><div class="fb"><div class="zh">唯一的正常出口</div><div class="cq"><code class="q">return result;</code><a class="rf" data-f="evict.c" data-a="833" data-b="833" data-q="return result;">:833</a><a class="ex ex-return" data-f="evict.c" data-a="833" data-b="833" data-q="return" data-jl="833" data-tgt="">return result</a></div></div></div>
+  </div>
+  <div class="side">
+    <div class="card">
+      <h3>result 只在 6 处被写</h3>
+      <table class="rw">
+        <tr><td><a class="rf" data-f="evict.c" data-a="553" data-b="553" data-q="int result = EVICT_FAIL;">:553</a></td><td><span class="v-fail">FAIL</span></td><td>初值</td></tr>
+        <tr><td><a class="rf" data-f="evict.c" data-a="557" data-b="557" data-q="result = EVICT_OK;">:557</a></td><td><span class="v-ok">OK</span></td><td>没超限</td></tr>
+        <tr><td><a class="rf" data-f="evict.c" data-a="562" data-b="562" data-q="result = EVICT_FAIL;">:562</a></td><td><span class="v-fail">FAIL</span></td><td>noeviction</td></tr>
+        <tr><td><a class="rf" data-f="evict.c" data-a="787" data-b="787" data-q="result = (isEvictionProcRunning) ? EVICT_RUNNING : EVICT_OK;">:787</a></td><td><span class="v-run">RUNNING</span> / <span class="v-ok">OK</span></td><td>循环正常结束</td></tr>
+        <tr><td><a class="rf" data-f="evict.c" data-a="799" data-b="799" data-q="result = EVICT_OK;">:799</a></td><td><span class="v-ok">OK</span></td><td>后台释放救回</td></tr>
+        <tr><td><a class="rf" data-f="evict.c" data-a="817" data-b="817" data-q="result = EVICT_OK;">:817</a></td><td><span class="v-ok">OK</span></td><td>blessed 容忍</td></tr>
+      </table>
+      <p class="cap" style="margin:8px 0 0">所以「没东西可删」不需要专门赋值：goto 跳过 :787，初值 FAIL 原样留到最后。</p>
+    </div>
+    <div class="card">
+      <h3>主循环的 4 个出口</h3>
+      <table class="rw">
+        <tr><td><a class="rf" data-f="evict.c" data-a="579" data-b="579" data-q="while (mem_freed &lt; (long long)mem_tofree) {">:579</a></td><td>腾够了，条件不成立</td></tr>
+        <tr><td><a class="rf" data-f="evict.c" data-a="769" data-b="769" data-q="break;">:769</a></td><td>惰性释放下已达标</td></tr>
+        <tr><td><a class="rf" data-f="evict.c" data-a="779" data-b="779" data-q="break;">:779</a></td><td>超时，定时事件接力</td></tr>
+        <tr><td><a class="rf" data-f="evict.c" data-a="783" data-b="783" data-q="goto cant_free; /* nothing to free... */">:783</a></td><td>没选到 key</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>时间预算怎么来</h3>
+      <p class="cap" style="margin:0">由 maxmemory-eviction-tenacity（0–100，默认 10 <a class="rf" data-f="config.c" data-a="4327" data-b="4327" data-q="createIntConfig(&quot;maxmemory-eviction-tenacity&quot;, NULL, MODIFIABLE_CONFIG, 0, 100, server.maxmemory_eviction_tenacity, 10, INTEGER_CONFIG, NULL, NULL),">config.c:4327</a>）换算：≤10 时每档 50 微秒 <a class="rf" data-f="evict.c" data-a="508" data-b="508" data-q="return 50uL * server.maxmemory_eviction_tenacity;">:508</a>；10–99 按 15% 递增 <a class="rf" data-f="evict.c" data-a="513" data-b="513" data-q="return (unsigned long)(500.0 * pow(1.15, server.maxmemory_eviction_tenacity - 10.0));">:513</a>；100 不限时 <a class="rf" data-f="evict.c" data-a="516" data-b="516" data-q="return ULONG_MAX;   /* No limit to eviction time */">:516</a>。只在检查点（每 16 个 key）才看表。</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<section id="code">
+<h2>源码 <small>全部原文，按上面的阶段切好；逐字来自仓库</small></h2>
+<p class="lead">每一块都是连续的行，没有删改；块与块之间跳过的部分以行号可见。<button id="bAll" style="font-size:13px;padding:3px 10px;margin-left:6px">展开主函数全部 9 段</button></p>
+<details class="unit"><summary><span class="un">performEvictions()</span><span class="ud">主角：近 300 行，按 5 个阶段切开</span><span class="ul">evict.c:519–834</span></summary>
+<details class="sub"><summary><span class="un">函数头注释：它承诺什么</span><span class="ul">:519–542 · 24 行</span></summary><div class="code" data-f="evict.c" data-a="519" data-b="542"></div></details>
+<details class="sub"><summary><span class="un">① 闸门</span><span class="ul">:543–564 · 22 行</span></summary><div class="code" data-f="evict.c" data-a="543" data-b="564"></div></details>
+<details class="sub"><summary><span class="un">准备：时间预算与计时</span><span class="ul">:565–578 · 14 行</span></summary><div class="code" data-f="evict.c" data-a="565" data-b="578"></div></details>
+<details class="sub"><summary><span class="un">主循环头与局部变量</span><span class="ul">:579–586 · 8 行</span></summary><div class="code" data-f="evict.c" data-a="579" data-b="586"></div></details>
+<details class="sub"><summary><span class="un">② 挑 key · 路线 A 评分池</span><span class="ul">:587–693 · 107 行</span></summary><div class="code" data-f="evict.c" data-a="587" data-b="693"></div></details>
+<details class="sub"><summary><span class="un">② 挑 key · 路线 B 随机</span><span class="ul">:694–736 · 43 行</span></summary><div class="code" data-f="evict.c" data-a="694" data-b="736"></div></details>
+<details class="sub"><summary><span class="un">③ 删除并传播</span><span class="ul">:737–752 · 16 行</span></summary><div class="code" data-f="evict.c" data-a="737" data-b="752"></div></details>
+<details class="sub"><summary><span class="un">④ 每 16 个 key 的检查点（含「没选到」的 goto）</span><span class="ul">:753–785 · 33 行</span></summary><div class="code" data-f="evict.c" data-a="753" data-b="785"></div></details>
+<details class="sub"><summary><span class="un">⑤ 收尾：定结果、等后台、blessed 容忍、统计</span><span class="ul">:786–834 · 49 行</span></summary><div class="code" data-f="evict.c" data-a="786" data-b="834"></div></details>
+</details>
+<details class="unit"><summary><span class="un">evictionPoolPopulate()</span><span class="ud">采样一个 slot，把更该删的 key 插进池子</span><span class="ul">evict.c:131–236</span></summary>
+<details class="sub"><summary><span class="un">签名与采样</span><span class="ul">:131–148 · 18 行</span></summary><div class="code" data-f="evict.c" data-a="131" data-b="148"></div></details>
+<details class="sub"><summary><span class="un">逐个样本：跳过 blessed</span><span class="ul">:149–158 · 10 行</span></summary><div class="code" data-f="evict.c" data-a="149" data-b="158"></div></details>
+<details class="sub"><summary><span class="un">按策略打分</span><span class="ul">:160–179 · 20 行</span></summary><div class="code" data-f="evict.c" data-a="160" data-b="179"></div></details>
+<details class="sub"><summary><span class="un">找位置、腾位置（4 种情况）</span><span class="ul">:181–216 · 36 行</span></summary><div class="code" data-f="evict.c" data-a="181" data-b="216"></div></details>
+<details class="sub"><summary><span class="un">写入池格</span><span class="ul">:218–236 · 19 行</span></summary><div class="code" data-f="evict.c" data-a="218" data-b="236"></div></details>
+</details>
+<details class="unit"><summary><span class="un">淘汰池的定义</span><span class="ud">EVPOOL_SIZE、struct evictionPoolEntry、全局指针</span><span class="ul">evict.c:36–51</span></summary>
+<div class="code" data-f="evict.c" data-a="36" data-b="51"></div>
+</details>
+<details class="unit"><summary><span class="un">evictionPoolAlloc()</span><span class="ud">启动时分配 16 格</span><span class="ul">evict.c:116–129</span></summary>
+<div class="code" data-f="evict.c" data-a="116" data-b="129"></div>
+</details>
+<details class="unit"><summary><span class="un">getMaxmemoryState()</span><span class="ud">超没超、要腾多少</span><span class="ul">evict.c:371–431</span></summary>
+<div class="code" data-f="evict.c" data-a="371" data-b="431"></div>
+</details>
+<details class="unit"><summary><span class="un">freeMemoryGetNotCountedMemory()</span><span class="ud">哪些内存不算数</span><span class="ul">evict.c:321–369</span></summary>
+<div class="code" data-f="evict.c" data-a="321" data-b="369"></div>
+</details>
+<details class="unit"><summary><span class="un">isSafeToPerformEvictions()</span><span class="ud">第一道门的 4 个条件</span><span class="ul">evict.c:475–499</span></summary>
+<div class="code" data-f="evict.c" data-a="475" data-b="499"></div>
+</details>
+<details class="unit"><summary><span class="un">evictionTimeLimitUs()</span><span class="ud">tenacity → 时间预算</span><span class="ul">evict.c:501–517</span></summary>
+<div class="code" data-f="evict.c" data-a="501" data-b="517"></div>
+</details>
+<details class="unit"><summary><span class="un">evictionTimeProc() / startEvictionTimeProc()</span><span class="ud">没腾完时的定时接力</span><span class="ul">evict.c:448–473</span></summary>
+<div class="code" data-f="evict.c" data-a="448" data-b="473"></div>
+</details>
+<details class="unit"><summary><span class="un">LRU 时钟与 estimateObjectIdleTime()</span><span class="ud">LRU / LRM 的分数</span><span class="ul">evict.c:57–88</span></summary>
+<div class="code" data-f="evict.c" data-a="57" data-b="88"></div>
+</details>
+<details class="unit"><summary><span class="un">LFUDecrAndReturn()</span><span class="ud">LFU 的分数来源</span><span class="ul">evict.c:302–319</span></summary>
+<div class="code" data-f="evict.c" data-a="302" data-b="319"></div>
+</details>
+<details class="unit"><summary><span class="un">randomEvictionShouldSkipDictIndex()</span><span class="ud">跳过正在导入的 slot</span><span class="ul">evict.c:90–94</span></summary>
+<div class="code" data-f="evict.c" data-a="90" data-b="94"></div>
+</details>
+<details class="unit"><summary><span class="un">调用方：processCommand() 片段</span><span class="ud">每条命令执行前</span><span class="ul">server.c:4942–4972</span></summary>
+<div class="code" data-f="server.c" data-a="4942" data-b="4972"></div>
+</details>
+<details class="unit"><summary><span class="un">deleteKeyAndPropagate()</span><span class="ud">真正删 key、算 key_mem_freed、传播 DEL</span><span class="ul">db.c:2980–3038</span></summary>
+<div class="code" data-f="db.c" data-a="2980" data-b="3038"></div>
+</details>
+<details class="unit"><summary><span class="un">策略常量</span><span class="ud">10 个策略 = 序号 + 标志位</span><span class="ul">server.h:738–757</span></summary>
+<div class="code" data-f="server.h" data-a="738" data-b="757"></div>
+</details>
+<details class="unit"><summary><span class="un">struct redisDb</span><span class="ud">keys / expires 两本 kvstore</span><span class="ul">server.h:1266–1285</span></summary>
+<div class="code" data-f="server.h" data-a="1266" data-b="1285"></div>
+</details>
+<details class="unit"><summary><span class="un">返回值常量</span><span class="ud">EVICT_OK / RUNNING / FAIL</span><span class="ul">server.h:4757–4760</span></summary>
+<div class="code" data-f="server.h" data-a="4757" data-b="4760"></div>
+</details>
+<details class="unit"><summary><span class="un">kvBits</span><span class="ud">no_evict 位</span><span class="ul">object.h:121–132</span></summary>
+<div class="code" data-f="object.h" data-a="121" data-b="132"></div>
+</details>
+<details class="unit"><summary><span class="un">策略名 ↔ 常量</span><span class="ud">maxmemory-policy 的取值</span><span class="ul">config.c:39–51</span></summary>
+<div class="code" data-f="config.c" data-a="39" data-b="51"></div>
+</details>
+</section>
+
+<footer>源码：redis <code>src/evict.c</code> 等，commit fd7710c。行号与片段在构建时逐条对过原文。演示池里的键名、分数，以及内存条的比例是示意，不是源码内容。</footer>
+</div>
+
+<div class="dim" id="dim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="dh"><b id="dtitle"></b><button id="dclose">关闭</button></div>
+  <div class="dbody" id="dbody"></div>
+</aside>
+
+<script>
+const SRC={"evict.c": [[1, ["/* Maxmemory directive handling (LRU eviction and other policies).", " *", " * ----------------------------------------------------------------------------", " *", " * Copyright (c) 2009-Present, Redis Ltd.", " * All rights reserved.", " *", " * Licensed under your choice of (a) the Redis Source Available License 2.0", " * (RSALv2); or (b) the Server Side Public License v1 (SSPLv1); or (c) the", " * GNU Affero General Public License v3 (AGPLv3).", " */", "", "#include \"server.h\"", "#include \"bio.h\"", "#include \"atomicvar.h\"", "#include \"script.h\"", "#include \"cluster.h\"", "#include \"cluster_asm.h\"", "#include <math.h>", "", "/* ----------------------------------------------------------------------------", " * Data structures", " * --------------------------------------------------------------------------*/", "", "/* To improve the quality of the LRU approximation we take a set of keys", " * that are good candidate for eviction across performEvictions() calls.", " *", " * Entries inside the eviction pool are taken ordered by idle time, putting", " * greater idle times to the right (ascending order).", " *", " * When an LFU policy is used instead, a reverse frequency indication is used", " * instead of the idle time, so that we still evict by larger value (larger", " * inverse frequency means to evict keys with the least frequent accesses).", " *", " * Empty entries have the key pointer set to NULL. */", "#define EVPOOL_SIZE 16", "#define EVPOOL_CACHED_SDS_SIZE 255", "#define EVICTION_MAX_BLESSED_ONLY_ROUNDS 8", "/* When eviction can't free memory because blessed (NO-EVICT) keys hold it,", " * tolerate used memory up to 1.25x maxmemory. There is no separate hard", " * ceiling, so this is the ceiling. */", "#define EVICTION_OVERUSE_DIVISOR 4", "struct evictionPoolEntry {", "    unsigned long long idle;    /* Object idle time (inverse frequency for LFU) */", "    sds key;                    /* Key name. */", "    sds cached;                 /* Cached SDS object for key name. */", "    int dbid;                   /* Key DB number. */", "    int slot;                   /* Slot. */", "};", "", "static struct evictionPoolEntry *EvictionPoolLRU;", "", "/* ----------------------------------------------------------------------------", " * Implementation of eviction, aging and LRU", " * --------------------------------------------------------------------------*/", "", "/* Return the LRU clock, based on the clock resolution. This is a time", " * in a reduced-bits format that can be used to set and check the", " * object->lru field of redisObject structures. */", "unsigned int getLRUClock(void) {", "    return (mstime()/LRU_CLOCK_RESOLUTION) & LRU_CLOCK_MAX;", "}", "", "/* This function is used to obtain the current LRU clock.", " * If the current resolution is lower than the frequency we refresh the", " * LRU clock (as it should be in production servers) we return the", " * precomputed value, otherwise we need to resort to a system call. */", "unsigned int LRU_CLOCK(void) {", "    unsigned int lruclock;", "    if (1000/server.hz <= LRU_CLOCK_RESOLUTION) {", "        lruclock = server.lruclock;", "    } else {", "        lruclock = getLRUClock();", "    }", "    return lruclock;", "}", "", "/* Given an object returns the min number of milliseconds the object was never", " * requested, using an approximated LRU algorithm. */", "unsigned long long estimateObjectIdleTime(robj *o) {", "    unsigned long long lruclock = LRU_CLOCK();", "    if (lruclock >= o->lru) {", "        return (lruclock - o->lru) * LRU_CLOCK_RESOLUTION;", "    } else {", "        return (lruclock + (LRU_CLOCK_MAX - o->lru)) *", "                    LRU_CLOCK_RESOLUTION;", "    }", "}", "", "/* During atomic slot migration, keys that are being imported are in an", " * intermediate state. We cannot evict them and therefore skip them. */", "static int randomEvictionShouldSkipDictIndex(int didx) {", "    return !clusterCanAccessKeysInSlot(didx);", "}", "", "/* LRU approximation algorithm", " *", " * Redis uses an approximation of the LRU algorithm that runs in constant", " * memory. Every time there is a key to expire, we sample N keys (with", " * N very small, usually in around 5) to populate a pool of best keys to", " * evict of M keys (the pool size is defined by EVPOOL_SIZE).", " *", " * The N keys sampled are added in the pool of good keys to expire (the one", " * with an old access time) if they are better than one of the current keys", " * in the pool.", " *", " * After the pool is populated, the best key we have in the pool is expired.", " * However note that we don't remove keys from the pool when they are deleted", " * so the pool may contain keys that no longer exist.", " *", " * When we try to evict a key, and all the entries in the pool don't exist", " * we populate it again. This time we'll be sure that the pool has at least", " * one key that can be evicted, if there is at least one key that can be", " * evicted in the whole database. */", "", "/* Create a new eviction pool. */", "void evictionPoolAlloc(void) {", "    struct evictionPoolEntry *ep;", "    int j;", "", "    ep = zmalloc(sizeof(*ep)*EVPOOL_SIZE);", "    for (j = 0; j < EVPOOL_SIZE; j++) {", "        ep[j].idle = 0;", "        ep[j].key = NULL;", "        ep[j].cached = sdsnewlen(NULL,EVPOOL_CACHED_SDS_SIZE);", "        ep[j].dbid = 0;", "    }", "    EvictionPoolLRU = ep;", "}", "", "/* This is a helper function for performEvictions(), it is used in order", " * to populate the evictionPool with a few entries every time we want to", " * expire a key. Keys with idle time bigger than one of the current", " * keys are added. Keys are always added if there are free entries.", " *", " * We insert keys on place in ascending order, so keys with the smaller", " * idle time are on the left, and keys with the higher idle time on the", " * right. */", "int evictionPoolPopulate(redisDb *db, kvstore *samplekvs, struct evictionPoolEntry *pool, int *candidates) {", "    int j, k, count;", "    dictEntry *samples[server.maxmemory_samples];", "", "    *candidates = 0;", "", "    /* Don't retry, since we will call evictionPoolPopulate multiple times if needed. */", "    int slot = kvstoreGetFairRandomDictIndex(samplekvs, randomEvictionShouldSkipDictIndex, 1, 0);", "    if (slot == -1) return 0;", "    count = kvstoreDictGetSomeKeys(samplekvs,slot,samples,server.maxmemory_samples);", "    for (j = 0; j < count; j++) {", "        unsigned long long idle;", "        ", "        dictEntry *de = samples[j];", "        kvobj *kv = dictGetKV(de);", "        sds key = kvobjGetKey(kv);", "", "        /* Blessed NO-EVICT keys are never eviction candidates. */", "        if (blessIsNoEvict(kv)) continue;", "        (*candidates)++;", "", "        /* Calculate the idle time according to the policy. This is called", "         * idle just because the code initially handled LRU, but is in fact", "         * just a score where a higher score means better candidate. */", "        if (server.maxmemory_policy & (MAXMEMORY_FLAG_LRU|MAXMEMORY_FLAG_LRM)) {", "            idle = estimateObjectIdleTime(kv);", "        } else if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {", "            /* When we use an LRU policy, we sort the keys by idle time", "             * so that we expire keys starting from greater idle time.", "             * However when the policy is an LFU one, we have a frequency", "             * estimation, and we want to evict keys with lower frequency", "             * first. So inside the pool we put objects using the inverted", "             * frequency subtracting the actual frequency to the maximum", "             * frequency of 255. */", "            idle = 255-LFUDecrAndReturn(kv);", "        } else if (server.maxmemory_policy == MAXMEMORY_VOLATILE_TTL) {", "            /* In this case the sooner the expire the better. */", "            idle = ULLONG_MAX - kvobjGetExpire(kv);", "        } else {", "            serverPanic(\"Unknown eviction policy in evictionPoolPopulate()\");", "        }", "", "        /* Insert the element inside the pool.", "         * First, find the first empty bucket or the first populated", "         * bucket that has an idle time smaller than our idle time. */", "        k = 0;", "        while (k < EVPOOL_SIZE &&", "               pool[k].key &&", "               pool[k].idle < idle) k++;", "        if (k == 0 && pool[EVPOOL_SIZE-1].key != NULL) {", "            /* Can't insert if the element is < the worst element we have", "             * and there are no empty buckets. */", "            continue;", "        } else if (k < EVPOOL_SIZE && pool[k].key == NULL) {", "            /* Inserting into empty position. No setup needed before insert. */", "        } else {", "            /* Inserting in the middle. Now k points to the first element", "             * greater than the element to insert.  */", "            if (pool[EVPOOL_SIZE-1].key == NULL) {", "                /* Free space on the right? Insert at k shifting", "                 * all the elements from k to end to the right. */", "", "                /* Save SDS before overwriting. */", "                sds cached = pool[EVPOOL_SIZE-1].cached;", "                memmove(pool+k+1,pool+k,", "                    sizeof(pool[0])*(EVPOOL_SIZE-k-1));", "                pool[k].cached = cached;", "            } else {", "                /* No free space on right? Insert at k-1 */", "                k--;", "                /* Shift all elements on the left of k (included) to the", "                 * left, so we discard the element with smaller idle time. */", "                sds cached = pool[0].cached; /* Save SDS before overwriting. */", "                if (pool[0].key != pool[0].cached) sdsfree(pool[0].key);", "                memmove(pool,pool+1,sizeof(pool[0])*k);", "                pool[k].cached = cached;", "            }", "        }", "", "        /* Try to reuse the cached SDS string allocated in the pool entry,", "         * because allocating and deallocating this object is costly", "         * (according to the profiler, not my fantasy. Remember:", "         * premature optimization bla bla bla. */", "        int klen = sdslen(key);", "        if (klen > EVPOOL_CACHED_SDS_SIZE) {", "            pool[k].key = sdsdup(key);", "        } else {", "            memcpy(pool[k].cached,key,klen+1);", "            sdssetlen(pool[k].cached,klen);", "            pool[k].key = pool[k].cached;", "        }", "        pool[k].idle = idle;", "        pool[k].dbid = db->id;", "        pool[k].slot = slot;", "    }", "", "    return count;", "}", "", "/* ----------------------------------------------------------------------------", " * LFU (Least Frequently Used) implementation.", "", " * We have 24 total bits of space in each object in order to implement", " * an LFU (Least Frequently Used) eviction policy, since we re-use the", " * LRU field for this purpose.", " *", " * We split the 24 bits into two fields:", " *", " *            16 bits       8 bits", " *     +------------------+--------+", " *     + Last access time | LOG_C  |", " *     +------------------+--------+", " *", " * LOG_C is a logarithmic counter that provides an indication of the access", " * frequency. However this field must also be decremented otherwise what used", " * to be a frequently accessed key in the past, will remain ranked like that", " * forever, while we want the algorithm to adapt to access pattern changes.", " *", " * So the remaining 16 bits are used in order to store the \"access time\",", " * a reduced-precision Unix time (we take 16 bits of the time converted", " * in minutes since we don't care about wrapping around) where the LOG_C", " * counter decays every minute by default (depends on lfu-decay-time).", " *", " * New keys don't start at zero, in order to have the ability to collect", " * some accesses before being trashed away, so they start at LFU_INIT_VAL.", " * The logarithmic increment performed on LOG_C takes care of LFU_INIT_VAL", " * when incrementing the key, so that keys starting at LFU_INIT_VAL", " * (or having a smaller value) have a very high chance of being incremented", " * on access. (The chance depends on counter and lfu-log-factor.)", " *", " * During decrement, the value of the logarithmic counter is decremented by", " * one when lfu-decay-time minutes elapsed.", " * --------------------------------------------------------------------------*/", "", "/* Return the current time in minutes, just taking the least significant", " * 16 bits. The returned time is suitable to be stored as LDT (last access", " * time) for the LFU implementation. */", "unsigned long LFUGetTimeInMinutes(void) {", "    return (server.unixtime/60) & 65535;", "}", "", "/* Given an object ldt (last access time), compute the minimum number of minutes", " * that elapsed since the last access. Handle overflow (ldt greater than", " * the current 16 bits minutes time) considering the time as wrapping", " * exactly once. */", "unsigned long LFUTimeElapsed(unsigned long ldt) {", "    unsigned long now = LFUGetTimeInMinutes();", "    if (now >= ldt) return now-ldt;", "    return 65535-ldt+now;", "}", "", "/* Logarithmically increment a counter. The greater is the current counter value", " * the less likely is that it gets really incremented. Saturate it at 255. */", "uint8_t LFULogIncr(uint8_t counter) {", "    if (counter == 255) return 255;", "    double r = (double)rand()/RAND_MAX;", "    double baseval = counter - LFU_INIT_VAL;", "    if (baseval < 0) baseval = 0;", "    double p = 1.0/(baseval*server.lfu_log_factor+1);", "    if (r < p) counter++;", "    return counter;", "}", "", "/* If the object's ldt (last access time) is reached, decrement the LFU counter but", " * do not update LFU fields of the object, we update the access time", " * and counter in an explicit way when the object is really accessed.", " * And we will decrement the counter according to the times of", " * elapsed time than server.lfu_decay_time.", " * Return the object frequency counter.", " *", " * This function is used in order to scan the dataset for the best object", " * to fit: as we check for the candidate, we incrementally decrement the", " * counter of the scanned objects if needed. */", "unsigned long LFUDecrAndReturn(robj *o) {", "    unsigned long ldt = o->lru >> 8;", "    unsigned long counter = o->lru & 255;", "    unsigned long num_periods = server.lfu_decay_time ? LFUTimeElapsed(ldt) / server.lfu_decay_time : 0;", "    if (num_periods)", "        counter = (num_periods > counter) ? 0 : counter - num_periods;", "    return counter;", "}", "", "/* We don't want to count AOF buffers and slaves output buffers as", " * used memory: the eviction should use mostly data size, because", " * it can cause feedback-loop when we push DELs into them, putting", " * more and more DELs will make them bigger, if we count them, we", " * need to evict more keys, and then generate more DELs, maybe cause", " * massive eviction loop, even all keys are evicted.", " *", " * This function returns the sum of AOF and replication buffer. */", "size_t freeMemoryGetNotCountedMemory(void) {", "    size_t overhead = 0;", "", "    /* Since all replicas and replication backlog share global replication", "     * buffer, we think only the part of exceeding backlog size is the extra", "     * separate consumption of replicas.", "     *", "     * Note that although the backlog is also initially incrementally grown", "     * (pushing DELs consumes memory), it'll eventually stop growing and", "     * remain constant in size, so even if its creation will cause some", "     * eviction, it's capped, and also here to stay (no resonance effect)", "     *", "     * Note that, because we trim backlog incrementally in the background,", "     * backlog size may exceeds our setting if slow replicas that reference", "     * vast replication buffer blocks disconnect. To avoid massive eviction", "     * loop, we don't count the delayed freed replication backlog into used", "     * memory even if there are no replicas, i.e. we still regard this memory", "     * as replicas'. */", "    if ((long long)server.repl_buffer_mem > server.repl_backlog_size) {", "        /* We use list structure to manage replication buffer blocks, so backlog", "         * also occupies some extra memory, we can't know exact blocks numbers,", "         * we only get approximate size according to per block size. */", "        size_t extra_approx_size =", "            (server.repl_backlog_size/PROTO_REPLY_CHUNK_BYTES + 1) *", "            (sizeof(replBufBlock)+sizeof(listNode));", "        size_t counted_mem = server.repl_backlog_size + extra_approx_size;", "        if (server.repl_buffer_mem > counted_mem) {", "            overhead += (server.repl_buffer_mem - counted_mem);", "        }", "    }", "", "    /* The migrate client is like a replica, we also push DELs into it when", "     * evicting keys belonging to the migrating slot, so we don't count its", "     * output buffer to avoid eviction loop. */", "    overhead += asmGetMigrateOutputMemoryUsage();", "", "    if (server.aof_state != AOF_OFF) {", "        overhead += sdsAllocSize(server.aof_buf);", "    }", "    return overhead;", "}", "", "/* Get the memory status from the point of view of the maxmemory directive:", " * if the memory used is under the maxmemory setting then C_OK is returned.", " * Otherwise, if we are over the memory limit, the function returns", " * C_ERR.", " *", " * The function may return additional info via reference, only if the", " * pointers to the respective arguments is not NULL. Certain fields are", " * populated only when C_ERR is returned:", " *", " *  'total'     total amount of bytes used.", " *              (Populated both for C_ERR and C_OK)", " *", " *  'logical'   the amount of memory used minus the slaves/AOF buffers.", " *              (Populated when C_ERR is returned)", " *", " *  'tofree'    the amount of memory that should be released", " *              in order to return back into the memory limits.", " *              (Populated when C_ERR is returned)", " *", " *  'level'     this usually ranges from 0 to 1, and reports the amount of", " *              memory currently used. May be > 1 if we are over the memory", " *              limit.", " *              (Populated both for C_ERR and C_OK)", " */", "int getMaxmemoryState(size_t *total, size_t *logical, size_t *tofree, float *level) {", "    size_t mem_reported, mem_used, mem_tofree;", "", "    /* Check if we are over the memory usage limit. If we are not, no need", "     * to subtract the slaves output buffers. We can just return ASAP. */", "    mem_reported = zmalloc_used_memory();", "    if (total) *total = mem_reported;", "", "    /* We may return ASAP if there is no need to compute the level. */", "    if (!server.maxmemory) {", "        if (level) *level = 0;", "        return C_OK;", "    }", "    if (mem_reported <= server.maxmemory && !level) return C_OK;", "", "    /* Remove the size of slaves output buffers and AOF buffer from the", "     * count of used memory. */", "    mem_used = mem_reported;", "    size_t overhead = freeMemoryGetNotCountedMemory();", "    mem_used = (mem_used > overhead) ? mem_used-overhead : 0;", "", "    /* Compute the ratio of memory usage. */", "    if (level) *level = (float)mem_used / (float)server.maxmemory;", "", "    if (mem_reported <= server.maxmemory) return C_OK;", "", "    /* Check if we are still over the memory limit. */", "    if (mem_used <= server.maxmemory) return C_OK;", "", "    /* Compute how much memory we need to free. */", "    mem_tofree = mem_used - server.maxmemory;", "", "    if (logical) *logical = mem_used;", "    if (tofree) *tofree = mem_tofree;", "", "    return C_ERR;", "}", "", "/* Return 1 if used memory is more than maxmemory after allocating more memory,", " * return 0 if not. Redis may reject user's requests or evict some keys if used", " * memory exceeds maxmemory, especially, when we allocate huge memory at once. */", "int overMaxmemoryAfterAlloc(size_t moremem) {", "    if (!server.maxmemory) return  0; /* No limit. */", "", "    /* Check quickly. */", "    size_t mem_used = zmalloc_used_memory();", "    if (mem_used + moremem <= server.maxmemory) return 0;", "", "    size_t overhead = freeMemoryGetNotCountedMemory();", "    mem_used = (mem_used > overhead) ? mem_used - overhead : 0;", "    return mem_used + moremem > server.maxmemory;", "}", "", "/* The evictionTimeProc is started when \"maxmemory\" has been breached and", " * could not immediately be resolved.  This will spin the event loop with short", " * eviction cycles until the \"maxmemory\" condition has resolved or there are no", " * more evictable items.  */", "static int isEvictionProcRunning = 0;", "static int evictionTimeProc(", "        struct aeEventLoop *eventLoop, long long id, void *clientData) {", "    UNUSED(eventLoop);", "    UNUSED(id);", "    UNUSED(clientData);", "", "    if (performEvictions() == EVICT_RUNNING) return 0;  /* keep evicting */", "", "    /* For EVICT_OK - things are good, no need to keep evicting.", "     * For EVICT_FAIL - there is nothing left to evict.  */", "    isEvictionProcRunning = 0;", "    return AE_NOMORE;", "}", "", "void startEvictionTimeProc(void) {", "    if (!isEvictionProcRunning) {", "        isEvictionProcRunning = 1;", "        aeCreateTimeEvent(server.el, 0,", "                evictionTimeProc, NULL, NULL);", "    }", "}", "", "/* Check if it's safe to perform evictions.", " *   Returns 1 if evictions can be performed", " *   Returns 0 if eviction processing should be skipped", " */", "static int isSafeToPerformEvictions(void) {", "    /* - There must be no script in timeout condition.", "     * - Nor we are loading data right now.  */", "    if (isInsideYieldingLongCommand() || server.loading) return 0;", "", "    /* By default replicas should ignore maxmemory", "     * and just be masters exact copies. */", "    if (server.masterhost && server.repl_slave_ignore_maxmemory) return 0;", "", "    /* Disable eviction during slot migration import to avoid delays and errors", "     * caused by failed evictions. A special client is created for data import,", "     * identified by the CLIENT_MASTER and CLIENT_ASM_IMPORTING flags. */", "    if (server.current_client && server.current_client->flags & CLIENT_MASTER &&", "        server.current_client->flags & CLIENT_ASM_IMPORTING)", "        return 0;", "", "    /* If 'evict' action is paused, for whatever reason, then return false */", "    if (isPausedActionsWithUpdate(PAUSE_ACTION_EVICT)) return 0;", "", "    return 1;", "}", "", "/* Algorithm for converting tenacity (0-100) to a time limit.  */", "static unsigned long evictionTimeLimitUs(void) {", "    serverAssert(server.maxmemory_eviction_tenacity >= 0);", "    serverAssert(server.maxmemory_eviction_tenacity <= 100);", "", "    if (server.maxmemory_eviction_tenacity <= 10) {", "        /* A linear progression from 0..500us */", "        return 50uL * server.maxmemory_eviction_tenacity;", "    }", "", "    if (server.maxmemory_eviction_tenacity < 100) {", "        /* A 15% geometric progression, resulting in a limit of ~2 min at tenacity==99  */", "        return (unsigned long)(500.0 * pow(1.15, server.maxmemory_eviction_tenacity - 10.0));", "    }", "", "    return ULONG_MAX;   /* No limit to eviction time */", "}", "", "/* Check that memory usage is within the current \"maxmemory\" limit.  If over", " * \"maxmemory\", attempt to free memory by evicting data (if it's safe to do so).", " *", " * It's possible for Redis to suddenly be significantly over the \"maxmemory\"", " * setting.  This can happen if there is a large allocation (like a hash table", " * resize) or even if the \"maxmemory\" setting is manually adjusted.  Because of", " * this, it's important to evict for a managed period of time - otherwise Redis", " * would become unresponsive while evicting.", " *", " * The goal of this function is to improve the memory situation - not to", " * immediately resolve it.  In the case that some items have been evicted but", " * the \"maxmemory\" limit has not been achieved, an aeTimeProc will be started", " * which will continue to evict items until memory limits are achieved or", " * nothing more is evictable.", " *", " * This should be called before execution of commands.  If EVICT_FAIL is", " * returned, commands which will result in increased memory usage should be", " * rejected.", " *", " * Returns:", " *   EVICT_OK       - memory is OK or it's not possible to perform evictions now", " *   EVICT_RUNNING  - memory is over the limit, but eviction is still processing", " *   EVICT_FAIL     - memory is over the limit, and there's nothing to evict", " * */", "int performEvictions(void) {", "    /* Note, we don't goto update_metrics here because this check skips eviction", "     * as if it wasn't triggered. it's a fake EVICT_OK. */", "    if (!isSafeToPerformEvictions()) return EVICT_OK;", "", "    int keys_freed = 0;", "    size_t mem_reported, mem_tofree;", "    long long mem_freed; /* May be negative */", "    mstime_t latency;", "    int slaves = listLength(server.slaves);", "    int result = EVICT_FAIL;", "    int blessed_blocked = 0; /* set if eviction gave up because sampling only hit blessed keys */", "", "    if (getMaxmemoryState(&mem_reported,NULL,&mem_tofree,NULL) == C_OK) {", "        result = EVICT_OK;", "        goto update_metrics;", "    }", "", "    if (server.maxmemory_policy == MAXMEMORY_NO_EVICTION) {", "        result = EVICT_FAIL;  /* We need to free memory, but policy forbids. */", "        goto update_metrics;", "    }", "", "    unsigned long eviction_time_limit_us = evictionTimeLimitUs();", "", "    mem_freed = 0;", "", "    latencyStartMonitor(latency);", "", "    monotime evictionTimer;", "    elapsedStart(&evictionTimer);", "", "    /* Try to smoke-out bugs (server.also_propagate should be empty here) */", "    serverAssert(server.also_propagate.numops == 0);", "    /* Evictions are performed on random keys that have nothing to do with the current command slot. */", "", "    while (mem_freed < (long long)mem_tofree) {", "        int j, k, i;", "        static unsigned int next_db = 0;", "        sds bestkey = NULL;", "        int bestdbid;", "        redisDb *db;", "        dictEntry *de;", "", "        if (server.maxmemory_policy & (MAXMEMORY_FLAG_LRU|MAXMEMORY_FLAG_LFU|MAXMEMORY_FLAG_LRM) ||", "            server.maxmemory_policy == MAXMEMORY_VOLATILE_TTL)", "        {", "            struct evictionPoolEntry *pool = EvictionPoolLRU;", "            int blessed_only_rounds = 0;", "            while (bestkey == NULL) {", "                unsigned long total_keys = 0;", "                unsigned long total_sampled_keys = 0;", "                unsigned long total_candidates = 0;", "", "                /* We don't want to make local-db choices when expiring keys,", "                 * so to start populate the eviction pool sampling keys from", "                 * every DB. */", "                for (i = 0; i < server.dbnum; i++) {", "                    db = server.db+i;", "                    kvstore *kvs;", "                    if (server.maxmemory_policy & MAXMEMORY_FLAG_ALLKEYS) {", "                        kvs = db->keys;", "                    } else {", "                        kvs = db->expires;", "                    }", "                    unsigned long sampled_keys = 0;", "                    unsigned long current_db_keys = kvstoreSize(kvs);", "                    if (current_db_keys == 0) continue;", "", "                    total_keys += current_db_keys;", "                    int l = kvstoreNumNonEmptyDicts(kvs);", "                    /* Do not exceed the number of non-empty slots when looping. */", "                    while (l--) {", "                        int candidates = 0;", "                        int sampled = evictionPoolPopulate(db, kvs, pool, &candidates);", "                        /* Count only evictable (non-blessed) keys toward the budget,", "                         * so slots full of NO-EVICT keys don't starve the sampling", "                         * and stop us from reaching slots that still have victims. */", "                        sampled_keys += candidates;", "                        total_sampled_keys += sampled;", "                        total_candidates += candidates;", "                        /* We have sampled enough evictable keys in the current db. */", "                        if (sampled_keys >= (unsigned long) server.maxmemory_samples)", "                            break;", "                        /* If there are not a lot of keys in the current db, dict/s may be very", "                         * sparsely populated, exit the loop without meeting the sampling", "                         * requirement. */", "                        if (current_db_keys < (unsigned long) server.maxmemory_samples*10)", "                            break;", "                    }", "                }", "                if (!total_keys) break; /* No keys to evict. */", "", "                /* Go backward from best to worst element to evict. */", "                for (k = EVPOOL_SIZE-1; k >= 0; k--) {", "                    if (pool[k].key == NULL) continue;", "                    bestdbid = pool[k].dbid;", "", "                    kvstore *kvs;", "                    if (server.maxmemory_policy & MAXMEMORY_FLAG_ALLKEYS) {", "                        kvs = server.db[bestdbid].keys;", "                    } else {", "                        kvs = server.db[bestdbid].expires;", "                    }", "                    de = kvstoreDictFind(kvs, pool[k].slot, pool[k].key);", "", "                    /* Remove the entry from the pool. */", "                    if (pool[k].key != pool[k].cached)", "                        sdsfree(pool[k].key);", "                    pool[k].key = NULL;", "                    pool[k].idle = 0;", "", "                    /* If the key exists, is our pick. Otherwise it is", "                     * a ghost and we need to try the next element. */", "                    if (de) {", "                        kvobj *kv = dictGetKV(de);", "                        /* The pool persists across performEvictions() calls, so a", "                         * key pooled while unblessed may since have been marked", "                         * NO-EVICT. The entry is already removed from the pool", "                         * above; skip it as a target and try the next one. */", "                        if (blessIsNoEvict(kv)) continue;", "                        bestkey = kvobjGetKey(kv);", "                        break;", "                    } else {", "                        /* Ghost... Iterate again. */", "                    }", "                }", "                if (bestkey) break;", "", "                /* No victim was pooled. This check moved below the pool scan (it", "                 * used to sit right after sampling) so we can tell two cases apart,", "                 * in order:", "                 *   1. sampled nothing at all -> no keys to evict, stop here.", "                 *   2. sampled keys but all were blessed -> retry (handled by the", "                 *      total_candidates branch below), don't stop.", "                 * The old early break sat before that split and would stop on an", "                 * all-blessed sample even when unblessed keys still remain. */", "                if (!total_sampled_keys) break;", "", "                if (!total_candidates) {", "                    /* Sampled keys, but every one was blessed (NO-EVICT). */", "                    if (++blessed_only_rounds >= EVICTION_MAX_BLESSED_ONLY_ROUNDS) {", "                        blessed_blocked = 1;", "                        break;", "                    }", "                    continue;", "                }", "                blessed_only_rounds = 0;", "            }", "        }", "", "        /* volatile-random and allkeys-random policy */", "        else if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM ||", "                 server.maxmemory_policy == MAXMEMORY_VOLATILE_RANDOM)", "        {", "            /* When evicting a random key, we try to evict a key for", "             * each DB, so we use the static 'next_db' variable to", "             * incrementally visit all DBs. */", "            int blessed_only_rounds = 0;", "            while (bestkey == NULL) {", "                unsigned long total_sampled_keys = 0;", "                for (i = 0; i < server.dbnum; i++) {", "                    j = (++next_db) % server.dbnum;", "                    db = server.db+j;", "                    kvstore *kvs;", "                    if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM) {", "                        kvs = db->keys;", "                    } else {", "                        kvs = db->expires;", "                    }", "                    int slot = kvstoreGetFairRandomDictIndex(kvs, randomEvictionShouldSkipDictIndex, 16, 0);", "                    if (slot == -1) continue;", "                    /* Try a few random keys so blessed NOEVICT keys are skipped. */", "                    for (int attempts = 0; attempts < server.maxmemory_samples; attempts++) {", "                        de = kvstoreDictGetRandomKey(kvs, slot);", "                        if (de == NULL) break;", "                        total_sampled_keys++;", "                        kvobj *kv = dictGetKV(de);", "                        if (blessIsNoEvict(kv)) continue;", "                        bestkey = kvobjGetKey(kv);", "                        bestdbid = j;", "                        break;", "                    }", "                    if (bestkey) break;", "                }", "                if (bestkey || !total_sampled_keys) break;", "                /* Sampled keys, but every one was blessed (NO-EVICT). */", "                if (++blessed_only_rounds >= EVICTION_MAX_BLESSED_ONLY_ROUNDS) {", "                    blessed_blocked = 1;", "                    break;", "                }", "            }", "        }", "", "        /* Finally remove the selected key. */", "        if (bestkey) {", "            long long key_mem_freed;", "            db = server.db+bestdbid;", "", "            enterExecutionUnit(1, 0);", "            robj *keyobj = createStringObject(bestkey,sdslen(bestkey));", "            deleteEvictedKeyAndPropagate(db, keyobj, &key_mem_freed);", "            decrRefCount(keyobj);", "            exitExecutionUnit();", "            /* Propagate the DEL command */", "            postExecutionUnitOperations();", "", "            mem_freed += key_mem_freed;", "            keys_freed++;", "", "            if (keys_freed % 16 == 0) {", "                /* When the memory to free starts to be big enough, we may", "                 * start spending so much time here that is impossible to", "                 * deliver data to the replicas fast enough, so we force the", "                 * transmission here inside the loop. */", "                if (slaves) flushSlavesOutputBuffers();", "", "                /* Normally our stop condition is the ability to release", "                 * a fixed, pre-computed amount of memory. However when we", "                 * are deleting objects in another thread, it's better to", "                 * check, from time to time, if we already reached our target", "                 * memory, since the \"mem_freed\" amount is computed only", "                 * across the dbAsyncDelete() call, while the thread can", "                 * release the memory all the time. */", "                if (server.lazyfree_lazy_eviction) {", "                    if (getMaxmemoryState(NULL,NULL,NULL,NULL) == C_OK) {", "                        break;", "                    }", "                }", "", "                /* After some time, exit the loop early - even if memory limit", "                 * hasn't been reached.  If we suddenly need to free a lot of", "                 * memory, don't want to spend too much time here.  */", "                if (elapsedUs(evictionTimer) > eviction_time_limit_us) {", "                    // We still need to free memory - start eviction timer proc", "                    startEvictionTimeProc();", "                    break;", "                }", "            }", "        } else {", "            goto cant_free; /* nothing to free... */", "        }", "    }", "    /* at this point, the memory is OK, or we have reached the time limit */", "    result = (isEvictionProcRunning) ? EVICT_RUNNING : EVICT_OK;", "", "cant_free:", "    if (result == EVICT_FAIL) {", "        /* At this point, we have run out of evictable items.  It's possible", "         * that some items are being freed in the lazyfree thread.  Perform a", "         * short wait here if such jobs exist, but don't wait long.  */", "        mstime_t lazyfree_latency;", "        latencyStartMonitor(lazyfree_latency);", "        while (bioPendingJobsOfType(BIO_LAZY_FREE) &&", "              elapsedUs(evictionTimer) < eviction_time_limit_us) {", "            if (getMaxmemoryState(NULL,NULL,NULL,NULL) == C_OK) {", "                result = EVICT_OK;", "                break;", "            }", "            usleep(eviction_time_limit_us < 1000 ? eviction_time_limit_us : 1000);", "        }", "        latencyEndMonitor(lazyfree_latency);", "        latencyAddSampleIfNeeded(\"eviction-lazyfree\",lazyfree_latency);", "    }", "", "    /* If we still couldn't free enough and blessed (NO-EVICT) keys exist, the", "     * blessing is likely why - failing the write with OOM would punish the user", "     * for a limit they deliberately raised. Tolerate a bounded overshoot: let the", "     * command run (EVICT_OK) while used memory stays within maxmemory*factor; we", "     * reclaim on later commands. Past the factor we still OOM (the hard ceiling). */", "    if (result == EVICT_FAIL && blessed_blocked) {", "        size_t mem_tofree;", "        if (getMaxmemoryState(NULL, NULL, &mem_tofree, NULL) == C_OK ||", "            mem_tofree <= server.maxmemory / EVICTION_OVERUSE_DIVISOR)", "            result = EVICT_OK;", "    }", "", "    latencyEndMonitor(latency);", "    latencyAddSampleIfNeeded(\"eviction-cycle\",latency);", "", "update_metrics:", "    if (result == EVICT_RUNNING || result == EVICT_FAIL) {", "        if (server.stat_last_eviction_exceeded_time == 0)", "            elapsedStart(&server.stat_last_eviction_exceeded_time);", "    } else if (result == EVICT_OK) {", "        if (server.stat_last_eviction_exceeded_time != 0) {", "            server.stat_total_eviction_exceeded_time += elapsedUs(server.stat_last_eviction_exceeded_time);", "            server.stat_last_eviction_exceeded_time = 0;", "        }", "    }", "    return result;", "}"]]], "server.c": [[3199, ["    evictionPoolAlloc(); /* Initialize the LRU keys pool. */"]], [4942, ["    /* Handle the maxmemory directive.", "     *", "     * Note that we do not want to reclaim memory if we are here re-entering", "     * the event loop since there is a busy Lua script running in timeout", "     * condition, to avoid mixing the propagation of scripts with the", "     * propagation of DELs due to eviction. */", "    if (server.maxmemory && !isInsideYieldingLongCommand()) {", "        int out_of_memory = (performEvictions() == EVICT_FAIL);", "", "        /* performEvictions may evict keys, so we need flush pending tracking", "         * invalidation keys. If we don't do this, we may get an invalidation", "         * message after we perform operation on the key, where in fact this", "         * message belongs to the old value of the key before it gets evicted.*/", "        trackingHandlePendingKeyInvalidations();", "", "        /* performEvictions may flush slave output buffers. This may result", "         * in a slave, that may be the active client, to be freed. */", "        if (server.current_client == NULL) return C_ERR;", "", "        if (out_of_memory && is_denyoom_command) {", "            rejectCommand(c, shared.oomerr);", "            return C_OK;", "        }", "", "        /* Save out_of_memory result at command start, otherwise if we check OOM", "         * in the first write within script, memory used by lua stack and", "         * arguments might interfere. We need to save it for EXEC and module", "         * calls too, since these can call EVAL, but avoid saving it during an", "         * interrupted / yielding busy script / module. */", "        server.pre_command_oom_state = out_of_memory;", "    }"]]], "server.h": [[738, ["/* Redis maxmemory strategies. Instead of using just incremental number", " * for this defines, we use a set of flags so that testing for certain", " * properties common to multiple policies is faster. */", "#define MAXMEMORY_FLAG_LRU (1<<0)", "#define MAXMEMORY_FLAG_LFU (1<<1)", "#define MAXMEMORY_FLAG_ALLKEYS (1<<2)", "#define MAXMEMORY_FLAG_LRM (1<<3)", "#define MAXMEMORY_FLAG_NO_SHARED_INTEGERS \\", "    (MAXMEMORY_FLAG_LRU|MAXMEMORY_FLAG_LFU|MAXMEMORY_FLAG_LRM)", "", "#define MAXMEMORY_VOLATILE_LRU ((0<<8)|MAXMEMORY_FLAG_LRU)", "#define MAXMEMORY_VOLATILE_LFU ((1<<8)|MAXMEMORY_FLAG_LFU)", "#define MAXMEMORY_VOLATILE_TTL (2<<8)", "#define MAXMEMORY_VOLATILE_RANDOM (3<<8)", "#define MAXMEMORY_ALLKEYS_LRU ((4<<8)|MAXMEMORY_FLAG_LRU|MAXMEMORY_FLAG_ALLKEYS)", "#define MAXMEMORY_ALLKEYS_LFU ((5<<8)|MAXMEMORY_FLAG_LFU|MAXMEMORY_FLAG_ALLKEYS)", "#define MAXMEMORY_ALLKEYS_RANDOM ((6<<8)|MAXMEMORY_FLAG_ALLKEYS)", "#define MAXMEMORY_NO_EVICTION (7<<8)", "#define MAXMEMORY_VOLATILE_LRM ((8<<8)|MAXMEMORY_FLAG_LRM)", "#define MAXMEMORY_ALLKEYS_LRM ((9<<8)|MAXMEMORY_FLAG_LRM|MAXMEMORY_FLAG_ALLKEYS)"]], [1266, ["/* Redis database representation. There are multiple databases identified", " * by integers from 0 (the default database) up to the max configured", " * database. The database number is the 'id' field in the structure. */", "typedef struct redisDb {", "    kvstore *keys;              /* The keyspace for this DB. As metadata, holds keysizes histogram */", "    kvstore *expires;           /* Timeout of keys with a timeout set */", "    kvstore *blessed_keys;      /* Blessed key name (sds) -> bless level (slot-partitioned, per-DB, like expires). */", "    estore *subexpires;         /* Timeout of sub-keys with a timeout set. (Currently only used for hashes) */", "    dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP)*/", "    dict *blocking_keys_unblock_on_nokey;   /* Keys with clients waiting for", "                                             * data, and should be unblocked if key is deleted (XREADEDGROUP).", "                                             * This is a subset of blocking_keys*/", "    dict *stream_claim_pending_keys; /* Keys with clients waiting to claim pending entries */", "    dict *stream_idmp_keys; /* Stream keys with IDMP tracking */", "    dict *ready_keys;           /* Blocked keys that received a PUSH */", "    dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */", "    int id;                     /* Database ID */", "    long long avg_ttl;          /* Average TTL, just for stats */", "    unsigned long expires_cursor; /* Cursor of the active expire cycle. */", "} redisDb;"]], [2660, ["    int maxmemory_samples;          /* Precision of random sampling */", "    int maxmemory_eviction_tenacity;/* Aggressiveness of eviction processing */"]], [4757, ["#define EVICT_OK 0", "#define EVICT_RUNNING 1", "#define EVICT_FAIL 2", "int performEvictions(void);"]]], "object.h": [[94, ["#define LRU_BITS 24", "#define LRU_CLOCK_MAX ((1<<LRU_BITS)-1) /* Max value of obj->lru */", "#define LRU_CLOCK_RESOLUTION 1000 /* LRU clock resolution in ms */"]], [121, ["/* kvobj: see header comment above for definition and memory layout. */", "typedef struct redisObject kvobj;", "", "/* Whenever an robj serves as a kvobj base (iskvobj=1), a single byte of extra", " * bits is allocated right after it, before the embedded key. */", "typedef struct __attribute__ ((__packed__)) kvBits {", "    /* SDS header type of the embedded key: SDS_TYPE_5/8/16 or 32 (values 0..3). ", "     * Keys are never longer than 4GB, so SDS_TYPE_64 is not needed. */", "    unsigned key_sds_type : 2;", "    unsigned no_evict : 1;    /* Protected from maxmemory eviction. */", "    unsigned unused : 5;       /* Free bits. Available for future use. */", "} kvBits;"]]], "db.c": [[61, ["/* Update LRM when an object is modified. */", "void updateLRM(robj *o) {", "    if (o->refcount == OBJ_SHARED_REFCOUNT)", "        return;", "    if (server.maxmemory_policy & MAXMEMORY_FLAG_LRM) {", "        o->lru = LRU_CLOCK();", "    }", "}"]], [332, ["    if (val) {", "        /* Update the access time for the ageing algorithm.", "         * Don't do it if we have a saving child, as this will trigger", "         * a copy on write madness. */", "        if (((flags & LOOKUP_NOTOUCH) == 0) &&", "            (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH) &&", "            (server.executing_client && server.executing_client->cmd->proc != touchCommand))", "            flags |= LOOKUP_NOTOUCH;", "        if (!hasActiveChildProcess() && !(flags & LOOKUP_NOTOUCH)){", "            if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {", "                updateLFU(val);", "            } else if (!(server.maxmemory_policy & MAXMEMORY_FLAG_LRM)) {", "                /* LRM policy should NOT update timestamp on reads. */", "                val->lru = LRU_CLOCK();", "            }", "        }"]], [2980, ["static void deleteKeyAndPropagate(redisDb *db, robj *keyobj, int notify_type, long long *key_mem_freed) {", "    mstime_t latency;", "    int del_flag = notify_type == NOTIFY_EXPIRED ? DB_FLAG_KEY_EXPIRED : DB_FLAG_KEY_EVICTED;", "    int lazy_flag = notify_type == NOTIFY_EXPIRED ? server.lazyfree_lazy_expire : server.lazyfree_lazy_eviction;", "    char *latency_name = notify_type == NOTIFY_EXPIRED ? \"expire-del\" : \"evict-del\";", "    char *notify_name = notify_type == NOTIFY_EXPIRED ? \"expired\" : \"evicted\";", "", "    /* The key needs to be converted from static to heap before deleted */", "    int static_key = keyobj->refcount == OBJ_STATIC_REFCOUNT;", "    if (static_key) {", "        keyobj = createStringObject(keyobj->ptr, sdslen(keyobj->ptr));", "    }", "", "    serverLog(LL_DEBUG,\"key %s %s: deleting it\", redactLogCstr((char*)keyobj->ptr), notify_type == NOTIFY_EXPIRED ? \"expired\" : \"evicted\");", "", "    /* We compute the amount of memory freed by db*Delete() alone.", "     * It is possible that actually the memory needed to propagate", "     * the DEL in AOF and replication link is greater than the one", "     * we are freeing removing the key, but we can't account for", "     * that otherwise we would never exit the loop.", "     *", "     * Same for CSC invalidation messages generated by keyModified.", "     *", "     * AOF and Output buffer memory will be freed eventually so", "     * we only care about memory used by the key space.", "     *", "     * The code here used to first propagate and then record delta", "     * using only zmalloc_used_memory but in CRDT we can't do that", "     * so we use freeMemoryGetNotCountedMemory to avoid counting", "     * AOF and slave buffers */", "    if (key_mem_freed) *key_mem_freed = (long long) zmalloc_used_memory() - freeMemoryGetNotCountedMemory();", "    latencyStartMonitor(latency);", "    dbGenericDelete(db, keyobj, lazy_flag, del_flag);", "    latencyEndMonitor(latency);", "    latencyAddSampleIfNeeded(latency_name, latency);", "    if (key_mem_freed) *key_mem_freed -= (long long) zmalloc_used_memory() - freeMemoryGetNotCountedMemory();", "", "    notifyKeyspaceEvent(notify_type, notify_name,keyobj, db->id);", "    keyModified(NULL, db, keyobj, NULL, 1);", "    propagateDeletion(db, keyobj, lazy_flag);", "", "    if (notify_type == NOTIFY_EXPIRED)", "        server.stat_expiredkeys++;", "    else", "        server.stat_evictedkeys++;", "", "    if (static_key)", "        decrRefCount(keyobj);", "}", "", "/* Delete the specified expired key and propagate. */", "void deleteExpiredKeyAndPropagate(redisDb *db, robj *keyobj) {", "    deleteKeyAndPropagate(db, keyobj, NOTIFY_EXPIRED, NULL);", "}", "", "/* Delete the specified evicted key and propagate. */", "void deleteEvictedKeyAndPropagate(redisDb *db, robj *keyobj, long long *key_mem_freed) {", "    deleteKeyAndPropagate(db, keyobj, NOTIFY_EVICTED, key_mem_freed);", "}"]]], "bless.c": [[99, ["int blessIsNoEvict(kvobj *kv) {", "    debugServerAssert(kv->iskvobj);", "    return kvobjBits(kv)->no_evict;", "}"]]], "config.c": [[39, ["configEnum maxmemory_policy_enum[] = {", "    {\"volatile-lru\", MAXMEMORY_VOLATILE_LRU},", "    {\"volatile-lfu\", MAXMEMORY_VOLATILE_LFU},", "    {\"volatile-random\",MAXMEMORY_VOLATILE_RANDOM},", "    {\"volatile-ttl\",MAXMEMORY_VOLATILE_TTL},", "    {\"volatile-lrm\",MAXMEMORY_VOLATILE_LRM},", "    {\"allkeys-lru\",MAXMEMORY_ALLKEYS_LRU},", "    {\"allkeys-lfu\",MAXMEMORY_ALLKEYS_LFU},", "    {\"allkeys-random\",MAXMEMORY_ALLKEYS_RANDOM},", "    {\"allkeys-lrm\",MAXMEMORY_ALLKEYS_LRM},", "    {\"noeviction\",MAXMEMORY_NO_EVICTION},", "    {NULL, 0}", "};"]], [4326, ["    createIntConfig(\"maxmemory-samples\", NULL, MODIFIABLE_CONFIG, 1, 64, server.maxmemory_samples, 5, INTEGER_CONFIG, NULL, NULL),", "    createIntConfig(\"maxmemory-eviction-tenacity\", NULL, MODIFIABLE_CONFIG, 0, 100, server.maxmemory_eviction_tenacity, 10, INTEGER_CONFIG, NULL, NULL),"]]]};
+const UNITS=[["evict.c", 519, 834, "performEvictions()"], ["evict.c", 519, 542, "performEvictions() · 函数头注释：它承诺什么"], ["evict.c", 543, 564, "performEvictions() · ① 闸门"], ["evict.c", 565, 578, "performEvictions() · 准备：时间预算与计时"], ["evict.c", 579, 586, "performEvictions() · 主循环头与局部变量"], ["evict.c", 587, 693, "performEvictions() · ② 挑 key · 路线 A 评分池"], ["evict.c", 694, 736, "performEvictions() · ② 挑 key · 路线 B 随机"], ["evict.c", 737, 752, "performEvictions() · ③ 删除并传播"], ["evict.c", 753, 785, "performEvictions() · ④ 每 16 个 key 的检查点（含「没选到」的 goto）"], ["evict.c", 786, 834, "performEvictions() · ⑤ 收尾：定结果、等后台、blessed 容忍、统计"], ["evict.c", 131, 236, "evictionPoolPopulate()"], ["evict.c", 131, 148, "evictionPoolPopulate() · 签名与采样"], ["evict.c", 149, 158, "evictionPoolPopulate() · 逐个样本：跳过 blessed"], ["evict.c", 160, 179, "evictionPoolPopulate() · 按策略打分"], ["evict.c", 181, 216, "evictionPoolPopulate() · 找位置、腾位置（4 种情况）"], ["evict.c", 218, 236, "evictionPoolPopulate() · 写入池格"], ["evict.c", 36, 51, "淘汰池的定义"], ["evict.c", 116, 129, "evictionPoolAlloc()"], ["evict.c", 371, 431, "getMaxmemoryState()"], ["evict.c", 321, 369, "freeMemoryGetNotCountedMemory()"], ["evict.c", 475, 499, "isSafeToPerformEvictions()"], ["evict.c", 501, 517, "evictionTimeLimitUs()"], ["evict.c", 448, 473, "evictionTimeProc() / startEvictionTimeProc()"], ["evict.c", 57, 88, "LRU 时钟与 estimateObjectIdleTime()"], ["evict.c", 302, 319, "LFUDecrAndReturn()"], ["evict.c", 90, 94, "randomEvictionShouldSkipDictIndex()"], ["server.c", 4942, 4972, "调用方：processCommand() 片段"], ["db.c", 2980, 3038, "deleteKeyAndPropagate()"], ["server.h", 738, 757, "策略常量"], ["server.h", 1266, 1285, "struct redisDb"], ["server.h", 4757, 4760, "返回值常量"], ["object.h", 121, 132, "kvBits"], ["config.c", 39, 51, "策略名 ↔ 常量"]];
+const SCEN=[{"id": "s_ok", "name": "正常腾够", "res": "EVICT_OK", "hit": ["i1", "p1", "L", "sA", "A1", "A2", "A3", "A5", "A6", "A7", "A10", "A11b", "A12", "A13", "A14", "A16", "A18", "D", "D1", "D2", "R1", "C", "C7", "U", "U2", "Z"], "say": "以评分池路线为例：每圈选一个、删一个，直到 mem_freed 追上 mem_tofree，循环条件不再成立。注意 :787 —— 若接力定时事件还挂着（isEvictionProcRunning 为 1），这次返回的是 RUNNING；定时事件下次再调进来、在第二道门拿到 OK 后才摘掉自己 <a class=\"rf\" data-f=\"evict.c\" data-a=\"463\" data-b=\"463\" data-q=\"isEvictionProcRunning = 0;\">:463<\/a>。"}, {"id": "s_gate", "name": "内存没超", "res": "EVICT_OK", "hit": ["i1", "g2", "U", "U2", "Z"], "say": "最常见的一条路：第二道门就走了，主循环根本不进。"}, {"id": "s_unsafe", "name": "此刻不宜淘汰", "res": "EVICT_OK", "hit": ["g1"], "say": "直接 return，不经过 update_metrics。源码注释管它叫 “a fake EVICT_OK” <a class=\"rf\" data-f=\"evict.c\" data-a=\"545\" data-b=\"545\" data-q=\"as if it wasn&#x27;t triggered. it&#x27;s a fake EVICT_OK. */\">:545<\/a>。"}, {"id": "s_noev", "name": "策略是 noeviction", "res": "EVICT_FAIL", "hit": ["i1", "g3", "U", "U1", "U1b", "Z"], "say": "超限了但策略不许删：FAIL，调用方据此拒绝会涨内存的命令。"}, {"id": "s_time", "name": "超时没腾完", "res": "EVICT_RUNNING", "hit": ["i1", "p1", "L", "sA", "A1", "A2", "A3", "A5", "A6", "A7", "A10", "A11b", "A12", "A13", "A14", "A16", "A18", "D", "D1", "D2", "D3", "D6", "R1", "C", "C7", "U", "U1", "U1b", "Z"], "say": "删满 16 的倍数时看表；超预算就 startEvictionTimeProc() 然后 break。因为它刚把 isEvictionProcRunning 置 1，:787 得到 RUNNING。"}, {"id": "s_none", "name": "没东西可删", "res": "EVICT_FAIL", "hit": ["i1", "p1", "L", "sA", "A1", "A2", "A4", "A9", "E", "C", "C1", "C7", "U", "U1", "U1b", "Z"], "say": "以「volatile-* 策略，但没有任何键带过期时间」为例：每个库的 expires 表都是空的 → 一个样本也抽不到 → bestkey 为空 → goto cant_free，跳过了 :787，所以 result 还是 :553 的 FAIL。收尾时若后台还有惰性释放在跑，会进 :796 的等待循环；等到内存达标就改判 OK（图里这几行没点亮，是另一种结局）。"}, {"id": "s_bless", "name": "被 blessed 键挡住", "res": "EVICT_OK（在容忍范围内）", "hit": ["i1", "p1", "L", "sA", "A1", "A2", "A3", "A5", "A6", "A10", "A11", "A20", "A21", "A22", "E", "C", "C1", "C5", "C6", "C7", "U", "U2", "Z"], "say": "连续 8 轮抽到的全是 NO-EVICT 键：记下 blessed_blocked 后放弃。收尾时若超出量不超过 maxmemory 的 1/4，就放行（OK，图里点亮的是这种结局）；超得更多则仍是 FAIL。"}];
+
+const $=(s,r)=>(r||document).querySelector(s), $$=(s,r)=>Array.from((r||document).querySelectorAll(s));
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function srcLine(f,n){for(const [a,ls] of SRC[f]||[]){if(n>=a&&n<a+ls.length)return ls[n-a];}return null;}
+function rangeOf(f,n){for(const [a,ls] of SRC[f]||[]){if(n>=a&&n<a+ls.length)return [a,a+ls.length-1];}return null;}
+const KW=new Set('if else while for do switch case default static int unsigned long size_t struct void sizeof float double char const typedef define'.split(' '));
+const JP=new Set(['break','continue','goto','return']);
+function hl(line,st){
+  let out='',i=0;const push=(c,s)=>{out+=c?'<i class="'+c+'">'+esc(s)+'</i>':esc(s)};
+  while(i<line.length){
+    if(st.c||line.startsWith('/*',i)){const from=st.c?i:i+2;const j=line.indexOf('*/',from);st.c=true;
+      if(j<0){push('cm',line.slice(i));i=line.length}else{push('cm',line.slice(i,j+2));i=j+2;st.c=false}continue}
+    if(line.startsWith('//',i)){push('cm',line.slice(i));break}
+    const ch=line[i];
+    if(ch==='"'){let j=i+1;while(j<line.length&&line[j]!=='"'){if(line[j]==='\\')j++;j++}push('st',line.slice(i,j+1));i=j+1;continue}
+    let m=/^[A-Za-z_]\w*/.exec(line.slice(i));
+    if(m){const w=m[0];const call=/^\s*\(/.test(line.slice(i+w.length));
+      push(JP.has(w)?'jp':KW.has(w)?'kw':/^[A-Z][A-Z0-9_]+$/.test(w)?'cn':call?'fx':'',w);i+=w.length;continue}
+    m=/^\d[\w.]*/.exec(line.slice(i));if(m){push('nu',m[0]);i+=m[0].length;continue}
+    push('',ch);i++}
+  return out}
+function commentStateAt(f,a){ // 是否从块注释内部开始：往回扫到本嵌入段开头
+  const r=rangeOf(f,a);if(!r)return false;const st={c:false};for(let n=r[0];n<a;n++)hl(srcLine(f,n),st);return st.c}
+function renderCode(el,f,a,b,mark){
+  const st={c:commentStateAt(f,a)};let h='';
+  for(let n=a;n<=b;n++){const raw=srcLine(f,n);if(raw===null)continue;
+    const ind=/^ */.exec(raw)[0];const lv=ind.length/4;
+    const on=mark&&n>=mark[0]&&n<=mark[1];
+    h+='<div class="cl'+(on?' hl':'')+'" data-n="'+n+'"><span class="n">'+n+'</span><span class="t" style="--i:'+lv+'">'+(ind?'<i class="ig">'+ind+'</i>':'')+hl(raw.slice(ind.length),st)+'</span></div>'}
+  el.innerHTML=h;el.dataset.done=1}
+function fill(root){$$('.code[data-f]',root).forEach(el=>{if(!el.dataset.done)renderCode(el,el.dataset.f,+el.dataset.a,+el.dataset.b)})}
+$$('details').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)fill(d)}));
+$('#bAll').onclick=()=>{const u=$('details.unit');u.open=true;$$('details.sub',u).forEach(d=>d.open=true);u.scrollIntoView()};
+
+/* 抽屉：点任何行号标签，看它所在的那一段原文 */
+function openDrawer(f,a,b){
+  let best=null;for(const u of UNITS){if(u[0]===f&&u[1]<=a&&u[2]>=b){if(!best||(u[2]-u[1])<(best[2]-best[1]))best=u}}
+  let A,B,name;
+  if(best){A=best[1];B=best[2];name=best[3]}else{const r=rangeOf(f,a);A=Math.max(r[0],a-12);B=Math.min(r[1],b+12);name=''}
+  $('#dtitle').innerHTML='src/'+f+':'+a+(b!==a?'–'+b:'')+'<small>'+esc(name||'上下文')+' · 显示 :'+A+'–'+B+'（连续原文）</small>';
+  const body=$('#dbody');body.innerHTML='<div class="code"></div>';const whole=(a<=A&&b>=B);renderCode(body.firstChild,f,A,B,whole?null:[a,b]);
+  $('#drawer').classList.add('on');$('#dim').classList.add('on');$('#drawer').setAttribute('aria-hidden','false');
+  const t=body.querySelector('.cl.hl');body.scrollTop=t?Math.max(0,t.offsetTop-body.clientHeight*0.3):0;
+}
+function closeDrawer(){$('#drawer').classList.remove('on');$('#dim').classList.remove('on');$('#drawer').setAttribute('aria-hidden','true')}
+$('#dclose').onclick=closeDrawer;$('#dim').onclick=closeDrawer;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
+document.addEventListener('click',e=>{const r=e.target.closest('.rf,.sg,.lg,.lb,a.ex');if(r){e.preventDefault();openDrawer(r.dataset.f,+r.dataset.a,+r.dataset.b)}});
+
+/* 控制流：路线折叠 + 场景高亮 */
+$$('.tg').forEach(b=>b.onclick=()=>{const g=b.parentNode;const shut=g.classList.toggle('shut');b.textContent=shut?'展开这条路线的 '+b.dataset.n+' 步':'收起'});
+function setGroup(g,open){g.classList.toggle('shut',!open);const b=$('.tg',g);b.textContent=open?'收起':'展开这条路线的 '+b.dataset.n+' 步'}
+function scenario(id){
+  const s=SCEN.find(x=>x.id===id);const box=$('#flowbox');
+  $$('button.sc').forEach(b=>b.classList.toggle('on',b.dataset.s===(id||'__')));
+  $$('.fr',box).forEach(r=>r.classList.remove('hit'));
+  if(!s){box.classList.remove('sc-on');$('#scsay').classList.remove('on');return}
+  box.classList.add('sc-on');const set=new Set(s.hit);
+  $$('.fr',box).forEach(r=>{if(set.has(r.dataset.id))r.classList.add('hit')});
+  $$('.blk.grp',box).forEach(g=>setGroup(g,!!$('.kids .fr.hit',g)));
+  $('#scsay').innerHTML='<span class="res">返回 '+esc(s.res)+'</span>'+s.say+' <span style="color:var(--mut);font-size:13px">（亮着的 = 这条路径真正走进去的行；判断不成立而略过的行保持变暗）</span>';
+  $('#scsay').classList.add('on')}
+$$('button.sc').forEach(b=>b.onclick=()=>scenario(b.dataset.s));
+
+/* 导航高亮 */
+const secs=$$('section[id]'),links=$$('nav a');
+const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.classList.toggle('on',l.getAttribute('href')==='#'+e.target.id))}})},{rootMargin:'-45% 0px -50% 0px'});
+secs.forEach(s=>io.observe(s));
+
+/* ── 淘汰池演示：规则逐条对应 evict.c:184–232 与 :637–668 ── */
+const N=16;let pool,seq=0,busy=false,rnd=12345;
+const rand=()=>{rnd=(rnd*1103515245+12345)&0x7fffffff;return rnd/0x7fffffff};
+const M=k=>$('#pmsg [data-m='+k+']').innerHTML;
+function resetPool(){pool=[];for(let i=0;i<N;i++)pool.push({key:null,idle:0});seq=0;rnd=12345;drawPool();
+  $('#plog').innerHTML='池子现在是空的：16 格的 key 都是 NULL。';lit(null)}
+function color(idle){const t=Math.min(1,idle/600);const h=215-t*205,l=52-t*10;return 'hsl('+h+',62%,'+l+'%)'}
+function drawPool(mark,cls){const el=$('#pool');let h='';
+  for(let i=0;i<N;i++){const p=pool[i];
+    h+='<div class="cell'+(p.key?' full':'')+(mark===i?' '+cls:'')+'"'+(p.key?' style="background:'+color(p.idle)+'"':'')+'><span class="ix">'+i+'</span>'+(p.key?'<span class="v">'+p.idle+'</span><span class="kn">'+p.key+'</span>':'<span class="v" style="color:#c2bdaf">·</span>')+'</div>'}
+  el.innerHTML=h}
+function lit(c){$$('.cases div').forEach(d=>d.classList.toggle('lit',d.dataset.c===c))}
+function insert(s){ // 返回 [情况, k]
+  let k=0;while(k<N&&pool[k].key&&pool[k].idle<s.idle)k++;                 // :185-187
+  if(k===0&&pool[N-1].key!==null)return['skip',-1];                         // :188
+  let c;
+  if(k<N&&pool[k].key===null){c='empty'}                                    // :192
+  else if(pool[N-1].key===null){for(let i=N-1;i>k;i--)pool[i]=pool[i-1];pool[k]={};c='right'}  // :197-205
+  else{k--;for(let i=0;i<k;i++)pool[i]=pool[i+1];pool[k]={};c='left'}       // :206-214
+  pool[k]={key:s.key,idle:s.idle};return[c,k]}                               // :222-232
+const TXT={skip:'进不去：池已满，它比最左边的还小',empty:'落在空格',right:'插在中间：右边有空，后面的整体右移一格',left:'池满：挤掉最左边分数最小的那个'};
+function sampleBatch(){if(busy)return;busy=true;const ss=[];
+  for(let i=0;i<5;i++){const bl=rand()<0.16;ss.push({key:'k'+(++seq),idle:Math.floor(rand()*rand()*640)+1,bl})}
+  const el=$('#smp');el.innerHTML='<span style="border:0;background:none;color:var(--mut);font-family:var(--sans);font-weight:400">本批样本：</span>'+ss.map((s,i)=>'<span data-i="'+i+'"'+(s.bl?' class="bl"':'')+'>'+s.key+' · '+s.idle+(s.bl?' 🛡':'')+'</span>').join('');
+  let i=0;const step=()=>{if(i>=ss.length){busy=false;return}
+    const s=ss[i];$$('#smp span[data-i]').forEach((x,j)=>{x.classList.toggle('cur',j===i);x.classList.toggle('done',j<i)});
+    if(s.bl){$('#plog').innerHTML='<b>'+s.key+'</b> 是受保护的（blessed）键：直接跳过，不算候选 '+M('bl');lit(null);drawPool()}
+    else{const [c,k]=insert(s);lit(c);drawPool(k,'new');
+      $('#plog').innerHTML='<b>'+s.key+'</b>（分数 '+s.idle+'）：从左往右找到第一个「空格或分数不小于它」的位置 '+M('scan')+' → <b>'+TXT[c]+'</b>'+(k>=0?'，写进第 '+k+' 格 '+M('write'):'')}
+    i++;setTimeout(step,window.__fast?0:900)};step()}
+function popBest(){if(busy)return;lit(null);let k;for(k=N-1;k>=0;k--){if(pool[k].key!==null)break}
+  if(k<0){$('#plog').innerHTML='池里没有可取的：16 格全是空的 '+M('popscan')+'。真实代码里每次取之前都先抽一轮样；抽完池子还是空的，说明这一轮没有候选进池，接着走这两个判断：'+M('none');return}
+  const p=pool[k];const ghost=rand()<0.2;drawPool(k,'out');
+  $('#plog').innerHTML='从右往左，第一个非空的是第 '+k+' 格 '+M('popscan')+'：<b>'+p.key+'</b>（分数 '+p.idle+'）。回字典查 '+M('find')+'，这一格随即清空 '+M('clear')+'。'+
+    (ghost?'<br>（演示：假设它已被别处删掉）查不到 → 是<b>幽灵</b>，继续往左找 '+M('ghost')+'。再点一次。':'<br>查到了 → 它就是 <b>bestkey</b> '+M('best')+'，接下来被删除。');
+  busy=true;setTimeout(()=>{pool[k]={key:null,idle:0};drawPool();busy=false},window.__fast?0:1100)}
+$('#bSample').onclick=sampleBatch;$('#bPop').onclick=popBest;$('#bReset').onclick=resetPool;resetPool();
+</script>
+</body>
+</html>
