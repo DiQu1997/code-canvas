@@ -1,0 +1,188 @@
+memory_hook.py:136-143 | elif gpu_mem < 90 * 1024: || chunked_prefill_size=8192,
+schedule.py:77-87 | max_prefill_tokens: A[ || ] = 16384
+schedule.py:92-109 | schedule_policy: A[ || ] = "fcfs"
+scheduler.py:2235-2305 | def event_loop_overlap(self): || self.invariant_checker.run(CheckPhase.BUSY, batch)
+scheduler.py:2253-2253 | self.ingest_requests() || 
+scheduler.py:2272-2275 | plan = self.get_next_batch_to_run( || self.running_batch = plan.running_batch
+scheduler.py:4339-4339 | def get_next_batch_to_run( || 
+scheduler.py:4383-4420 | if last_batch.chunked_req is not None: || if self.dllm_config is not None:
+scheduler.py:4651-4661 | self.waiting_queue.reorder( || )
+scheduler.py:4686-4705 | adder = self.get_prefill_adder_class()( || )
+scheduler.py:4955-4978 | new_batch = ScheduleBatch.init_new( || new_batch.prepare_for_extend()
+scheduler.py:4446-4456 | else: || ret = None
+scheduler.py:1406-1406 | self.waiting_queue = IndexedReqList(ListKind.WAITING, abort=self._abor || 
+scheduler.py:1410-1410 | self.running_batch: ScheduleBatch = ScheduleBatch(reqs=[], batch_is_fu || 
+scheduler.py:1413-1413 | self.running_reqs = KeyedReqList(ListKind.DECODING) || 
+scheduler.py:1417-1417 | self.prefill_launched_reqs = KeyedReqList(ListKind.PREFILL_LAUNCHED) || 
+scheduler.py:1467-1467 | self.chunked_reqs = IndexedReqList(ListKind.CHUNKED, abort=self._abort || 
+request_list.py:69-69 | """A list of live requests. Every live request is in at most one list, || 
+request_list.py:229-248 | def move(items: Iterable, dst: ReqList, *, at: Optional[int] = None) - || dst._join(items, at=at)
+scheduler.py:1603-1603 | self.new_token_ratio_tracker = NewTokenRatioTracker.from_config() || 
+scheduler.py:1421-1421 | self.last_batch: Optional[ScheduleBatch] = None || 
+scheduler.py:4935-4942 | if new_chunked_req is not None: || )
+scheduler.py:4443-4456 | if new_batch is not None: || ret = None
+scheduler.py:4444-4444 | # Run prefill first if possible || 
+schedule.py:227-230 | enable_mixed_chunk: A[ || ] = False
+schedule.py:62-68 | prefill_decode_interval: A[ || ] = None
+scheduler.py:4422-4422 | elif self._should_defer_prefill(running_batch): || 
+scheduler.py:1493-1509 | def _should_defer_prefill(self, running_batch: ScheduleBatch) -> bool: || self._prefill_decode_interval_remaining -= 1
+scheduler.py:4355-4363 | if self.chunked_req is not None: || self.stash_chunked_request(self.chunked_req)
+scheduler.py:4224-4228 | def stash_chunked_request(self, req: Req): || checkpoint_kv_cache(req, self.tree_cache)
+common.py:235-244 | def checkpoint_kv_cache(req: Req, tree_cache: BasePrefixCache) -> None || req.prefix_len = req.extend_end
+scheduler.py:4403-4411 | move( || running_batch.merge_batch(last_batch)
+scheduler.py:4413-4418 | # Every step, not only after a merge: overlap merges a prefill's reque || running_batch.batch_is_full = False
+scheduler.py:4413-4413 | # Every step, not only after a merge: overlap merges a prefill's reque || 
+schedule.py:109-109 | ] = "fcfs" || 
+schedule_policy.py:355-359 | if self.policy == CacheAgnosticPolicy.FCFS: || )
+request_list.py:175-181 | # Before the adopt: a request rejoining would keep its old item. || self._items[at:at] = items
+request_list.py:183-191 | def reorder(self, items: Iterable) -> None: || self._items = items
+scheduler.py:1550-1550 | self.policy = SchedulePolicy( || 
+schedule.py:92-108 | schedule_policy: A[ || ),
+schedule_policy.py:187-203 | class CacheAwarePolicy(Enum): || ROUTING_KEY = "routing-key"  # prioritize by routi
+schedule_policy.py:735-746 | def _sort_by_longest_prefix( || 
+schedule_policy.py:585-646 | def _compute_prefix_matches( || )
+schedule_policy.py:117-127 | IN_BATCH_PREFIX_CACHING_CHECK_THRESHOLD = int( || 
+schedule_policy.py:591-591 | # In-batch prefix caching: of the requests with almost nothing cached  || 
+schedule_policy.py:537-548 | def _determine_active_policy(self, waiting_queue: List[Req]) -> Policy || return self.policy
+schedule_policy.py:546-546 | # Turn off the expensive prefix matching and sorting when the #queue i || 
+schedule_policy.py:143-143 | # Arbitrary; bounds per-round prefix work on the waiting queue. || 
+schedule_policy.py:180-180 | BOUNDED_LPM_WINDOW_SIZE = 64 || 
+schedule_policy.py:272-305 | def calc_priority( || )
+schedule_policy.py:345-345 | # Cache-agnostic policies sort without matching; match anyway so the l || 
+schedule_policy.py:346-346 | # snapshot sees num_matched_prefix_tokens. Decode never prefills. || 
+schedule_policy.py:501-535 | def _touch_waiting_prefixes( || touch_waiting_prefix(r, self.tree_cache)
+schedule_policy.py:507-507 | # Head last, so LRU evicts in reverse admission order; cache-aware pol || 
+schedule_policy.py:146-146 | WAITING_PREFIX_REFRESH_INTERVAL = 32 || 
+environ.py:705-705 | SGLANG_ENABLE_WAITING_PREFIX_REFRESH = EnvBool(True) || 
+scheduler.py:4506-4506 | def get_new_batch_prefill(self, running_batch: ScheduleBatch) -> NextB || 
+scheduler.py:4590-4600 | ) -> Tuple[Optional[ScheduleBatch], ScheduleBatch]: || running_batch.batch_is_full = False
+scheduler.py:4596-4646 | self._add_request_to_queue(req) || 
+scheduler.py:4606-4609 | if ( || return None, running_batch
+scheduler.py:4636-4645 | # A chunked request skips this check: it keeps its req_to_token row ac || return None, running_batch
+scheduler.py:4478-4504 | def get_num_allocatable_reqs( || return res
+scheduler.py:1316-1322 | if not get_parallel().pp_max_micro_batch_size: || )
+scheduler.py:4647-4647 | # After the early returns, so a full-batch pass does not scan the queu || 
+scheduler.py:4395-4395 | running_batch.batch_is_full = False || 
+scheduler.py:4416-4418 | running_batch.filter_batch() || running_batch.batch_is_full = False
+scheduler.py:4602-4602 | # An empty batch has no request left to leave, and only a leaving || 
+schedule_policy.py:1009-1009 | class PrefillAdder: || 
+prefill_budget.py:144-157 | def _available_and_evictable(self): || return self._available_and_evictable() - self.tota
+prefill_budget.py:158-171 |  || return self.remaining_total > 0 and self.remaining
+schedule_policy.py:1050-1050 | self.rem_input_tokens = rem_input_tokens - num_mixed_decode_tokens || 
+schedule_policy.py:1385-1385 | self.rem_input_tokens -= compute_charge || 
+schedule_policy.py:1390-1391 | self.rem_chunk_tokens -= compute_charge || 
+schedule.py:88-91 | prefill_max_requests: A[ || ] = None
+schedule_policy.py:2033-2033 | if (x := self.prefill_max_requests) is not None and len(self.can_run_l || 
+schedule_policy.py:1095-1100 | self.memory_budget.total_offset += sum( || )
+schedule_policy.py:1174-1185 | def _get_running_request_total_token_offset(self, req: Req) -> int: || 
+prefill_budget.py:91-91 | """Fixed token pool. Offsets include pending allocations and decode he || 
+test_prefill_adder.py:436-436 | """A chunked continuation must not take KV reserved for running decode || 
+schedule_policy.py:92-92 | # Clip the estimation of max_new_tokens for the request whose max_new_ || 
+environ.py:708-708 | SGLANG_INIT_NEW_TOKEN_RATIO = EnvFloat(0.7) || 
+schedule.py:158-161 | schedule_conservativeness: A[ || ] = 1.0
+schedule_policy.py:96-96 | CLIP_MAX_NEW_TOKENS = int( || 
+environ.py:712-712 | SGLANG_CLIP_MAX_NEW_TOKENS_ESTIMATION = EnvInt(4096) || 
+schedule_policy.py:94-94 | # Note that this only clips the estimation in the scheduler but does n || 
+schedule_policy.py:1385-1391 | self.rem_input_tokens -= compute_charge || 
+schedule_policy.py:2272-2277 | # Without chunking, allow the first request even above the input cap. || ):
+memory_hook.py:310-310 | # Tokens the activation working set scales with (per serving mode). || 
+memory_hook.py:318-320 | activation_tokens = max(cfg.chunked_prefill_size, 2048) || activation_tokens = max(cfg.max_prefill_tokens, 20
+scheduler.py:4772-4772 | for req in candidates: || 
+scheduler.py:4775-4778 | # A spent pass budget admits no one, even before the first || break
+scheduler.py:4803-4813 | running_batch=running_batch, || break
+scheduler.py:4845-4845 | req.init_next_round_input(self.tree_cache, defer_cow_slot=defer_cow_sl || 
+schedule_policy.py:944-951 | class AddReqResult(Enum): || 
+scheduler.py:4867-4895 | res = adder.add_one_req( || break
+scheduler.py:4893-4894 | unschedulable.append(req) || continue
+scheduler.py:4897-4911 | for req in unschedulable: || mamba_allocator.alloc_group_end()
+schedule_policy.py:2209-2213 |  || return self.budget_state()
+schedule_policy.py:1304-1319 | def budget_state(self): || return AddReqResult.CONTINUE
+scheduler.py:4920-4920 | # Empty passes are the key signal for head-of-line blocking. || 
+scheduler.py:4538-4570 | adder: PrefillAdder, || f"kv-free-tokens={kv_free}, "
+schedule_policy.py:2036-2036 | if self.chunked_req_waits: || 
+schedule_policy.py:2215-2229 | def _prefill_charge(self, req: Req) -> tuple[int, int]: || return total_tokens, self._state_slots_for_req(req
+schedule_policy.py:2217-2217 | # Reserve page_size for page-alignment overhead: the paged allocator m || 
+schedule_policy.py:1351-1351 | # TODO(lsyin): check this workaround logic, which only ensures the pre || 
+schedule_policy.py:2052-2052 | # The temporary pin excludes this prefix from the evictable budget. || 
+schedule_policy.py:2231-2353 | def _select_prefill_admission( || chunk_tokens_limit,
+prefill_budget.py:208-215 | """Return admission feasibility and a memory bound on the requested || )
+schedule_policy.py:1239-1244 | def _refused(self) -> AddReqResult: || return AddReqResult.NO_TOKEN
+schedule_policy.py:2272-2272 | # Without chunking, allow the first request even above the input cap. || 
+schedule_policy.py:2356-2396 | def _commit_prefill_admission( || self._account_prefill_cache_admission(req, admissi
+schedule_policy.py:1321-1392 | def _update_prefill_budget( || # reprocessed_log_* is a subset of log_*; metrics_
+scheduler.py:4780-4800 | if bounded_active: || if len(adder.can_run_list) >= self.get_num_allocat
+scheduler.py:4850-4866 | if self.enable_hicache_storage and ( || continue
+schedule_batch.py:1202-1215 | if tree_cache is not None: || self.kv.protect_prefix(self.prefix_len)
+common.py:184-224 | def match_kv_cache( || max_len = req._compute_max_prefix_len(len(token_id
+common.py:209-209 | req.prefix_len = match_result.device_prefix_len || 
+schedule_policy.py:2244-2244 | extend_len = len(req.full_untruncated_fill_ids) - prefix_len || 
+schedule_batch.py:1135-1136 | def extend_len(self) -> int: || return self.extend_end - self.prefix_len
+schedule_batch.py:2406-2406 | input_ids = [r.get_fill_ids()[r.prefix_len :] for r in reqs] || 
+schedule_batch.py:2464-2464 | out_cache_loc, req_pool_indices_tensor, req_pool_indices_cpu = alloc_f || 
+schedule_batch.py:1239-1239 | # NOTE: the matched length is at most 1 less than the input length to  || 
+schedule_batch.py:1238-1240 | def _compute_max_prefix_len(self, input_len: int) -> int: || max_prefix_len = input_len - 1
+schedule_policy.py:2361-2361 | req.lock = self.tree_cache.lock(req.last_node) || 
+schedule.py:58-61 | chunked_prefill_size: A[ || ] = None
+memory_hook.py:80-181 | gpu_mem = get_device_memory_capacity(cfg.device) || chunked_prefill_size=4096,
+schedule_policy.py:2291-2320 | elif chunk_tokens_limit is not None and chunk_fit_tokens > chunk_token || 
+schedule_policy.py:2293-2293 | # Only one unfinished chunked request can be tracked; a || 
+scheduler.py:4934-4938 | new_chunked_req = adder.new_chunked_req || move([new_chunked_req], self.chunked_reqs)
+scheduler.py:4707-4720 | # The request between two chunks: in chunked_reqs, not in waiting_queu || move([resumed_req], self.prefill_launched_reqs)
+common.py:242-244 | tree_cache.checkpoint(req, up_to=req.extend_end) || req.prefix_len = req.extend_end
+schedule_policy.py:1675-1797 | def _add_chunked_req(self, req: Req): || @contextmanager
+prefill_budget.py:267-267 | # Park the continuation rather than take running decodes' headroom. || 
+scheduler.py:4751-4751 | # A parked chunk found no budget in this pass: admit no one ahead of i || 
+scheduler.py:4718-4720 | if adder.add_chunked_req(resumed_req) is None: || move([resumed_req], self.prefill_launched_reqs)
+batch_result_processor.py:447-449 | is_middle_chunk = req is batch.chunked_req || # A reason here finishes the request without commi
+batch_result_processor.py:587-590 | # being chunked reqs' prefill is not finished || # we don't want to stream the request currently be
+scheduler.py:4876-4895 | if res != AddReqResult.CONTINUE: || break
+scheduler.py:4877-4880 | if res == AddReqResult.NO_TOKEN: || )
+schedule_policy.py:2025-2028 | def batch_is_full_after_rejection(self, req: Req) -> bool: || 
+scheduler.py:5194-5282 | def update_running_batch(self, batch: ScheduleBatch) -> Optional[Sched || batch.prepare_for_decode()
+scheduler.py:5198-5200 | finishing_reqs = self._reqs_finishing_inflight(batch) || if batch.is_empty():
+scheduler.py:5207-5207 | kv_full_retract_flag = not batch.check_decode_mem() || 
+schedule_batch.py:2996-3016 | def check_decode_mem(self, selected_indices: Optional[List[int]] = Non || )
+scheduler.py:5209-5209 | # The queued result frees the finishing requests' KV at the end of || 
+scheduler.py:5229-5229 | retracted_reqs, new_token_ratio, reqs_to_abort = batch.retract_decode( || 
+schedule_batch.py:3019-3115 | def retract_decode( || @staticmethod
+schedule_batch.py:3116-3155 | def _get_decode_retraction_order(reqs: List[Req]) -> List[int]: || 
+schedule_batch.py:3127-3127 | return (len(req.output_ids), -len(req.origin_input_ids)) || 
+schedule_batch.py:3124-3124 | # TODO(lsyin): improve retraction policy for radix cache || 
+schedule_batch.py:3029-3031 | while first_iter or ( || ):
+schedule_batch.py:3033-3033 | # Always keep at least one request || 
+schedule_batch.py:3083-3103 | selected_indices=sorted_indices || "retract_decode: aborted last request %s due to OO
+schedule_batch.py:3057-3057 | # release memory and don't insert into the tree because we need the sp || 
+request_retirer.py:134-134 | release_kv_cache(req, self.tree_cache, checkpoint=False) || 
+schedule_batch.py:1845-1847 | # NOTE(lsyin): we should use the newly evictable memory instantly. || evict_from_tree_cache(tree_cache, num_tokens)
+schedule_batch.py:1845-1845 | # NOTE(lsyin): we should use the newly evictable memory instantly. || 
+environ.py:711-711 | SGLANG_RETRACT_DECODE_STEPS = EnvInt(20) || 
+schedule_batch.py:1530-1557 | def reset_for_retract(self): || self.prefill_weight_versions = None
+scheduler.py:5270-5271 | for req in retracted_reqs: || self._add_request_to_queue(req, is_retracted=True)
+common.py:196-196 |  || 
+schedule_batch.py:1141-1160 | def refresh_fill_ids(self) -> None: || 
+schedule_batch.py:3037-3076 | idx = sorted_indices.pop() || req.request_finish(FINISH_ABORT(message, status_co
+new_token_ratio_tracker.py:43-50 | total_max_new_tokens = sum(r.sampling_params.max_new_tokens for r in r || 
+scheduler.py:5251-5251 | self.new_token_ratio_tracker.current = new_token_ratio || 
+scheduler.py:5273-5273 | self.new_token_ratio_tracker.decay_step() || 
+new_token_ratio_tracker.py:37-38 | def reset(self) -> None: || self.current = self.init
+environ.py:708-710 | SGLANG_INIT_NEW_TOKEN_RATIO = EnvFloat(0.7) || SGLANG_NEW_TOKEN_RATIO_DECAY_STEPS = EnvInt(600)
+new_token_ratio_tracker.py:22-35 | init = min( || self.current = max(self.current - self.decay, self
+scheduler.py:6119-6120 | # reset token ratio || self.new_token_ratio_tracker.reset()
+scheduler.py:4411-4411 | running_batch.merge_batch(last_batch) || 
+schedule_batch.py:3495-3495 | def merge_batch(self, other: ScheduleBatch): || 
+scheduler.py:4383-4396 | if last_batch.chunked_req is not None: || 
+scheduler.py:4383-4456 | if last_batch.chunked_req is not None: || ret = None
+scheduler.py:4596-4661 | self._add_request_to_queue(req) || )
+scheduler.py:4636-4636 | # A chunked request skips this check: it keeps its req_to_token row ac || 
+scheduler.py:4772-4895 | for req in candidates: || break
+schedule_policy.py:2243-2323 | prefix_len = req.prefix_len + host_hit_length || and self.memory_budget.requires_final_shape_check
+prefill_budget.py:144-171 | def _available_and_evictable(self): || return self.remaining_total > 0 and self.remaining
+prefill_budget.py:193-217 | def check_prefill( || def can_allocate_prefill(
+prefill_budget.py:283-311 | def reserve( || 
+scheduler.py:5198-5232 | finishing_reqs = self._reqs_finishing_inflight(batch) || new_available_tokens = self.token_to_kv_pool_alloc
+scheduler.py:5268-5282 | logger.warning(msg_prefix + msg_details) || batch.prepare_for_decode()
+schedule_batch.py:3019-3060 | def retract_decode( || else:
+schedule_policy.py:343-390 | policy = self._determine_active_policy(waiting_queue) || raise ValueError(f"Unknown CacheAware Policy: {pol
+environ.py:708-711 | SGLANG_INIT_NEW_TOKEN_RATIO = EnvFloat(0.7) || SGLANG_RETRACT_DECODE_STEPS = EnvInt(20)
+scheduler.py:3936-3936 | move([req], self.waiting_queue) || 
+schedule.py:77-77 | max_prefill_tokens: A[ || 
