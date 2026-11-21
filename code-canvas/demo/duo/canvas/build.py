@@ -4,9 +4,10 @@
 #   outdir 默认是内容目录（不给 --content 时就是本脚本所在目录）；多人并行时各自给不同的 outdir，互不覆盖。
 #   --strict：有未填槽位 / WARN / 模块出错时退出码 1（最终装配时用）。
 #   --content <目录>：换一个项目。content_*.py 从那个目录读，舞台（cv / 模板 / 自检）还是本目录这一套。
-#       那个目录里没有 content_a.py 时是「只有机器图」的项目：只读 content_scene.py（META + root(base)），只出 scene.html。
+#       那个目录里没有 content_a.py 时是「顶层是机器图」的项目：content_scene.py 给 META + root(base)，只出 scene.html。
+#       下层各页（又一张机器图 / 源码页）放在 root(base) 返回的 children 里，或用 cv.slot 留给别的 content_*.py 填。
 # 代码一律由本脚本按「文件:行号」从 git HEAD 取，内容文件里不写任何代码正文。
-# 装配：content_a.py 导出 META + root()；树里的 cv.slot(id) 由其它 content_*.py 的
+# 装配：顶层模块（content_a.py，或顶层是机器图时的 content_scene.py）给 META + 树；树里的 cv.slot(id) 由其它 content_*.py 的
 #       nodes() -> {槽位id: 节点} 填；没人填 / 模块出错 / 内容构建失败 → 「未展开」占位页。
 import sys, os, re, json, html, glob, subprocess, importlib, traceback
 
@@ -46,7 +47,7 @@ import cv  # noqa: E402
 if CONTENT != HERE:         # 别的项目：内容模块只从它自己的目录找（cv 已经载入；本目录那几份 content_*.py 不能混进去）
     sys.path.remove(HERE)
     sys.path.insert(0, CONTENT)
-SLOTS = {} if SCENE_ONLY else cv.SLOTS      # 槽位表目前还写在 cv.py 里（是第一个项目的）；只有机器图的项目没有槽位
+SLOTS = {}      # 槽位的默认标题。舞台自己不带任何项目的表：每次构建从项目的顶层模块读（没写就是空的）
 
 # ------------------------------------------------------------------ 仓库读取（只读 HEAD）
 _files, _cinfo = {}, {}
@@ -746,14 +747,27 @@ def set_meta(meta):
     WHO[:] = list(META['who'])
 
 
+def set_slots(mod):
+    """项目自己的槽位表（可选）：顶层模块里的 SLOTS = {槽位id: 默认标题}。"""
+    t = getattr(mod, 'SLOTS', None) or {}
+    if not isinstance(t, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in t.items()):
+        raise BuildError('SLOTS 要是 {槽位id: 默认标题} 的字典')
+    SLOTS.clear()
+    SLOTS.update(t)
+
+
 def fallback_root():
-    return cv.node('root', '全景', '（content_a 出错，这是临时骨架）', '总架构模块没能加载，下面只按槽位表列出各节。',
-                   children=[cv.slot(k) for k in SLOTS])
+    # 顶层模块坏了：项目的表读到了就按表列，没读到就列各模块实际提供的那几节
+    ids = list(SLOTS) or sorted(PROVIDERS)
+    return cv.node('root', '全景', '（顶层模块出错，这是临时骨架）', '顶层模块没能加载，下面只把各模块提供的节列出来。',
+                   children=[cv.slot(k) for k in ids])
 
 
 def scene_only_root():
-    # 只有机器图的项目：META 和顶层那一页都由 content_scene.py 给；没有下层各页
+    # 顶层是机器图的项目：META 和顶层那一页都由 content_scene.py 给。
+    # 下层各页（可以又是机器图，也可以是源码页）放在 root(base) 返回的 children 里，或用 slot 交给别的模块填。
     cs = importlib.import_module('content_scene')
+    set_slots(cs)
     meta = dict(getattr(cs, 'META', None) or {})
     if not isinstance(meta.get('title'), str) or not meta['title'].strip():
         raise BuildError("content_scene.py 里要有 META = dict(title='这一页的标题')")
@@ -788,6 +802,7 @@ def main(scene=False):
             meta_ok = True
         else:
             ca = importlib.import_module('content_a')
+            set_slots(ca)
             set_meta(dict(ca.META))
             meta_ok = True
             root_raw = ca.root()
@@ -914,21 +929,41 @@ def main(scene=False):
         print('机器图 → %s（%.0f KB）' % (os.path.join(OUT, 'scene.html'), ssize))
         print('部件 %d  连线 %d  说明卡 %d  推演 %d 步；锚点条目 %d  提交 %d' % (
             SC_STAT['parts'], SC_STAT['wires'], SC_STAT['cards'], SC_STAT['steps'], len(anchors), len(COMMITS)))
-        if not SC_STAT['parts']:
+        no_top = not any(b['t'] == 'scene' for b in root['blocks'])
+        if no_top:
             print('!! content_scene.root() 给的顶层内容里没有 scene(...) 块')
         if a_err:
             print('!! content_scene 出错，这次顶层用的是临时骨架：%s' % a_err)
-        mine = [w for w in WARN if w[0] == amod]
-        if SCENE_ONLY:
-            print('这个项目只有机器图，没有下层页面：part / wire 不要写 to=。')
-        else:
+        if len(tree) > 1:
             print('下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：')
+        else:
+            print('目前只有顶层这一屏，没有下层页面：part / wire 的 to= 没有可指的地方（要加下层见 SCENE.md 第 8 节）。')
         for ln in tree[1:]:
             print('  ' + ln)
-        print('WARN %d 条（只列机器图自己的）' % len(mine))
-        for mod, nid, msg in mine:
+        if not SCENE_ONLY:
+            # 有 content_a 的项目：别的模块的问题在上一遍（canvas.html）已经报过，这里只列机器图自己的
+            mine = [w for w in WARN if w[0] == amod]
+            print('WARN %d 条（只列机器图自己的）' % len(mine))
+            for mod, nid, msg in mine:
+                print('WARN [%s] [%s] %s' % (mod, nid, msg))
+            return bool(a_err or mine or no_top)
+        # 顶层是机器图的项目：这是唯一的一遍，所有模块的问题都在这里报
+        unfilled = [s for s, m in PLACED.items() if not m]
+        if PLACED:
+            print('已填槽位 %d：%s' % (len(PLACED) - len(unfilled), ' '.join('%s←%s' % (s, m) for s, m in PLACED.items() if m) or '（无）'))
+            print('未填槽位 %d：%s' % (len(unfilled), ' '.join(unfilled) or '（无）'))
+        if moderr:
+            print('!! 模块出错 %d 个（它们的槽位按未填处理）：' % len(moderr))
+            for name, msg in moderr:
+                print('   ERROR [%s] %s' % (name, msg))
+        if SLOT_ERR:
+            print('!! 槽位内容构建失败 %d 个（按未填处理）：' % len(SLOT_ERR))
+            for sid, name, msg in SLOT_ERR:
+                print('   ERROR [%s] [%s] %s' % (name, sid, msg))
+        print('WARN %d 条%s' % (len(WARN), '（格式：WARN [模块] [节点id] 说明）' if WARN else ''))
+        for mod, nid, msg in WARN:
             print('WARN [%s] [%s] %s' % (mod, nid, msg))
-        return bool(a_err or mine or not SC_STAT['parts'])
+        return bool(a_err or no_top or unfilled or moderr or SLOT_ERR or WARN)
 
     with open(os.path.join(HERE, 'template.html'), encoding='utf-8') as fh:
         tpl = fh.read()

@@ -28,6 +28,29 @@ META = dict(
 )
 
 
+# 这个项目的槽位表：id -> 默认标题。下面的树用 slot(id) 把它们挂进去，
+# 各内容模块 content_<名字>.py 的 nodes() 返回 {槽位id: node(...)} 来填。
+SLOTS = {
+    'gate': '安全闸：什么时候干脆不淘汰',
+    'acct': '算账：到底超了多少',
+    'resize': '旁路：哈希表扩容之前先问一句',
+    'policy': '策略是一组位标志',
+    'clock': '打分的原料：对象头里的 24 位',
+    'pool': '候选池：16 个格子，跨调用保留',
+    'loop': '主循环怎么用池',
+    'random': '随机策略：不经过池',
+    'bless': 'BLESS：永不淘汰的 key',
+    'delete': '删：一个 key 怎么被删掉并通知出去',
+    'tick16': '每删 16 个 key 停下来做三件事',
+    'budget': '时间预算怎么算',
+    'exit': '出口：等一等、宽限、记指标',
+    'fail': 'EVICT_FAIL 之后：谁被拒，脚本怎么办',
+    'why': '宏观：为什么设计成这样',
+    'improve': '可改进处',
+    'unknown': '没查到为什么',
+}
+
+
 def _panorama():
     return diagram(
         860, 396,
