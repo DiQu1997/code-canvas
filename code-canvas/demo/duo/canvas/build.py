@@ -840,7 +840,7 @@ def main(scene=False):
         if t in SLOTS:
             WARN.append((OWNER.get(f, '?'), f, '内链指向槽位 %s，但总架构的树里还没放它；链接暂时点不动' % t))
         else:
-            WARN.append((OWNER.get(f, '?'), f, '内链指向不存在的节点 %s（拼错了？或那一页别人还没写）；页面上显示成红色断链' % t))
+            WARN.append((OWNER.get(f, '?'), f, '内链指向不存在的节点 %s（拼错了？或那一页别人还没写）；正文里的链接会显示成红色断链，说明卡上的「钻进去」按钮不会出现' % t))
 
     def navname(i):
         return NAV.get(i) or re.split('[：:]', SLOTS.get(i, i))[0]
