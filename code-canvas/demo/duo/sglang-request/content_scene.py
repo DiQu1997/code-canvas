@@ -98,7 +98,8 @@ def root(base):
                  ['校验失败的请求**也入队**：先标成中止再入队，不会被算，但会沿正常的输出通道把原因送回去'
                   '（`python/sglang/srt/managers/scheduler.py:3684-3686`）——推断：这样主进程只需要一种接收方式。',
                   '多卡张量并行时只有 rank 0 有 ZMQ 收发口，收到后广播给其他 rank，所以每个 rank 做出同样的批决定。',
-                  '默认不把 prefill 和 decode 混进同一次前向（`enable_mixed_chunk` 默认关）。'])),
+                  '默认不把 prefill 和 decode 混进同一次前向（`enable_mixed_chunk` 默认关）。']),
+             to='schedloop'),
 
         part('gpu', 'GPU 前向采样', [1055, 30, 155, 124], m=[76, 778, 188, 124],
              kind='act', n='4',
@@ -479,4 +480,5 @@ def root(base):
                             cap='主路：默认配置、单机单卡、`POST /v1/chat/completions`、`stream: true`、纯文本模型。'
                                 '图上的数（rid、18 个 token、151645 等）是讲解设定的，只用来走一遍流程。'
                                 '小图一开始显示的是 A 刚出第 2 个 token「是」那一刻。')]
+    base['children'] = [slot('schedloop', '③ 调度循环里面')]
     return base
