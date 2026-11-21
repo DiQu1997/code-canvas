@@ -4,29 +4,30 @@ from cv import *
 # 事实全部来自 demo/duo/manuscript.md；例子里的数（内存、空闲时长、用时）是编的，只用来走一遍流程。
 
 # ---------------------------------------------------------------- 例子用的小图（推演会换）
-POOL0 = g_cells([cell('x', '600s'), cell('g', '2.5h')], left='上轮剩 2 个', right='14 格空')
+POOL0 = g_cells([cell('x', '600s'), cell('g', '2.5h')], right='+14 空格')
 POOL1 = g_cells([cell('c', '5s', 'new'), cell('a', '12s', 'new'), cell('b', '340s', 'new'), cell('x', '600s'),
-                 cell('e', '860s', 'new'), cell('d', '2h', 'new'), cell('g', '2.5h')], left='分低', right='9 格空')
+                 cell('e', '860s', 'new'), cell('d', '2h', 'new'), cell('g', '2.5h')], right='+9 空')
 POOL2 = g_cells([cell('c', '5s'), cell('a', '12s'), cell('b', '340s'), cell('x', '600s'),
-                 cell('e', '860s'), cell('d', '2h', 'pick'), cell('g', '幽灵', 'out')], left='分低', right='分高')
+                 cell('e', '860s'), cell('d', '2h', 'pick'), cell('g', '幽灵', 'out')], right='+9 空')
 POOL3 = g_cells([cell('c', '5s'), cell('a', '12s'), cell('b', '340s'), cell('x', '600s'),
-                 cell('e', '860s')], left='分低', right='11 格空')
+                 cell('e', '860s')], right='+11 空')
 
 
 def root(base):
     base['lead'] = ('一条写命令执行之前，Redis 先算账；超了就「随机抽几个 key → 打分 → 放进候选池 → 删最该删的」，'
-                    '一个一个删到账平、或时间用完。图上每个框、每条线都能点开；按 ▶ 拿一个例子走一遍。')
+                    '一个一个删到账平、或时间用完。三个设计记住就够：**只抽样不排全队**（省内存）、**限时分轮删**（不卡住服务器）、'
+                    '**发 DEL 占的缓冲不记账**（防越删越多）。每个框、每条线都能点开；按 ▶ 拿一个例子走一遍。')
 
     parts = [
-        part('cmd', '命令入口', [20, 20, 200, 160], m=[8, 8, 150, 140], code='processCommand', kind='ext', n='1',
+        part('cmd', '命令入口', [20, 20, 180, 160], m=[8, 8, 150, 140], code='processCommand', kind='ext', n='1',
              glyph=g_text('SET user:42', '到了，先不执行'),
              say='命令到了，先腾内存再执行', why='作者定的：在命令执行前调用', trap='命令执行中涨多少都不拦',
              card=card(
                  '每条命令真正执行之前，入口先调 `performEvictions()` 腾内存，再看它的结论决定这条命令能不能执行。',
                  ['先踢掉输出缓冲太大的客户端（另一套机制），再淘汰 key（`src/server.c:4936`）。',
-                  '只在设了 maxmemory 时才进来；淘汰完马上把客户端缓存的失效消息发掉，免得失效消息排到新回复后面。',
-                  '全仓库只有两处调用淘汰：这里，和一个按需挂上的定时器（见右下「三种结论」那条回环线）。'],
-                 [note('注释', '「在命令执行之前调用」是作者写明的契约：要拒写，只能在执行前拒。',
+                  '只在设了 maxmemory 时才进来；淘汰完马上把客户端缓存的失效消息发掉，免得「旧值的失效消息」排到对这个 key 的新操作之后。',
+                  '全仓库只有两处调用淘汰：这里，和一个按需挂上的定时器（见「三种结论」框下面那条虚线回环）。'],
+                 [note('注释', '「在命令执行之前调用，FAIL 时拒绝会涨内存的命令」是作者写明的契约。',
                        q='This should be called before execution of commands.', ref='src/evict.c:534-536'),
                   note('提交', '先踢客户端：别让「客户端缓冲吃掉的内存」让数据背锅。',
                        q='This prevents eviction or OOM caused by accumulated used memory between all clients.',
@@ -35,7 +36,7 @@ def root(base):
                        q="It's possible for Redis to suddenly be significantly over the", ref='src/evict.c:522-526')]),
              to='trig.cmd'),
 
-        part('acct', '算账', [340, 20, 210, 170], m=[80, 210, 180, 180], code='getMaxmemoryState', kind='gate', n='2',
+        part('acct', '算账', [350, 20, 190, 170], m=[80, 210, 180, 180], code='getMaxmemoryState', kind='gate', n='2',
              glyph=g_gauge(102, 100, total=110, label='105 − 3 = 102', unit='MB'),
              say='扣掉缓冲再比，超多少删多少', why='缓冲不算，防越删越超', trap='比的不是进程内存',
              card=card(
@@ -54,7 +55,7 @@ def root(base):
                        q="it's a fake EVICT_OK.", ref='src/evict.c:544-545')]),
              to=['acct', 'gate']),
 
-        part('buf', '待发缓冲', [340, 480, 210, 130], m=[238, 8, 100, 140], kind='bg',
+        part('buf', '待发缓冲', [350, 480, 190, 130], m=[238, 8, 100, 140], kind='bg',
              glyph=g_kv([('复制', '2.6MB'), ('AOF', '0.4MB')]),
              say='合计 3MB，不计入', why='不算它，防死循环', trap='它真占内存，要留余量',
              card=card(
@@ -74,9 +75,8 @@ def root(base):
                        ref='redis.conf:1257-1259')]),
              to='acct.deduct'),
 
-        part('sample', '抽样打分', [670, 20, 210, 170], m=[80, 450, 180, 170], code='evictionPoolPopulate', kind='act', n='3',
-             glyph=g_cells([cell('a', '12s'), cell('b', '340s'), cell('c', '5s'), cell('d', '2h'), cell('e', '860s')],
-                           left='随机抓 5 个', right='分=空闲时长'),
+        part('sample', '抽样打分', [690, 20, 190, 170], m=[80, 450, 180, 170], code='evictionPoolPopulate', kind='act', n='3',
+             glyph=g_cells([cell('a', '12s'), cell('b', '340s'), cell('c', '5s'), cell('d', '2h'), cell('e', '860s')]),
              say='随机抓 5 个 key，按策略打分', why='不排全局队，只抽样：省内存', trap='删的是抽到里最差的，非全局',
              card=card(
                  '从键空间里随机抓几个 key（默认 5 个，`maxmemory-samples`），按策略算一个「越大越该删」的分，交给候选池。',
@@ -97,12 +97,12 @@ def root(base):
                        ref='src/evict.c:160-162')]),
              to='pool.populate'),
 
-        part('pool', '候选池', [990, 20, 210, 170], m=[80, 680, 180, 170], code='EvictionPoolLRU', kind='store', n='4',
+        part('pool', '候选池', [1030, 20, 180, 170], m=[80, 680, 180, 170], code='EvictionPoolLRU', kind='store', n='4',
              glyph=POOL0,
              say='16 格按分排好，从分高那头取', why='跨调用保留：没删的好候选不浪费', trap='池里的 key 可能已经不存在',
              card=card(
                  '一个全局唯一的 16 格数组，按淘汰分从低到高排着「目前见过的最该删的 key」。每次要删，从分高的那头取。',
-                 ['新候选按分数插到合适的位置；池满了就挤掉分最低的，比池里所有人都差就直接丢。',
+                 ['新候选按分数插到合适的位置；池满时挤掉分最低的那个，比池里所有人都差的新候选直接丢。',
                   '格子里存的是 key 名字的**副本**，加上库号和分片号，不是指向数据的指针。',
                   '启动时分配一次，之后永不释放，跨多次淘汰调用一直保留。为什么是 16 格，讲稿没查到。'],
                  [note('提交', '池跨调用保留，存着「至今找到的最佳候选」：同样的抽样数，更接近真 LRU。',
@@ -119,14 +119,14 @@ def root(base):
                   note('推断', '池没满时，空格在右边：「分高那头」是已填的最右一格，不是第 16 格（按插入代码推的）。')]),
              to=['pool', 'pool.demo']),
 
-        part('del', '删除并广播', [990, 260, 210, 160], m=[80, 910, 180, 160], kind='act', n='5',
+        part('del', '删除并广播', [1030, 260, 180, 160], m=[80, 910, 180, 160], kind='act', n='5',
              glyph=g_kv([('删', 'd'), ('释放', '64 KB'), ('广播', 'DEL d')]),
              say='删掉它，量释放量，DEL 发出去', why='删不删由主库一家说了算', trap='DEL 此刻只是排进队列',
              card=card(
-                 '把选中的 key 从数据库里摘掉，量出这一下释放了多少字节，然后马上把这一个 key 的 DEL 发给 AOF 和副本，并通知订阅者。',
+                 '把选中的 key 从数据库里摘掉，量出这一下释放了多少字节，然后马上把这一个 key 的 DEL 交给传播流程（去 AOF 和副本），并通知订阅者。',
                  ['包在一个「执行单元」里：删除 → 发 `evicted` 事件 → 让客户端缓存失效 → DEL 排进待传播队列；单元结束时才真正写进 AOF / 复制缓冲。',
                   '释放量只量「从表里删」这一步：删前删后各读一次（已用 − 不计入的缓冲）。',
-                  '默认在主线程当场释放；开了 `lazyfree-lazy-eviction`（默认关）且对象够大，才交给后台线程释放，这时传出去的是 UNLINK。',
+                  '默认在主线程当场释放；开了 `lazyfree-lazy-eviction`（默认关），传出去的就改成 UNLINK，但只有对象够大才真交给后台线程释放。',
                   '每删一个就收尾一次，所以副本收到的是一条条独立的 DEL，不会被包成 MULTI/EXEC。'],
                  [note('注释', '淘汰当成一条普通删除发给副本：删除集中在一处，AOF 和复制链路都保证顺序，所以处处一致。',
                        q='This way the key deletion is centralized in one place, and since both AOF and the replication link guarantee operation ordering',
@@ -140,13 +140,13 @@ def root(base):
                        q='mem_freed can be negative when', ref='c:37fd3d40a')]),
              to='delete'),
 
-        part('gate', '够了吗？超时吗？', [670, 260, 210, 160], m=[80, 1130, 180, 170], code='keys_freed % 16', kind='gate', n='6',
-             glyph=g_checks([('已腾 ≥ 2MB？', None), ('用时 > 500µs？', None)]),
+        part('gate', '够了吗？超时吗？', [690, 260, 190, 160], m=[80, 1130, 180, 170], code='keys_freed % 16', kind='gate', n='6',
+             glyph=g_checks([('腾够 2MB 了？', None), ('超过 500µs 了？', None)]),
              say='没够就接着删；每 16 个看一次表', why='限时：宁可分几轮，也不卡住', trap='预算到了也要删满 16 个才知道',
              card=card(
                  '决定这一轮是接着删、暂停交给定时器，还是收工。',
                  ['每删一个 key 都比一次：累计释放量够了 `mem_tofree` 就退出循环。',
-                  '每删满 16 个，停下来做三件比较贵的事：把复制缓冲强行写到网络上（淘汰占着主线程，事件循环发不出去）；开了后台释放时重算一次总账；看表——超过时间预算就挂定时器、退出。',
+                  '每删满 16 个，停下来做三件比较贵的事：有副本时把复制缓冲强行写到网络上（淘汰占着主线程，事件循环发不出去）；开了后台释放时重算一次总账；看表——超过时间预算就挂定时器、退出。',
                   '时间预算由 `maxmemory-eviction-tenacity` 换算：默认 10 → 500 微秒；100 = 不限时。'],
                  [note('注释', '限时是为了不让服务器在淘汰时失去响应。',
                        q="it's important to evict for a managed period of time - otherwise Redis would become unresponsive while evicting.",
@@ -159,7 +159,7 @@ def root(base):
                   '老提交说明里写的是「每 10 个」，现在的代码是 16；何时、为何改的，讲稿没追到。']),
              to='main.skel'),
 
-        part('result', '三种结论', [20, 260, 200, 160], m=[80, 1360, 180, 160], code='EVICT_*', kind='out', n='7',
+        part('result', '三种结论', [20, 260, 180, 160], m=[80, 1360, 180, 160], code='EVICT_*', kind='out', n='7',
              glyph=g_list(['OK：没超 / 删够了', 'RUNNING：还在删', 'FAIL：删不动'], on=None),
              say='只有 FAIL 才拒写命令', why='目标是改善，不是立刻解决', trap='还超着限，也可能放行写命令',
              card=card(
@@ -182,7 +182,7 @@ def root(base):
     ]
 
     wires = [
-        wire('w_call', 'cmd', 'acct', '执行前先算账', n='1', why='先腾内存，再决定执不执行',
+        wire('w_call', 'cmd', 'acct', '执行前先算账', why='先腾内存，再决定执不执行',
              fs='r', ts='l', mfs='b', mts='t', mlp=[110, 166],
              card=card(
                  '入口调用 `performEvictions()`。全仓库只有两个调用点：这里和定时器回调，都在主线程。',
@@ -195,7 +195,7 @@ def root(base):
              to='trig.cmd'),
 
         wire('w_buf', 'buf', 'acct', '这笔不算', why='算进去会越删越多', trap='内存其实没少',
-             fs='t', ts='b', mfs='b', mts='t', mlp=[268, 186],
+             fs='t', ts='b', mfs='b', mts='t', lp=[445, 452], mlp=[268, 186],
              card=card(
                  '算账时把这几项缓冲从已用内存里减掉。',
                  ['已用 − 缓冲（减成负数就取 0），再和上限比。哈希表扩容前的检查也用同一个口径。'],
@@ -206,7 +206,7 @@ def root(base):
                  '减掉的只是账面，这部分内存真实存在，也不受 maxmemory 约束。'),
              to='acct.deduct.repl'),
 
-        wire('w_need', 'acct', 'sample', '超 2MB，去挑', ml='超了去挑', n='2', why='目标：刚好回到线上',
+        wire('w_need', 'acct', 'sample', '超 2MB，去挑', ml='超了去挑', why='目标：刚好回到线上',
              fs='r', ts='l', mfs='b', mts='t',
              card=card(
                  '账超了：带着 `mem_tofree`（例子里 2 MB）进主循环，一个一个地删，直到累计释放量够了。',
@@ -217,7 +217,7 @@ def root(base):
                  '没有低水位：只删到刚好不超，持续写入时几乎每条写命令都会再进来淘汰（讲稿第 8 节的看法）。'),
              to='main.skel'),
 
-        wire('w_ins', 'sample', 'pool', '按分数插队', n='3', why='比池里都差就直接丢',
+        wire('w_ins', 'sample', 'pool', '按分数插队', why='比池里都差就直接丢',
              fs='r', ts='l', mfs='b', mts='t',
              card=card(
                  '把打好分的候选按分数插进池子。',
@@ -229,12 +229,12 @@ def root(base):
                        ref='c:e64bf05f4')]),
              to='pool.populate.place'),
 
-        wire('w_pick', 'pool', 'del', '取分最高的', n='4', why='回库再查：幽灵就跳过', trap='取出就清格，查不到不放回',
+        wire('w_pick', 'pool', 'del', '取分最高的', why='回库再查：幽灵就跳过', trap='取出就清格，查不到不放回',
              fs='b', ts='t', mfs='b', mts='t',
              card=card(
                  '从分高的那头往回找，第一个「真的还在、也没被保护」的 key，就是这次要删的。',
                  ['拿池里存的名字回数据库再查一次；不管查没查到，这一格都清掉。',
-                  '查不到 = 幽灵（入池后被删掉、或被去掉了过期时间等），跳过，换下一个。查到了但入池后被 BLESS 保护了，也跳过。',
+                  '查不到 = 幽灵（入池后已经被删掉了），跳过，换下一个。查到了但入池后被 BLESS 保护了，也跳过。',
                   '池里一个能用的都没有：重新抽样灌池再取；什么都抽不到就放弃，结论是 FAIL。'],
                  [note('注释', '名字还在库里就是它；不在就是幽灵，换下一个。',
                        q='If the key exists, is our pick. Otherwise it is a ghost and we need to try the next element.',
@@ -244,7 +244,7 @@ def root(base):
                        q='so a key pooled while unblessed may since have been marked NO-EVICT.', ref='src/evict.c:659-662')]),
              to=['loop.take', 'loop.ghost']),
 
-        wire('w_tick', 'del', 'gate', '记一笔', n='5', why='每个都记，16 个一看',
+        wire('w_tick', 'del', 'gate', '记一笔', why='每个都记，16 个一看',
              fs='l', ts='r', mfs='b', mts='t',
              card=card(
                  '把这一个 key 的释放量加进累计 `mem_freed`，删除计数加 1。',
@@ -280,8 +280,8 @@ def root(base):
                  '这里就是正反馈的起点：DEL 让缓冲变大；要是缓冲算进账里，就得再删、再发 DEL……所以「算账」那一步把它减掉了。'),
              to='delete.prop'),
 
-        wire('w_ret', 'gate', 'result', '交出结论', n='6', why='定时器挂着就报 RUNNING',
-             fs='l', ts='r', mfs='b', mts='t', lp=[600, 318],
+        wire('w_ret', 'gate', 'result', '交出结论', why='定时器挂着就报 RUNNING',
+             fs='l', ts='r', mfs='b', mts='t', lp=[615, 330],
              card=card(
                  '循环结束，定下返回值。',
                  ['删够了或超时退出：定时器挂着就是 RUNNING，否则 OK。',
@@ -315,7 +315,7 @@ def root(base):
         beat('一条 SET 到了',
              '客户端发来 `SET user:42 …`。例子的设定：maxmemory = **100 MB**，策略 allkeys-lru，抽样数 5，'
              'tenacity 10（时间预算 **500 微秒**）。入口不急着执行，先调淘汰。',
-             note('注释', '作者要求在命令执行之前调用：要拒写，只能在执行前拒。',
+             note('注释', '作者写明：淘汰要在命令执行之前调用。',
                   q='This should be called before execution of commands.', ref='src/evict.c:534-536'),
              focus=['cmd', 'w_call']),
         beat('算账：超了 2 MB',
@@ -331,7 +331,7 @@ def root(base):
                   q='Redis uses an approximation of the LRU algorithm that runs in constant memory.', ref='src/evict.c:98-101'),
              focus=['w_need', 'sample'],
              state={'sample': g_cells([cell('a', '12s', 'new'), cell('b', '340s', 'new'), cell('c', '5s', 'new'),
-                                       cell('d', '2h', 'new'), cell('e', '860s', 'new')], left='随机抓 5 个', right='分=空闲时长')}),
+                                       cell('d', '2h', 'new'), cell('e', '860s', 'new')])}),
         beat('插进候选池',
              '池里还留着上一次的 2 个候选：x（600 秒）和 g（2.5 小时）。新来的 5 个按分数插队，池子变成 '
              'c · a · b · x · e · d · g，从低到高，右边还空 9 格。',
@@ -345,7 +345,7 @@ def root(base):
                   q='Otherwise it is a ghost and we need to try the next element.', ref='src/evict.c:655-656'),
              focus=['pool', 'w_pick'], state={'pool': POOL2}),
         beat('删 d，DEL 发出去',
-             'd 从表里摘掉，前后一量释放了 **64 KB**；随后发 evicted 事件、让客户端缓存失效，把 `DEL d` 排进 AOF 和复制缓冲。'
+             'd 从表里摘掉，前后一量释放了 **64 KB**；随后发 evicted 事件、让客户端缓存失效、把 `DEL d` 排进待传播队列，这一个 key 收尾时写进 AOF 和复制缓冲。'
              '缓冲多了一条 DEL，但这笔不进账，不会逼着多删。',
              note('注释', '只量删除这一步：传播 DEL 用的内存要是算进来，循环就停不下来。',
                   q="but we can't account for that otherwise we would never exit the loop.", ref='src/db.c:2995-3004'),
@@ -356,7 +356,7 @@ def root(base):
              '删满 **16 个**时看一次表：已腾 **1.0 MB**，用时 **260 微秒**，没超预算，继续。',
              note('推断', '攒 16 个才看一次表：看表、冲刷副本缓冲、重算总账都有成本，不必每个 key 都做。'),
              focus=['w_tick', 'gate', 'w_loop', 'sample'],
-             state={'gate': g_checks([('已腾 1.0 / 2MB', 'no'), ('用时 260 / 500µs', 'no')]),
+             state={'gate': g_checks([('腾够？1.0 / 2MB', 'no'), ('超时？260 / 500µs', 'no')]),
                     'del': g_kv([('已删', '16 个'), ('累计', '1.0 MB'), ('广播', '16 条 DEL')])}),
         beat('删到第 32 个：超时',
              '第 32 个时再看表：已腾 **1.8 MB**，还差 0.2 MB；但用时 **530 微秒**，超过 500 微秒的预算。'
@@ -365,7 +365,7 @@ def root(base):
                   q="it's important to evict for a managed period of time - otherwise Redis would become unresponsive while evicting.",
                   ref='src/evict.c:522-526'),
              focus=['gate', 'w_ret', 'result'],
-             state={'gate': g_checks([('已腾 1.8 / 2MB', 'no'), ('用时 530 / 500µs', 'ok')]),
+             state={'gate': g_checks([('腾够？1.8 / 2MB', 'no'), ('超时？530 / 500µs', 'ok')]),
                     'del': g_kv([('已删', '32 个'), ('累计', '1.8 MB'), ('广播', '32 条 DEL')]),
                     'acct': g_gauge(100.2, 100, total=110, label='还超 0.2', unit='MB'),
                     'result': g_list(['OK：没超 / 删够了', 'RUNNING：还在删', 'FAIL：删不动'], on=1)}),
@@ -394,7 +394,7 @@ def root(base):
                     'result': g_list(['OK：没超 / 删够了', 'RUNNING：还在删', 'FAIL：删不动'], on=2)}),
     ]
 
-    groups = [group('主循环：每删一个 key 转一圈', [652, 4, 562, 432], m=None)]
+    groups = [group('主循环：每删一个 key 转一圈', [672, 4, 542, 432], m=None)]
 
     base['blocks'] = [scene(1220, 630, parts, wires, steps, mw=340, mh=1640, groups=groups,
                             cap='例子里的数（内存、空闲时长、用时）是编的，只用来走一遍流程；机制和「为什么」以讲稿为准。')]
