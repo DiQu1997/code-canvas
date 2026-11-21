@@ -632,11 +632,27 @@ def main():
     with open(os.path.join(OUT, 'anchors.json'), 'w', encoding='utf-8') as fh:
         json.dump(anchors, fh, ensure_ascii=False, indent=0)
 
+    # v2：同一份数据再出一张「可缩放画布」zoom.html（相机用 vendor 里的 D3，内嵌进页面，仍是单文件）
+    zsize = 0
+    ztp, d3p = os.path.join(HERE, 'template_zoom.html'), os.path.join(HERE, 'vendor', 'd3.v7.9.0.min.js')
+    if os.path.exists(ztp) and os.path.exists(d3p):
+        with open(ztp, encoding='utf-8') as fh:
+            ztpl = fh.read()
+        with open(d3p, encoding='utf-8') as fh:
+            d3src = fh.read().replace('</script', '<\\/script')
+        # 顺序不能换：先塞 D3，再标题，数据最后（数据里出现什么字样都不会再被替换）
+        zpage = ztpl.replace('__D3__', d3src).replace('__TITLE__', html.escape(META['title'])).replace('__DATA__', blob)
+        with open(os.path.join(OUT, 'zoom.html'), 'w', encoding='utf-8') as fh:
+            fh.write(zpage)
+        zsize = len(zpage.encode('utf-8')) / 1024
+
     filled = ['%s←%s' % (s, m) for s, m in PLACED.items() if m]
     unfilled = [s for s, m in PLACED.items() if not m]
     unplaced = [s for s in cv.SLOTS if s not in PLACED]
     print('构建完成 → %s（%.0f KB）+ anchors.json；仓库 HEAD %s' % (
         os.path.join(OUT, 'canvas.html'), len(page.encode('utf-8')) / 1024, head))
+    if zsize:
+        print('可缩放画布 → %s（%.0f KB，其中 D3 约 %.0f KB）' % (os.path.join(OUT, 'zoom.html'), zsize, os.path.getsize(d3p) / 1024))
     print('节点 %d（其中占位 %d）  最大深度 %d  代码块 %d（共 %d 段）  批注 %d  锚点条目 %d  提交 %d' % (
         st['nodes'], st['stubs'], st['depth'], st['blocks'], st['segs'], st['notes'], len(anchors), len(COMMITS)))
     print('已填槽位 %d：%s' % (len(filled), ' '.join(filled) or '（无）'))
