@@ -249,6 +249,225 @@ def chk_rect(r, W, H, what, cx, need):
         warn(cx, '%s=%r 超出画布 %dx%d，超出部分会被裁掉' % (what, list(r), W, H))
 
 
+# ------------------------------------------------------------------ 机器图（scene）
+SC_KINDS = ('act', 'store', 'ext', 'bg', 'gate', 'out')
+SC_SIDES = ('l', 'r', 't', 'b')
+SC_GLYPHS = ('cells', 'gauge', 'list', 'kv', 'checks', 'text', 'raw')
+CARD_KEYS = (('does', '这里是干什么的'), ('how', '怎么设计的'), ('why', '为什么这么设计'))
+ITEM_MAX, WLABEL_MAX, WONE_MAX = 220, 12, 18
+SC_STAT = dict(parts=0, wires=0, steps=0, cards=0)
+
+
+def plain_w(s):
+    """去掉迷你语法记号后的显示宽度（汉字算 1，其余算 0.5）。"""
+    s = re.sub(r'\[\[[^\]|]*\|([^\]]*)\]\]', r'\1', s)
+    return width(s.replace('`', '').replace('**', ''))
+
+
+def do_glyph(g, cx, what):
+    if g is None:
+        return None
+    if not isinstance(g, dict) or g.get('g') not in SC_GLYPHS:
+        raise BuildError('%s 的 glyph 要用 cv.g_cells / g_gauge / g_list / g_kv / g_checks / g_text / g_raw 来造' % what)
+    k = g['g']
+    if k == 'cells':
+        cells = []
+        for c in g['cells']:
+            if not isinstance(c, dict) or 'v' not in c:
+                raise BuildError('%s 的 g_cells 里每个格子要用 cv.cell(k, v, s)' % what)
+            cells.append(dict(k=c.get('k'), v=str(c.get('v', '')), s=c.get('s')))
+        return dict(g=k, cells=cells, left=g.get('left'), right=g.get('right'))
+    if k == 'gauge':
+        for f in ('used', 'limit'):
+            if not isinstance(g.get(f), (int, float)):
+                raise BuildError('%s 的 g_gauge 的 %s 要是数字' % (what, f))
+        tot = g.get('total') or max(g['used'], g['limit']) * 1.15 or 1
+        return dict(g=k, used=g['used'], limit=g['limit'], total=tot, label=fmt(g.get('label'), cx), unit=g.get('unit') or '')
+    if k == 'list':
+        return dict(g=k, rows=[fmt(r, cx) for r in g['rows']], on=[i for i in g.get('on') or [] if isinstance(i, int)])
+    if k == 'kv':
+        return dict(g=k, rows=[[fmt(str(r[0]), cx), fmt(str(r[1]), cx)] for r in g['rows']])
+    if k == 'checks':
+        rows = []
+        for r in g['rows']:
+            if r[1] not in ('ok', 'no', 'skip', None):
+                raise BuildError("%s 的 g_checks 状态只能是 'ok' / 'no' / 'skip' / None" % what)
+            rows.append([fmt(str(r[0]), cx), r[1]])
+        return dict(g=k, rows=rows)
+    if k == 'text':
+        return dict(g=k, big=html.escape(str(g['big'])), small=fmt(g.get('small'), cx), tone=g.get('tone'))
+    return dict(g=k, html=str(g.get('html') or ''))
+
+
+def do_items(lst, cx, counter, what):
+    out = []
+    for it in lst or []:
+        if isinstance(it, str):
+            if len(it) > ITEM_MAX:
+                warn(cx, '%s 有一段 %d 字（上限 %d），拆成两条' % (what, len(it), ITEM_MAX))
+            out.append(dict(t='p', html=fmt(it, cx)))
+        elif isinstance(it, dict) and it.get('t') == 'note':
+            out.append(do_note(it, cx, counter))
+        else:
+            raise BuildError('%s 的条目只能是一段字或 cv.note(...)' % what)
+    return out
+
+
+def do_card(c, cx, counter, what):
+    if not isinstance(c, dict):
+        warn(cx, '%s 没有说明卡（每个部件、每条连线都要 card(干什么, 怎么设计, 为什么这么设计)）' % what)
+        return None
+    r = dict((k, do_items(c.get(k), cx, counter, '%s 的说明卡' % what)) for k in ('does', 'how', 'why', 'traps'))
+    for k, nm in CARD_KEYS:
+        if not r[k]:
+            warn(cx, '%s 的说明卡缺「%s」一栏' % (what, nm))
+    for it in r['why']:
+        if it['t'] != 'note':
+            warn(cx, '%s 的说明卡「为什么这么设计」里有一条没标依据等级（要用 note(等级, …)）' % what)
+    SC_STAT['cards'] += 1
+    return r
+
+
+def do_scene(b, cx, counter):
+    W, H, mw, mh = b['w'], b['h'], b.get('mw'), b.get('mh')
+    for v in (W, H):
+        if not isinstance(v, (int, float)) or v <= 0:
+            raise BuildError('机器图的 w / h 要是正数')
+    if (mw is None) != (mh is None):
+        raise BuildError('机器图的 mw / mh 要么都给要么都不给')
+    if not mw:
+        warn(cx, '机器图没给手机画幅（mw / mh + 每个部件的 m）：手机上会把桌面版整体缩小，字会很小')
+    ids, parts, wires = {}, [], []
+
+    def one(s, what, budget):
+        if s is None:
+            return None
+        if not isinstance(s, str):
+            raise BuildError('%s 要是一句字' % what)
+        w_ = plain_w(s)
+        if w_ > budget:
+            warn(cx, '%s 太长（约 %.0f 字宽，这里放得下约 %d）：会被截断，缩成一句短话，长的放说明卡' % (what, w_, budget))
+        return fmt(s, cx)
+
+    def tos(x, what):
+        r = []
+        for i in x.get('to') or []:
+            if not isinstance(i, str) or not ID_RE.match(i):
+                raise BuildError('%s 的 to 要是节点 id' % what)
+            LINKS.append((cx.nid, i))
+            r.append(i)
+        return r
+
+    for x in b['parts']:
+        pid = x.get('id')
+        if not isinstance(pid, str) or not re.match(r'^[A-Za-z0-9_]+$', pid):
+            raise BuildError('部件 id 只能用字母数字下划线: %r' % (pid,))
+        if pid in ids:
+            raise BuildError('机器图里 id 重复: %s' % pid)
+        what = '部件 %s' % pid
+        if x.get('kind') not in SC_KINDS:
+            raise BuildError("%s 的 kind 只能是 %s" % (what, ' / '.join(SC_KINDS)))
+        chk_rect(x.get('d'), W, H, what + ' 的 d', cx, True)
+        if mw:
+            chk_rect(x.get('m'), mw, mh, what + ' 的 m', cx, True)
+        bw = min([r[2] for r in (x.get('d'), x.get('m') if mw else None) if r])
+        cap_ = max(4, int((bw - 22) // 13))
+        ids[pid] = 'p'
+        parts.append(dict(
+            id=pid, name=html.escape(str(x['name'])), code=x.get('code'), kind=x['kind'],
+            n=None if x.get('n') is None else str(x['n']), d=x['d'], m=x.get('m') if mw else None,
+            glyph=do_glyph(x.get('glyph'), cx, what),
+            say=one(x.get('say'), what + ' 的 say', 2 * cap_),
+            why=one(x.get('why'), what + ' 的 why', 2 * cap_ - 3),
+            trap=one(x.get('trap'), what + ' 的 trap', 2 * cap_ - 2),
+            card=do_card(x.get('card'), cx, counter, what), to=tos(x, what)))
+        if not x.get('say'):
+            warn(cx, '%s 没有 say（主流程图层下框底那句「它干什么」）' % what)
+
+    for key, lim_w, lim_h in (('d', W, H), ('m', mw, mh)):
+        rs = [(p_['id'], p_[key]) for p_ in parts if p_.get(key)]
+        for i in range(len(rs)):
+            for j in range(i + 1, len(rs)):
+                a_, b_ = rs[i][1], rs[j][1]
+                if a_[0] < b_[0] + b_[2] and b_[0] < a_[0] + a_[2] and a_[1] < b_[1] + b_[3] and b_[1] < a_[1] + a_[3]:
+                    warn(cx, '部件 %s 和 %s 的 %s 矩形叠在一起了' % (rs[i][0], rs[j][0], key))
+
+    for x in b['wires']:
+        wid = x.get('id')
+        if not isinstance(wid, str) or not re.match(r'^[A-Za-z0-9_]+$', wid):
+            raise BuildError('连线 id 只能用字母数字下划线: %r' % (wid,))
+        if wid in ids:
+            raise BuildError('机器图里 id 重复: %s' % wid)
+        what = '连线 %s' % wid
+        for end in ('f', 't'):
+            if ids.get(x.get(end)) != 'p':
+                raise BuildError('%s 的 %s=%r 不是图里的部件' % (what, end, x.get(end)))
+        for sd in ('fs', 'ts', 'mfs', 'mts'):
+            if x.get(sd) not in (None,) + SC_SIDES:
+                raise BuildError("%s 的 %s 只能是 'l' 'r' 't' 'b'" % (what, sd))
+        if x.get('cls') not in (None, 'dash'):
+            raise BuildError("%s 的 cls 只能是 'dash'" % what)
+        for key, lw, lh in (('lp', W, H), ('mlp', mw, mh)):
+            v = x.get(key)
+            if v is not None and not (isinstance(v, (list, tuple)) and len(v) == 2):
+                raise BuildError('%s 的 %s 要是 [x, y]' % (what, key))
+        if not x.get('label'):
+            raise BuildError('%s 没有 label' % what)
+        for key in ('label', 'ml'):
+            if x.get(key) and plain_w(x[key]) > WLABEL_MAX:
+                warn(cx, '%s 的 %s 太长（约 %.0f 字宽，上限 %d）：线上只放几个字，长的放说明卡' % (what, key, plain_w(x[key]), WLABEL_MAX))
+        wires.append(dict(
+            id=wid, f=x['f'], t=x['t'], label=html.escape(x['label']),
+            ml=None if x.get('ml') is None else html.escape(x['ml']),
+            n=None if x.get('n') is None else str(x['n']),
+            why=one(x.get('why'), what + ' 的 why', WONE_MAX), trap=one(x.get('trap'), what + ' 的 trap', WONE_MAX),
+            card=do_card(x.get('card'), cx, counter, what), to=tos(x, what),
+            fs=x.get('fs'), ts=x.get('ts'), mfs=x.get('mfs'), mts=x.get('mts'),
+            lp=x.get('lp'), mlp=x.get('mlp'), cls=x.get('cls')))
+        ids[wid] = 'w'
+
+    groups = []
+    for g in b.get('groups') or []:
+        chk_rect(g.get('d'), W, H, '分组框「%s」的 d' % g.get('label'), cx, True)
+        if mw and g.get('m') is not None:
+            chk_rect(g['m'], mw, mh, '分组框「%s」的 m' % g.get('label'), cx, True)
+        groups.append(dict(label=g['label'], d=g['d'], m=g.get('m') if mw else None))
+
+    steps = []
+    for i, s in enumerate(b.get('steps') or []):
+        what = '推演第 %d 步' % (i + 1)
+        if not isinstance(s.get('title'), str) or not isinstance(s.get('what'), str):
+            raise BuildError('%s 要有 title 和 what' % what)
+        if len(s['what']) > ITEM_MAX:
+            warn(cx, '%s 的 what 有 %d 字（上限 %d）' % (what, len(s['what']), ITEM_MAX))
+        for f in s.get('focus') or []:
+            if f not in ids:
+                raise BuildError('%s 的 focus 里 %r 不是图里的部件 / 连线' % (what, f))
+        wy = s.get('why')
+        if wy is None:
+            warn(cx, '%s 没写「为什么这样」' % what)
+        elif isinstance(wy, str):
+            warn(cx, '%s 的「为什么这样」没标依据等级（要用 note(等级, …)）' % what)
+            wy = dict(t='p', html=fmt(wy, cx))
+        elif isinstance(wy, dict) and wy.get('t') == 'note':
+            wy = do_note(wy, cx, counter)
+        else:
+            raise BuildError('%s 的 why 只能是一段字或 cv.note(...)' % what)
+        state = {}
+        for pid, g in (s.get('state') or {}).items():
+            if ids.get(pid) != 'p':
+                raise BuildError('%s 的 state 里 %r 不是图里的部件' % (what, pid))
+            state[pid] = do_glyph(g, cx, '%s 的 state[%s]' % (what, pid))
+        steps.append(dict(title=html.escape(s['title']), what=fmt(s['what'], cx), why=wy,
+                          focus=list(s.get('focus') or []), state=state))
+
+    SC_STAT['parts'] += len(parts)
+    SC_STAT['wires'] += len(wires)
+    SC_STAT['steps'] += len(steps)
+    return dict(t='scene', w=W, h=H, mw=mw, mh=mh, parts=parts, wires=wires, groups=groups,
+                steps=steps, cap=fmt(b.get('cap'), cx))
+
+
 def do_block(b, cx, counter):
     t = b['t']
     if t == 'p':
@@ -355,6 +574,8 @@ def do_block(b, cx, counter):
         return dict(b)
     if t == 'commits':
         return dict(b)
+    if t == 'scene':
+        return do_scene(b, cx, counter)
     raise BuildError('未知块类型 %s' % t)
 
 
@@ -460,7 +681,7 @@ def load_modules():
     mods, errs = {}, []
     for path in sorted(glob.glob(os.path.join(HERE, 'content_*.py'))):
         name = os.path.basename(path)[:-3]
-        if name == 'content_a':
+        if name in ('content_a', 'content_scene'):
             continue
         try:
             d = importlib.import_module(name).nodes()
@@ -507,12 +728,16 @@ def fallback_root():
                    children=[cv.slot(k) for k in cv.SLOTS])
 
 
-def main():
+def main(scene=False):
     hd = git('rev-parse', '--short', 'HEAD')
     if hd.returncode != 0:
         raise SystemExit('不是可用的 git 仓库: %s' % REPO)
     head = hd.stdout.decode().strip()
 
+    PROVIDERS.clear()
+    for k in SC_STAT:
+        SC_STAT[k] = 0
+    amod = 'content_scene' if scene else 'content_a'
     mods, moderr = load_modules()
     dups = []
     for name in sorted(mods):
@@ -528,8 +753,10 @@ def main():
         set_meta(dict(ca.META))
         meta_ok = True
         root_raw = ca.root()
+        if scene:               # 机器图版：顶层那一页换成 content_scene.root(原来的顶层节点) 给的内容
+            root_raw = importlib.import_module('content_scene').root(root_raw)
         reset()
-        root = build_tree(root_raw, 'content_a', None)
+        root = build_tree(root_raw, amod, None)
     except KeyboardInterrupt:
         raise
     except BaseException as e:
@@ -587,9 +814,11 @@ def main():
 
     st = dict(nodes=0, stubs=0, depth=0, blocks=0, segs=0, notes=0)
     anchors = []
+    tree = []
 
     def visit(n, d):
         st['nodes'] += 1
+        tree.append('%s%s · %s%s' % ('  ' * d, n['id'], NAV.get(n['id'], ''), '（未展开，空页）' if n.get('stub') else ''))
         st['stubs'] += 1 if n.get('stub') else 0
         st['depth'] = max(st['depth'], d)
         n['back'] = back.get(n['id'], [])
@@ -610,6 +839,9 @@ def main():
                 for x in b['boxes']:
                     if x.get('to') and x['to'] not in NAV:
                         x['to'] = None
+            elif b['t'] == 'scene':
+                for x in b['parts'] + b['wires']:
+                    x['to'] = [i for i in x['to'] if i in NAV]
         for k in n['refs']:
             f, rg = k.rsplit(':', 1)
             a, bb = rg.split('-')
@@ -622,11 +854,44 @@ def main():
         anchors.append(dict(node='*', file=s['file'], a=s['a'], b=s['b'], kind='code', via='popover', text=s['lines']))
 
     data = dict(meta=META, root=root, snips=SNIPS, commits=COMMITS)
+    blob = json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+    os.makedirs(OUT, exist_ok=True)
+    ztp, d3p = os.path.join(HERE, 'template_zoom.html'), os.path.join(HERE, 'vendor', 'd3.v7.9.0.min.js')
+
+    def zoom_page(fname):
+        with open(ztp, encoding='utf-8') as fh:
+            ztpl = fh.read()
+        with open(d3p, encoding='utf-8') as fh:
+            d3src = fh.read().replace('</script', '<\\/script')
+        # 顺序不能换：先塞 D3，再标题，数据最后（数据里出现什么字样都不会再被替换）
+        zpage = ztpl.replace('__D3__', d3src).replace('__TITLE__', html.escape(META['title'])).replace('__DATA__', blob)
+        with open(os.path.join(OUT, fname), 'w', encoding='utf-8') as fh:
+            fh.write(zpage)
+        return len(zpage.encode('utf-8')) / 1024
+
+    if scene:
+        # 机器图版只出 scene.html（同一个可缩放画布模板；canvas.html / zoom.html / anchors.json 不动）
+        ssize = zoom_page('scene.html')
+        print('')
+        print('机器图 → %s（%.0f KB）' % (os.path.join(OUT, 'scene.html'), ssize))
+        print('部件 %d  连线 %d  说明卡 %d  推演 %d 步；锚点条目 %d  提交 %d' % (
+            SC_STAT['parts'], SC_STAT['wires'], SC_STAT['cards'], SC_STAT['steps'], len(anchors), len(COMMITS)))
+        if not SC_STAT['parts']:
+            print('!! content_scene.root() 给的顶层内容里没有 scene(...) 块')
+        if a_err:
+            print('!! content_scene 出错，这次顶层用的是临时骨架：%s' % a_err)
+        mine = [w for w in WARN if w[0] == amod]
+        print('下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：')
+        for ln in tree[1:]:
+            print('  ' + ln)
+        print('WARN %d 条（只列机器图自己的）' % len(mine))
+        for mod, nid, msg in mine:
+            print('WARN [%s] [%s] %s' % (mod, nid, msg))
+        return bool(a_err or mine or not SC_STAT['parts'])
+
     with open(os.path.join(HERE, 'template.html'), encoding='utf-8') as fh:
         tpl = fh.read()
-    blob = json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
     page = tpl.replace('__TITLE__', html.escape(META['title'])).replace('__DATA__', blob)
-    os.makedirs(OUT, exist_ok=True)
     with open(os.path.join(OUT, 'canvas.html'), 'w', encoding='utf-8') as fh:
         fh.write(page)
     with open(os.path.join(OUT, 'anchors.json'), 'w', encoding='utf-8') as fh:
@@ -634,17 +899,8 @@ def main():
 
     # v2：同一份数据再出一张「可缩放画布」zoom.html（相机用 vendor 里的 D3，内嵌进页面，仍是单文件）
     zsize = 0
-    ztp, d3p = os.path.join(HERE, 'template_zoom.html'), os.path.join(HERE, 'vendor', 'd3.v7.9.0.min.js')
     if os.path.exists(ztp) and os.path.exists(d3p):
-        with open(ztp, encoding='utf-8') as fh:
-            ztpl = fh.read()
-        with open(d3p, encoding='utf-8') as fh:
-            d3src = fh.read().replace('</script', '<\\/script')
-        # 顺序不能换：先塞 D3，再标题，数据最后（数据里出现什么字样都不会再被替换）
-        zpage = ztpl.replace('__D3__', d3src).replace('__TITLE__', html.escape(META['title'])).replace('__DATA__', blob)
-        with open(os.path.join(OUT, 'zoom.html'), 'w', encoding='utf-8') as fh:
-            fh.write(zpage)
-        zsize = len(zpage.encode('utf-8')) / 1024
+        zsize = zoom_page('zoom.html')
 
     filled = ['%s←%s' % (s, m) for s, m in PLACED.items() if m]
     unfilled = [s for s, m in PLACED.items() if not m]
@@ -672,8 +928,11 @@ def main():
     print('WARN %d 条%s' % (len(WARN), '（格式：WARN [模块] [节点id] 说明；只看自己的可以 grep 模块名）' if WARN else ''))
     for mod, nid, msg in WARN:
         print('WARN [%s] [%s] %s' % (mod, nid, msg))
-    if STRICT and (unfilled or unplaced or a_err or moderr or SLOT_ERR or WARN):
-        sys.exit(1)
+    return bool(unfilled or unplaced or a_err or moderr or SLOT_ERR or WARN)
 
 
-main()
+_bad = main()
+if os.path.exists(os.path.join(HERE, 'content_scene.py')):
+    _bad = main(scene=True) or _bad
+if STRICT and _bad:
+    sys.exit(1)

@@ -146,3 +146,88 @@ def out(lv, text):
 def group(label, d, m=None):
     """diagram 里的虚线分组框（传给 diagram(frames=[...])）。d/m 同 box：[x, y, w, h]。"""
     return dict(label=label, d=d, m=m)
+
+
+# ---------------------------------------------------------------- 机器图（scene）—— 用法见 SCENE.md
+# 一张「机器图」= 部件 part + 连线 wire + 可选的逐步推演 beat。
+# 每个部件、每条连线都必须带一张说明卡 card(干什么, 怎么设计, 为什么这么设计)。
+def _ls(x):
+    if x is None:
+        return []
+    return list(x) if isinstance(x, (list, tuple)) else [x]
+
+
+def card(does, how, why, traps=None):
+    """说明卡，四栏各是一条或一组条目。条目 = 一段字（迷你语法） 或 note(等级, 文字, q, ref)。
+    does 这里是干什么的 / how 怎么设计的 / why 为什么这么设计·好处（必须用 note 标等级） / traps 容易看错的地方。"""
+    return dict(does=_ls(does), how=_ls(how), why=_ls(why), traps=_ls(traps))
+
+
+def part(id, name, d, m=None, code=None, kind='act', n=None, glyph=None,
+         say=None, why=None, trap=None, card=None, to=None):
+    """机器图里的一个部件。d / m = 桌面 / 手机两套 [x, y, w, h]。
+    name 人话名字；code 代码里的名字（等宽小字）；n 角标（'1' 'A'…）；
+    kind：'act' 动作 / 'store' 存着的数据 / 'ext' 外部 / 'bg' 后台 / 'gate' 判断 / 'out' 结果。
+    say / why / trap = 三个图层下，框底那一行字（主流程 / 为什么 / 易混点），各一句短话。
+    glyph = 框中间的小图（g_cells / g_gauge / g_list / g_kv / g_checks / g_text / g_raw）。
+    card = card(...)；to = 可以钻进去的节点 id（或 id 列表）。"""
+    return dict(id=id, name=name, d=d, m=m, code=code, kind=kind, n=n, glyph=glyph,
+                say=say, why=why, trap=trap, card=card, to=_ls(to))
+
+
+def wire(id, f, t, label, n=None, why=None, trap=None, card=None, to=None,
+         ml=None, fs=None, ts=None, mfs=None, mts=None, lp=None, mlp=None, cls=None):
+    """从部件 f 到部件 t 的一条连线（f == t 画成回环）。label 线上的短标签（ml 手机版）。
+    fs / ts：从哪条边出、进哪条边（'l' 'r' 't' 'b'；不给就自动挑），mfs / mts 是手机版。
+    lp / mlp：标签位置 [x, y]（不给就放在线的中点）。cls='dash' 画虚线（旁路 / 异步 / 偶尔发生）。
+    why / trap / card / to 同 part。"""
+    return dict(id=id, f=f, t=t, label=label, ml=ml, n=n, why=why, trap=trap, card=card,
+                to=_ls(to), fs=fs, ts=ts, mfs=mfs, mts=mts, lp=lp, mlp=mlp, cls=cls)
+
+
+def beat(title, what, why=None, focus=None, state=None):
+    """推演的一步。what 发生了什么（带具体的值）；why 为什么这样：一段字或 note(等级, …)。
+    focus 这一步点亮哪些部件 / 连线的 id；state = {部件id: glyph} 从这一步起把那个部件的小图换掉。"""
+    return dict(title=title, what=what, why=why, focus=_ls(focus), state=state or {})
+
+
+def scene(w, h, parts, wires, steps=None, mw=None, mh=None, groups=None, cap=None):
+    """机器图。w / h 桌面画幅，mw / mh 手机画幅（宽建议 340）。groups 用 group(label, d, m)。"""
+    return dict(t='scene', w=w, h=h, mw=mw, mh=mh, parts=parts, wires=wires,
+                steps=steps or [], groups=groups or [], cap=cap)
+
+
+# 小图（glyph）：部件框中间那块，用来把「里面装着什么 / 现在是什么值」画出来
+def g_cells(cells, left=None, right=None):
+    """一排格子，cells 用 cell(k, v, s)。left / right 是两头的小字（比如「最不该删」「最该删」）。"""
+    return dict(g='cells', cells=cells, left=left, right=right)
+
+
+def g_gauge(used, limit, total=None, label=None, unit=''):
+    """一根量条：used 当前值、limit 红线、total 满刻度（默认取两者较大的 1.15 倍）。超过红线的部分画红。"""
+    return dict(g='gauge', used=used, limit=limit, total=total, label=label, unit=unit)
+
+
+def g_list(rows, on=None):
+    """几行短字。on = 要高亮的那一行（下标，或下标列表）。"""
+    return dict(g='list', rows=rows, on=_ls(on))
+
+
+def g_kv(rows):
+    """几行「名字 → 值」：rows = [(名字, 值), …]。"""
+    return dict(g='kv', rows=[list(r) for r in rows])
+
+
+def g_checks(rows):
+    """几行判断：rows = [(文字, 状态), …]，状态 'ok' 过 / 'no' 不过 / 'skip' 没走到 / None 还没判。"""
+    return dict(g='checks', rows=[list(r) for r in rows])
+
+
+def g_text(big, small=None, tone=None):
+    """一个大字的值 + 一行小字。tone：None / 'ok' 绿 / 'run' 黄 / 'fail' 红。"""
+    return dict(g='text', big=big, small=small, tone=tone)
+
+
+def g_raw(html):
+    """万不得已的口子：自己给一段 HTML / SVG（不过校验，自己保证在框里放得下）。"""
+    return dict(g='raw', html=html)
