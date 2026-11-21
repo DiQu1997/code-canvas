@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # build.py —— 把内容树 + 仓库 HEAD 上的真实代码 组装成 canvas.html / anchors.json
-# 用法：python3 -I build.py <repo> [outdir] [--strict]
-#   outdir 默认是本脚本所在目录；多人并行时各自给不同的 outdir，互不覆盖。
+# 用法：python3 -I build.py <repo> [outdir] [--strict] [--content <内容目录>]
+#   outdir 默认是内容目录（不给 --content 时就是本脚本所在目录）；多人并行时各自给不同的 outdir，互不覆盖。
 #   --strict：有未填槽位 / WARN / 模块出错时退出码 1（最终装配时用）。
+#   --content <目录>：换一个项目。content_*.py 从那个目录读，舞台（cv / 模板 / 自检）还是本目录这一套。
+#       那个目录里没有 content_a.py 时是「只有机器图」的项目：只读 content_scene.py（META + root(base)），只出 scene.html。
 # 代码一律由本脚本按「文件:行号」从 git HEAD 取，内容文件里不写任何代码正文。
 # 装配：content_a.py 导出 META + root()；树里的 cv.slot(id) 由其它 content_*.py 的
 #       nodes() -> {槽位id: 节点} 填；没人填 / 模块出错 / 内容构建失败 → 「未展开」占位页。
@@ -17,16 +19,34 @@ class BuildError(Exception):
     pass
 
 
-_pos = [a for a in sys.argv[1:] if not a.startswith('--')]
-STRICT = '--strict' in sys.argv[1:]
+_argv = sys.argv[1:]
+CONTENT = HERE
+if '--content' in _argv:
+    _i = _argv.index('--content')
+    if _i + 1 >= len(_argv) or _argv[_i + 1].startswith('--'):
+        raise SystemExit('--content 后面要跟内容目录')
+    CONTENT = os.path.abspath(_argv[_i + 1])
+    del _argv[_i:_i + 2]
+    if not os.path.isdir(CONTENT):
+        raise SystemExit('内容目录不存在: %s' % CONTENT)
+_pos = [a for a in _argv if not a.startswith('--')]
+STRICT = '--strict' in _argv
 if not _pos:
-    raise SystemExit('用法: python3 -I build.py <repo> [outdir] [--strict]')
+    raise SystemExit('用法: python3 -I build.py <repo> [outdir] [--strict] [--content <内容目录>]')
 REPO = _pos[0]
-OUT = os.path.abspath(_pos[1]) if len(_pos) > 1 else HERE
+OUT = os.path.abspath(_pos[1]) if len(_pos) > 1 else CONTENT
+SCENE_ONLY = not os.path.exists(os.path.join(CONTENT, 'content_a.py'))
+if SCENE_ONLY and not os.path.exists(os.path.join(CONTENT, 'content_scene.py')):
+    raise SystemExit('内容目录里既没有 content_a.py 也没有 content_scene.py: %s' % CONTENT)
 GIT = ['git', '-C', REPO, '-c', 'safe.directory=*', '-c', 'core.hooksPath=/dev/null',
        '-c', 'core.fsmonitor=false']
 
 import cv  # noqa: E402
+
+if CONTENT != HERE:         # 别的项目：内容模块只从它自己的目录找（cv 已经载入；本目录那几份 content_*.py 不能混进去）
+    sys.path.remove(HERE)
+    sys.path.insert(0, CONTENT)
+SLOTS = {} if SCENE_ONLY else cv.SLOTS      # 槽位表目前还写在 cv.py 里（是第一个项目的）；只有机器图的项目没有槽位
 
 # ------------------------------------------------------------------ 仓库读取（只读 HEAD）
 _files, _cinfo = {}, {}
@@ -584,7 +604,7 @@ def do_block(b, cx, counter):
 
 # ------------------------------------------------------------------ 树的装配
 def stub_node(sid, title, why):
-    title = title or cv.SLOTS.get(sid) or sid
+    title = title or SLOTS.get(sid) or sid
     nav = re.split('[：:]', title)[0]
     NAV[sid], OWNER[sid] = nav, '-'
     return dict(id=sid, nav=nav, title=title, short='这一节还没有内容。', lead=None, src=None,
@@ -672,7 +692,7 @@ def brief(e):
     loc = ''
     for fr in reversed(traceback.extract_tb(e.__traceback__)):
         fn = os.path.abspath(fr.filename)
-        if os.path.dirname(fn) == HERE and os.path.basename(fn) != 'build.py':
+        if os.path.dirname(fn) in (HERE, CONTENT) and os.path.basename(fn) != 'build.py':
             loc = ' (%s:%d)' % (os.path.basename(fn), fr.lineno)
             break
     if isinstance(e, SyntaxError):
@@ -682,7 +702,7 @@ def brief(e):
 
 def load_modules():
     mods, errs = {}, []
-    for path in sorted(glob.glob(os.path.join(HERE, 'content_*.py'))):
+    for path in sorted(glob.glob(os.path.join(CONTENT, 'content_*.py'))):
         name = os.path.basename(path)[:-3]
         if name in ('content_a', 'content_scene'):
             continue
@@ -728,7 +748,18 @@ def set_meta(meta):
 
 def fallback_root():
     return cv.node('root', '全景', '（content_a 出错，这是临时骨架）', '总架构模块没能加载，下面只按槽位表列出各节。',
-                   children=[cv.slot(k) for k in cv.SLOTS])
+                   children=[cv.slot(k) for k in SLOTS])
+
+
+def scene_only_root():
+    # 只有机器图的项目：META 和顶层那一页都由 content_scene.py 给；没有下层各页
+    cs = importlib.import_module('content_scene')
+    meta = dict(getattr(cs, 'META', None) or {})
+    if not isinstance(meta.get('title'), str) or not meta['title'].strip():
+        raise BuildError("content_scene.py 里要有 META = dict(title='这一页的标题')")
+    meta.setdefault('levels', json.loads(json.dumps(FALLBACK_META['levels'])))
+    set_meta(meta)
+    return cs.root(cv.node('root', '全景', META['title'], META['title']))
 
 
 def main(scene=False):
@@ -752,12 +783,16 @@ def main(scene=False):
 
     a_err, root, meta_ok = None, None, False
     try:
-        ca = importlib.import_module('content_a')
-        set_meta(dict(ca.META))
-        meta_ok = True
-        root_raw = ca.root()
-        if scene:               # 机器图版：顶层那一页换成 content_scene.root(原来的顶层节点) 给的内容
-            root_raw = importlib.import_module('content_scene').root(root_raw)
+        if SCENE_ONLY:
+            root_raw = scene_only_root()
+            meta_ok = True
+        else:
+            ca = importlib.import_module('content_a')
+            set_meta(dict(ca.META))
+            meta_ok = True
+            root_raw = ca.root()
+            if scene:           # 机器图版：顶层那一页换成 content_scene.root(原来的顶层节点) 给的内容
+                root_raw = importlib.import_module('content_scene').root(root_raw)
         reset()
         root = build_tree(root_raw, amod, None)
     except KeyboardInterrupt:
@@ -766,7 +801,7 @@ def main(scene=False):
         a_err = str(e) if isinstance(e, BuildError) else brief(e)
         root = None
     if root is None:                    # 总架构坏了：退回骨架，别的作者照样能看自己的槽位
-        if not meta_ok:
+        if not meta_ok or SCENE_ONLY:
             set_meta(json.loads(json.dumps(FALLBACK_META)))
         reset()
         root = build_tree(fallback_root(), 'content_a', None)
@@ -787,13 +822,13 @@ def main(scene=False):
         if (f, t) in seen:
             continue
         seen.add((f, t))
-        if t in cv.SLOTS:
+        if t in SLOTS:
             WARN.append((OWNER.get(f, '?'), f, '内链指向槽位 %s，但总架构的树里还没放它；链接暂时点不动' % t))
         else:
             WARN.append((OWNER.get(f, '?'), f, '内链指向不存在的节点 %s（拼错了？或那一页别人还没写）；页面上显示成红色断链' % t))
 
     def navname(i):
-        return NAV.get(i) or re.split('[：:]', cv.SLOTS.get(i, i))[0]
+        return NAV.get(i) or re.split('[：:]', SLOTS.get(i, i))[0]
     dead_a = re.compile(r'<a class="lk" href="#/([\w.]+)">(.*?)</a>')
 
     def undead(m):
@@ -884,7 +919,10 @@ def main(scene=False):
         if a_err:
             print('!! content_scene 出错，这次顶层用的是临时骨架：%s' % a_err)
         mine = [w for w in WARN if w[0] == amod]
-        print('下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：')
+        if SCENE_ONLY:
+            print('这个项目只有机器图，没有下层页面：part / wire 不要写 to=。')
+        else:
+            print('下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：')
         for ln in tree[1:]:
             print('  ' + ln)
         print('WARN %d 条（只列机器图自己的）' % len(mine))
@@ -907,7 +945,7 @@ def main(scene=False):
 
     filled = ['%s←%s' % (s, m) for s, m in PLACED.items() if m]
     unfilled = [s for s, m in PLACED.items() if not m]
-    unplaced = [s for s in cv.SLOTS if s not in PLACED]
+    unplaced = [s for s in SLOTS if s not in PLACED]
     print('构建完成 → %s（%.0f KB）+ anchors.json；仓库 HEAD %s' % (
         os.path.join(OUT, 'canvas.html'), len(page.encode('utf-8')) / 1024, head))
     if zsize:
@@ -934,8 +972,11 @@ def main(scene=False):
     return bool(unfilled or unplaced or a_err or moderr or SLOT_ERR or WARN)
 
 
-_bad = main()
-if os.path.exists(os.path.join(HERE, 'content_scene.py')):
-    _bad = main(scene=True) or _bad
+if SCENE_ONLY:
+    _bad = main(scene=True)
+else:
+    _bad = main()
+    if os.path.exists(os.path.join(CONTENT, 'content_scene.py')):
+        _bad = main(scene=True) or _bad
 if STRICT and _bad:
     sys.exit(1)
