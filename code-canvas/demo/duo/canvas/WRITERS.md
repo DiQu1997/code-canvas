@@ -14,7 +14,8 @@ def nodes():              # 返回 {槽位id: 节点}；键必须等于该节点
 ```
 - 节点 id 只能用英文字母/数字/下划线，用点分层：`pool`、`pool.insert`、`pool.insert.shift`。子孙必须以 `槽位id.` 开头。
 - 一个模块可以填多个槽位。总架构是 `content_a.py`（导出 `META` 和 `root()`，树里用 `slot('pool')` 占位）。
-- 槽位表（id → 默认标题）：`gate` 安全闸 · `acct` 算账 · `resize` 旁路：哈希表扩容 · `policy` 策略位标志 · `clock` 对象头 24 位 ·
+- 槽位表（id → 默认标题）是**项目自己的**：写在顶层模块里的 `SLOTS = {...}`（可选，舞台不带任何项目的表）。
+  Redis 这个项目的在 `content_a.py`：`gate` 安全闸 · `acct` 算账 · `resize` 旁路：哈希表扩容 · `policy` 策略位标志 · `clock` 对象头 24 位 ·
   `pool` 候选池 · `loop` 主循环怎么用池 · `random` 随机策略 · `bless` BLESS · `delete` 删 key 并通知 · `tick16` 每删 16 个停一下 ·
   `budget` 时间预算 · `exit` 出口 · `fail` EVICT_FAIL 之后 · `why` 宏观为什么 · `improve` 可改进处 · `unknown` 没查到为什么
 - 没人填的槽位自动变成「未展开」占位页。**指向任何槽位 id 的内链永远合法**；指向别人子页（如 `[[pool.insert]]`）在对方没写时会
