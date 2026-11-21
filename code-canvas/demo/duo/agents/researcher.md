@@ -13,7 +13,7 @@
 {{REPO_NOTES}}
 - 入口线索（只是线索，范围由你决定）：{{ENTRY_HINT}}
 - **用 git 历史研究"为什么"**：`git log -L`、`git blame`、`git log -S`、`git show` 都可以用。很多"为什么"不在当前代码里而在提交说明里（某行是为修哪个 bug 加的、某个做法取代了什么旧做法）。把力气花在读者最会问「为什么」的那几处，不必处处挖。git 调用一律写成：
-  `git -C <仓库路径> -c safe.directory='*' -c core.hooksPath=/dev/null <命令>`
+  `git -C <仓库路径> -c safe.directory='*' -c core.hooksPath=/dev/null -c gc.auto=0 <命令>`
 - 不要访问外网（PR / issue 正文读不到就如实说只看了提交说明）。
 
 ## 你要产出的底稿

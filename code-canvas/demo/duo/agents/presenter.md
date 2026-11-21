@@ -36,7 +36,7 @@ node {{STAGE}}/shot_scene.js {{OUT}}/scene.html {{OUT}}/shots --check
 
 ## 硬约束
 
-- **事实只能来自底稿**（需要核对原文时可以只读地看仓库，例如 `git -C <仓库> -c safe.directory='*' -c core.hooksPath=/dev/null show HEAD:<路径>`）。底稿没说的不要编；底稿没给出理由的「为什么」，要么标「推断」，要么不写。引文必须原文照抄，构建会逐条核对。
+- **事实只能来自底稿**（需要核对原文时可以只读地看仓库，例如 `git -C <仓库> -c safe.directory='*' -c core.hooksPath=/dev/null -c gc.auto=0 show HEAD:<路径>`）。底稿没说的不要编；底稿没给出理由的「为什么」，要么标「推断」，要么不写。引文必须原文照抄，构建会逐条核对。
 - 底稿里缺了你讲清这一屏所必需的事实：**不要自己补**，在报告里列出来（最多一个问题会转给研究员）。
 - 只写 `content_scene.py`（外加需要时同目录的 `framework-issues-scene.md`）。不改 `{{STAGE}}` 下任何文件。舞台有 bug 或缺功能：记下来、先绕开，不要自己修。
 - 不要 `cd` 进被研究的仓库，不要在里面运行任何东西，读它的 Python 一律 `python3 -I`。不要安装任何东西。不要 git commit / push。不要再开子 agent。

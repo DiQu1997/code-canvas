@@ -1,0 +1,259 @@
+python/sglang/launch_server.py:48-52	from sglang.srt.entrypoints.http_server import launch_server
+python/sglang/cli/serve.py:104-108	run_server(server_args)
+python/sglang/srt/environ.py:2656	SGLANG_RUST_SERVER = EnvBool(False)
+python/sglang/srt/arg_groups/fields/serving.py:50-57	detokenizer_worker_num
+python/sglang/srt/entrypoints/engine.py:915-917	num_dp_ranks > 1
+python/sglang/srt/arg_groups/fields/schedule.py:212-218	disable_overlap_schedule
+python/sglang/srt/managers/scheduler.py:573-575	not get_schedule().disable_overlap_schedule and not use_mlx()
+python/sglang/srt/arg_groups/fields/serving.py:269-272	incremental_streaming_output
+python/sglang/srt/entrypoints/http_server.py:3298-3311	TokenizerManager
+python/sglang/srt/entrypoints/http_server.py:3306	Scheduler (subprocess)
+python/sglang/srt/entrypoints/http_server.py:3310	main process
+python/sglang/srt/entrypoints/http_server.py:3311	ZMQ
+python/sglang/srt/entrypoints/http_server.py:3144-3165	loop="uvloop"
+python/sglang/srt/entrypoints/http_server.py:1901-1910	/v1/chat/completions
+python/sglang/srt/entrypoints/openai/serving_chat.py:386	class OpenAIServingChat
+python/sglang/srt/managers/tokenizer_manager.py:606	class TokenizerManager
+python/sglang/srt/managers/tokenizer_manager.py:863	self.rid_to_state
+python/sglang/srt/managers/tokenizer_manager.py:2916-2929	async def handle_loop
+python/sglang/srt/entrypoints/openai/serving_base.py:99-104	run_in_executor
+python/sglang/srt/entrypoints/engine.py:1207	Launch the TokenizerManager in the main process
+python/sglang/srt/entrypoints/engine.py:941-971	mp.Process(target=target, args=args)
+python/sglang/srt/managers/scheduler.py:7199-7206	scheduler.run_event_loop()
+python/sglang/srt/managers/scheduler.py:2235-2305	def event_loop_overlap
+python/sglang/srt/managers/scheduler.py:3936	move([req], self.waiting_queue)
+python/sglang/srt/managers/scheduler.py:2275	self.running_batch = plan.running_batch
+python/sglang/srt/managers/schedule_batch.py:440	class Req(
+python/sglang/srt/managers/schedule_batch.py:1997	class ScheduleBatch
+python/sglang/srt/managers/schedule_batch.py:2005	req_to_token_pool
+python/sglang/srt/mem_cache/common.py:184-197	tree_cache.match_prefix
+python/sglang/srt/managers/tp_worker.py:624	def forward_batch_generation
+python/sglang/srt/managers/tp_worker.py:689	self.model_runner.forward(
+python/sglang/srt/managers/tp_worker.py:771	self.model_runner.sample(
+python/sglang/srt/managers/scheduler_components/output_streamer.py:262-353	def _stream_output_generation
+python/sglang/srt/managers/detokenizer_manager.py:164-172	def event_loop
+python/sglang/srt/managers/detokenizer_manager.py:131-133	DetokenizeStateTable
+python/sglang/srt/managers/detokenizer_manager.py:493	sglang::detokenizer
+python/sglang/srt/server_args.py:894-905	ipc://
+python/sglang/srt/managers/tokenizer_manager.py:835-837	zmq.PUSH, port_args.scheduler_input_ipc_name
+python/sglang/srt/managers/scheduler_components/ipc_channels.py:36-38	zmq.PULL, port_args.scheduler_input_ipc_name
+python/sglang/srt/managers/scheduler_components/ipc_channels.py:58-61	port_args.detokenizer_ipc_name
+python/sglang/srt/managers/detokenizer_manager.py:102-104	zmq.PULL, port_args.detokenizer_ipc_name
+python/sglang/srt/managers/detokenizer_manager.py:108-111	zmq.PUSH, port_args.tokenizer_ipc_name
+python/sglang/srt/managers/scheduler_components/ipc_channels.py:48-50	zmq.PUSH, port_args.tokenizer_ipc_name
+python/sglang/srt/managers/tokenizer_manager.py:831-833	zmq.PULL, port_args.tokenizer_ipc_name
+python/sglang/srt/managers/scheduler.py:2405-2415	self.send_control_output(output, recv_req)
+python/sglang/srt/environ.py:390	SGLANG_USE_PICKLE_IPC = EnvBool(True)
+python/sglang/srt/managers/io_struct.py:3012-3017	send_pyobj
+python/sglang/srt/managers/io_struct.py:97	class BaseReq(msgspec.Struct
+python/sglang/srt/managers/scheduler_components/ipc_channels.py:35-68	recv_from_tokenizer = None
+python/sglang/srt/managers/scheduler_components/request_receiver.py:214-234	broadcast_pyobj(
+python/sglang/srt/managers/scheduler_components/request_receiver.py:104	Receive results at tp_rank = 0
+python/sglang/srt/entrypoints/http_server.py:1902-1904	request: ChatCompletionRequest
+python/sglang/srt/entrypoints/http_server.py:1906-1910	openai_serving_chat.handle_request
+python/sglang/srt/entrypoints/http_server.py:352-356	serving_chat_class
+python/sglang/srt/entrypoints/openai/serving_base.py:80-142	async def handle_request
+python/sglang/srt/entrypoints/openai/serving_base.py:111-118	_handle_streaming_request
+python/sglang/srt/entrypoints/openai/serving_base.py:123-142	status_code=500
+python/sglang/srt/entrypoints/openai/serving_base.py:101-104	self._convert_to_internal_request
+python/sglang/srt/entrypoints/openai/serving_chat.py:1264	self._process_messages(request, is_multimodal)
+python/sglang/srt/entrypoints/openai/serving_chat.py:2274-2284	parallel_prompt_encode(
+python/sglang/srt/entrypoints/openai/serving_chat.py:2135	templates already include role/special tokens
+python/sglang/srt/entrypoints/openai/serving_chat.py:2136	double BOS
+python/sglang/srt/entrypoints/openai/serving_base.py:99	Convert off-loop
+python/sglang/srt/entrypoints/openai/serving_base.py:100	releases the GIL
+python/sglang/srt/entrypoints/openai/serving_chat.py:1303-1358	GenerateReqInput(
+python/sglang/srt/entrypoints/openai/serving_chat.py:1280-1288	"input_ids": processed_messages.prompt_ids
+python/sglang/srt/entrypoints/openai/serving_chat.py:1176-1181	return "text", processed_messages.prompt
+python/sglang/srt/entrypoints/openai/serving_chat.py:1266-1274	request.to_sampling_params(
+python/sglang/srt/entrypoints/openai/serving_chat.py:2369-2403	async def _handle_streaming_request
+python/sglang/srt/entrypoints/openai/serving_chat.py:2384-2387	first_chunk = await generator.__anext__()
+python/sglang/srt/entrypoints/openai/serving_chat.py:2381	Kick-start the generator
+python/sglang/srt/entrypoints/openai/serving_chat.py:2383	HTTP 400
+python/sglang/srt/entrypoints/openai/serving_chat.py:2502	async for content in stream:
+python/sglang/srt/entrypoints/openai/serving_chat.py:2596-2615	role="assistant"
+python/sglang/srt/entrypoints/openai/serving_chat.py:2400	first engine event
+python/sglang/srt/entrypoints/openai/serving_chat.py:2397-2403	create_abort_task(adapted_request)
+python/sglang/srt/managers/tokenizer_manager.py:1061-1140	async def generate_request
+python/sglang/srt/managers/tokenizer_manager.py:1066	self.auto_create_handle_loop()
+python/sglang/srt/managers/tokenizer_manager.py:2891-2900	def auto_create_handle_loop
+python/sglang/srt/managers/tokenizer_manager.py:2896	get_or_create_event_loop()
+python/sglang/srt/managers/tokenizer_manager.py:1069	obj.normalize_batch_and_arguments()
+python/sglang/srt/managers/io_struct.py:645-646	self.rid = uuid.uuid4().hex
+python/sglang/srt/managers/tokenizer_manager.py:4278-4287	ReqState([], False, asyncio.Event(), sub_obj, time_stats)
+python/sglang/srt/managers/tokenizer_manager.py:4273-4275	Duplicate request ID detected
+python/sglang/srt/managers/tokenizer_manager.py:1106-1109	self.is_pause_cond.wait_for(lambda: not self.is_pause)
+python/sglang/srt/managers/tokenizer_manager.py:1111	async with self.model_update_lock.reader_lock:
+python/sglang/srt/managers/tokenizer_manager.py:2752-2755	self.model_update_lock.writer_lock
+python/sglang/srt/managers/tokenizer_manager.py:2688	still on-going requests
+python/sglang/srt/managers/tokenizer_manager.py:1116	await self._tokenize_one_request(obj)
+python/sglang/srt/managers/tokenizer_manager.py:1291-1292	input_ids = obj.input_ids
+python/sglang/srt/managers/tokenizer_manager.py:1319-1321	await self._tokenize_texts(
+python/sglang/srt/managers/tokenizer_manager.py:1513-1527	is longer than the
+python/sglang/srt/managers/tokenizer_manager.py:1813-1958	def _create_tokenized_object
+python/sglang/srt/managers/tokenizer_manager.py:1823-1825	array("q", input_ids)
+python/sglang/srt/managers/tokenizer_manager.py:1845-1847	sampling_params.normalize(self.tokenizer)
+python/sglang/srt/managers/tokenizer_manager.py:1870-1916	self.tokenized_generate_req_type(
+python/sglang/srt/managers/tokenizer_manager.py:2100	self._dispatch_to_scheduler(tokenized_obj)
+python/sglang/srt/managers/tokenizer_manager.py:851-854	sock_send(self.send_to_scheduler, obj)
+python/sglang/srt/managers/tokenizer_manager.py:2086-2088	_skip_dispatch_if_aborted
+python/sglang/srt/managers/tokenizer_manager.py:1121-1123	obj.input_ids = None
+python/sglang/srt/managers/tokenizer_manager.py:1124-1125	self._wait_one_response(obj, request)
+python/sglang/srt/managers/scheduler.py:7055-7063	scheduler.event_loop_overlap()
+python/sglang/srt/managers/scheduler.py:2253	self.ingest_requests()
+python/sglang/srt/managers/scheduler_components/request_receiver.py:152-159	zmq.NOBLOCK
+python/sglang/srt/managers/scheduler.py:2376-2415	def process_input_requests
+python/sglang/srt/managers/scheduler.py:1983	(TokenizedGenerateReqInput, self.handle_generate_request)
+python/sglang/srt/managers/scheduler.py:3399-3420	self._create_generation_req(
+python/sglang/srt/managers/scheduler.py:3677-3686	validate_input_length(
+python/sglang/srt/managers/scheduler.py:3766-3768	self._add_request_to_queue(req)
+python/sglang/srt/managers/scheduler.py:3684-3686	req.set_finish_with_abort(error_msg)
+python/sglang/srt/managers/scheduler.py:3922	Every request the scheduler keeps owes its output from here
+python/sglang/srt/managers/scheduler.py:4339-4476	def get_next_batch_to_run
+python/sglang/srt/managers/scheduler.py:4444	Run prefill first if possible
+python/sglang/srt/managers/scheduler.py:4443-4456	self.update_running_batch(running_batch)
+python/sglang/srt/arg_groups/fields/schedule.py:227-230	enable_mixed_chunk
+python/sglang/srt/managers/scheduler.py:4996-5017	new_batch.mix_with_running(running_batch)
+python/sglang/srt/managers/scheduler.py:4651-4662	self.policy.calc_priority(
+python/sglang/srt/arg_groups/fields/schedule.py:109	] = "fcfs"
+python/sglang/srt/managers/schedule_policy.py:345	match anyway
+python/sglang/srt/managers/schedule_policy.py:345-353	match_kv_cache(r, self.tree_cache)
+python/sglang/srt/mem_cache/common.py:193-197	tree_cache.match_prefix(
+python/sglang/srt/managers/scheduler.py:4686-4705	adder = self.get_prefill_adder_class()(
+python/sglang/srt/managers/scheduler.py:4867-4871	adder.add_one_req(
+python/sglang/srt/managers/scheduler.py:4955-4978	new_batch.prepare_for_extend()
+python/sglang/srt/managers/schedule_batch.py:2464	alloc_for_extend(
+python/sglang/srt/managers/scheduler.py:4378-4411	running_batch.merge_batch(last_batch)
+python/sglang/srt/managers/scheduler.py:5388	def run_batch(
+python/sglang/srt/managers/scheduler.py:5470	self.model_worker.forward_batch_generation(
+python/sglang/srt/managers/scheduler.py:2280-2284	self.result_queue.append((batch.copy(), batch_result))
+python/sglang/srt/managers/scheduler.py:2289-2292	pop_and_process()
+python/sglang/srt/managers/scheduler.py:2297-2300	self.launch_batch_sample_if_needed(batch_result, batch)
+python/sglang/srt/managers/scheduler.py:2298	It depends on the result of the last batch
+python/sglang/srt/managers/scheduler.py:2236	overlaps the CPU processing and GPU computation
+python/sglang/srt/arg_groups/fields/schedule.py:215	Disable the overlap scheduler
+python/sglang/srt/managers/scheduler.py:2307-2326	SGLANG_DISABLE_OVERLAP_AFTER_PREFILL
+python/sglang/srt/managers/scheduler.py:5182-5192	next_output_finishes_by_length()
+python/sglang/srt/managers/scheduler.py:6595	still runs one decode forward pass
+python/sglang/srt/managers/scheduler.py:5875-5918	def process_batch_result
+python/sglang/srt/managers/scheduler_components/batch_result_processor.py:402-403	result.copy_done.synchronize()
+python/sglang/srt/managers/scheduler_components/batch_result_processor.py:515-521	req.output_ids.append(next_token_id)
+python/sglang/srt/managers/scheduler_components/batch_result_processor.py:1156-1157	result.copy_done.synchronize()
+python/sglang/srt/managers/scheduler_components/batch_result_processor.py:1243-1246	req.update_finish_state(new_accept_len)
+python/sglang/srt/managers/scheduler_components/batch_result_processor.py:1298	self.output_streamer.stream_output(reqs_still_in_batch
+python/sglang/srt/managers/schedule_batch.py:1487-1528	def update_finish_state
+python/sglang/srt/managers/schedule_batch.py:1503	Stop string beats EOS/stop-token
+python/sglang/srt/managers/schedule_batch.py:1510	Stop token/EOS beats the length cap
+python/sglang/srt/managers/schedule_batch.py:1276-1285	self.tokenizer.decode(self.output_ids[-tail_len:])
+python/sglang/srt/managers/scheduler_components/batch_result_processor.py:1624-1647	self._prepare_kv_cache_release(req)
+python/sglang/srt/managers/scheduler.py:5207-5231	batch.retract_decode(
+python/sglang/srt/managers/req_types.py:526-530	"type": "stop"
+python/sglang/srt/managers/scheduler_components/output_streamer.py:580-630	def accept
+python/sglang/srt/managers/scheduler_components/output_streamer.py:583-589	should_output = True
+python/sglang/srt/arg_groups/fields/serving.py:257-260	stream_interval
+python/sglang/srt/managers/scheduler_components/output_streamer.py:601-606	req.send_token_offset == 0 and num_unsent > 0
+python/sglang/srt/managers/scheduler_components/output_streamer.py:610	should_output &= not req.check_match_stop_str_prefix()
+python/sglang/srt/environ.py:744	SGLANG_FORCE_STREAM_INTERVAL = EnvInt(50)
+python/sglang/srt/managers/scheduler_components/output_streamer.py:611-614	self.default_force_stream_interval == 0
+python/sglang/srt/managers/scheduler_components/output_streamer.py:619-630	req.send_token_offset = len(output_ids_)
+python/sglang/srt/managers/scheduler_components/output_streamer.py:626	Exclude the tokens after stop condition
+python/sglang/srt/managers/incremental_detokenize.py:22	PROMPT_TAIL_LEN = 5
+python/sglang/srt/managers/incremental_detokenize.py:87-105	def build_detokenize_header
+python/sglang/srt/managers/scheduler_components/output_streamer.py:641-646	build_detokenize_header(req, output_prefix_len=send_token_offset)
+python/sglang/srt/managers/incremental_detokenize.py:75	first output only; the detokenizer keeps it
+python/sglang/srt/managers/incremental_detokenize.py:74-76	first output only
+test/registered/unit/managers/test_incremental_detokenize.py:162	test_later_rows_decode_with_the_first_rows_header
+python/sglang/srt/managers/scheduler_components/output_streamer.py:335-338	acc.to_payload(
+python/sglang/srt/managers/scheduler_components/output_streamer.py:353	self.send_to_detokenizer.send_output(payload)
+python/sglang/srt/managers/detokenizer_manager.py:406-473	def handle_batch_token_id_out
+python/sglang/srt/managers/detokenizer_manager.py:276-306	self.detokenize_state_table.start(
+python/sglang/srt/managers/incremental_detokenize.py:178	self.decode_ids.extend(
+python/sglang/srt/managers/detokenizer_manager.py:331-334	self._grouped_batch_decode(read_ids
+python/sglang/srt/managers/incremental_detokenize.py:216	new_text = read_text[len(surr_text) :]
+python/sglang/srt/managers/detokenizer_manager.py:428-473	return BatchStrOutput(
+python/sglang/srt/managers/incremental_detokenize.py:125-132	read_offset
+python/sglang/srt/managers/incremental_detokenize.py:230-236	printable = find_printable_text(new_text)
+python/sglang/srt/managers/incremental_detokenize.py:52-68	def find_printable_text
+python/sglang/srt/managers/incremental_detokenize.py:54	Borrowed from https://github.com/huggingface/transformers/
+python/sglang/srt/managers/incremental_detokenize.py:238-246	incremental_output = output_str[self.sent_offset :]
+python/sglang/srt/managers/detokenizer_manager.py:194-205	return output[:-1]
+python/sglang/srt/managers/detokenizer_manager.py:204	NOTE: We can always assume the last token is the matched stop token
+python/sglang/srt/managers/detokenizer_manager.py:358-359	self.detokenize_state_table.release(recv_obj.rids[i])
+python/sglang/srt/managers/incremental_detokenize.py:260-270	class LimitedCapacityDict
+python/sglang/srt/environ.py:747	SGLANG_DETOKENIZER_MAX_STATES = EnvInt(1 << 16)
+python/sglang/srt/managers/detokenizer_manager.py:289-296	Dropped the text of an output
+python/sglang/srt/managers/tokenizer_manager.py:2921-2925	await self._handle_batch_output(recv_obj)
+python/sglang/srt/managers/tokenizer_manager.py:1037-1055	TypeBasedDispatcher(
+python/sglang/srt/managers/tokenizer_manager.py:2931-3254	async def _handle_batch_output
+python/sglang/srt/managers/tokenizer_manager.py:2946-2954	but the state was deleted in TokenizerManager
+python/sglang/srt/managers/tokenizer_manager.py:2973-2979	"prompt_tokens": request_stats.prompt_tokens
+python/sglang/srt/managers/tokenizer_manager.py:3008-3014	"completion_tokens": recv_obj.completion_tokens[i]
+python/sglang/srt/managers/tokenizer_manager.py:3084	state.append_text(delta_text)
+python/sglang/srt/managers/tokenizer_manager.py:3107-3115	"text": None
+python/sglang/srt/managers/tokenizer_manager.py:3109	defer text to _wait_one_response to avoid
+python/sglang/srt/managers/tokenizer_manager.py:3110	O(n) per-step cost that compounds to O(n^2).
+python/sglang/srt/managers/tokenizer_manager.py:3228	del self.rid_to_state[rid]
+python/sglang/srt/arg_groups/fields/serving.py:261-264	] = 16
+python/sglang/srt/managers/tokenizer_manager.py:3232-3240	await asyncio.sleep(0)
+python/sglang/srt/managers/tokenizer_manager.py:3252-3254	s.event.set()
+python/sglang/srt/arg_groups/fields/serving.py:263	Reduces asyncio wakeup overhead under high concurrency
+python/sglang/srt/managers/tokenizer_manager.py:2333-2466	async def _stream_one_response
+python/sglang/srt/managers/tokenizer_manager.py:2343-2364	timeout=_REQUEST_STATE_WAIT_TIMEOUT
+python/sglang/srt/environ.py:2030	SGLANG_REQUEST_STATE_WAIT_TIMEOUT = EnvInt(4)
+python/sglang/srt/managers/tokenizer_manager.py:240	_REQUEST_STATE_WAIT_TIMEOUT = envs.SGLANG_REQUEST_STATE_WAIT_TIMEOUT.get()
+python/sglang/srt/managers/tokenizer_manager.py:2366-2370	state.event.clear()
+python/sglang/srt/managers/tokenizer_manager.py:2381-2382	out = out_list[-1]
+python/sglang/srt/managers/tokenizer_manager.py:2374-2380	self._coalesce_streaming_chunks(
+python/sglang/srt/managers/tokenizer_manager.py:2237-2272	def _coalesce_streaming_chunks
+python/sglang/srt/managers/tokenizer_manager.py:2245	Both text and output_ids are incremental deltas, so we concatenate them;
+python/sglang/srt/managers/tokenizer_manager.py:2397-2403	out["text"] = state.get_text()
+python/sglang/srt/managers/tokenizer_manager.py:2412-2440	self._handle_abort_finish_reason(
+python/sglang/srt/managers/tokenizer_manager.py:2459-2466	yield out
+python/sglang/srt/entrypoints/openai/serving_chat.py:2405-2825	async def _generate_chat_stream
+python/sglang/srt/entrypoints/openai/serving_chat.py:848-853	delta = content["text"][offset:]
+python/sglang/srt/entrypoints/openai/serving_chat.py:861-870	self._process_reasoning_stream(
+python/sglang/srt/entrypoints/openai/serving_chat.py:2449-2484	def end_frames
+python/sglang/srt/entrypoints/openai/serving_chat.py:2657-2659	end_frames(close_open_choices=interrupted)
+python/sglang/srt/entrypoints/openai/serving_chat.py:2763-2802	usage_chunk
+python/sglang/srt/entrypoints/openai/serving_chat.py:2825	yield "data: [DONE]\n\n"
+python/sglang/srt/entrypoints/openai/sse_utils.py:107-115	object="chat.completion.chunk"
+python/sglang/srt/entrypoints/openai/serving_chat.py:659-660	return "chatcmpl-"
+python/sglang/srt/entrypoints/openai/serving_chat.py:2602	chunk_id=wire.response_id(content["meta_info"]["id"])
+python/sglang/srt/entrypoints/openai/chat_encoding_adapters.py:132-133	return engine_rid
+python/sglang/srt/entrypoints/openai/serving_chat.py:2856-2858	.__anext__()
+python/sglang/srt/managers/tokenizer_manager.py:3122-3123	out_dict = None
+python/sglang/srt/managers/tokenizer_manager.py:2878-2889	await asyncio.sleep(2)
+python/sglang/srt/entrypoints/openai/serving_chat.py:162	Starlette leaves the iterator suspended when a send fails, and on ASGI
+python/sglang/srt/entrypoints/openai/serving_chat.py:163	spec >= 2.4 it also skips the background task
+python/sglang/srt/entrypoints/openai/serving_chat.py:2821	Closing generate_request runs its cleanup
+python/sglang/srt/managers/tokenizer_manager.py:2352-2364	await request.is_disconnected()
+python/sglang/srt/managers/tokenizer_manager.py:2442-2457	next_disconnect_poll = now + _REQUEST_STATE_WAIT_TIMEOUT
+python/sglang/srt/managers/tokenizer_manager.py:2442	is_disconnected() costs an event-loop pass
+python/sglang/srt/managers/tokenizer_manager.py:2638-2657	AbortReq(rid=rid, abort_all=abort_all)
+python/sglang/srt/managers/scheduler.py:6583-6606	req.request_finish(FINISH_ABORT())
+python/sglang/srt/managers/tokenizer_manager.py:1131-1140	self._release_req_states_on_failure(request_states)
+python/sglang/srt/managers/tokenizer_manager.py:1136	would otherwise leak those entries forever
+python/sglang/srt/managers/tokenizer_manager.py:1132-1138	_init_req_state created a rid_to_state entry
+python/sglang/srt/managers/detokenizer_manager.py:506-510	parent_process.send_signal(signal.SIGQUIT)
+python/sglang/srt/entrypoints/engine.py:1430-1439	SubprocessWatchdog(
+python/sglang/srt/managers/tokenizer_manager.py:1483-1527	def _validate_one_request
+python/sglang/srt/managers/scheduler.py:3678-3686	validate_input_length(
+python/sglang/srt/managers/tokenizer_manager.py:1487	FIXME: unify the length validation logic
+python/sglang/srt/entrypoints/engine.py:1426-1428	max_req_input_len
+python/sglang/srt/entrypoints/http_server.py:972-1050	"/generate"
+python/sglang/srt/entrypoints/http_server.py:1891-1898	/v1/completions
+python/sglang/srt/entrypoints/http_server.py:2193	/v1/messages
+python/sglang/srt/entrypoints/http_server.py:2164	/api/chat
+python/sglang/srt/entrypoints/engine.py:431	def generate(
+python/sglang/srt/entrypoints/engine.py:542	async def async_generate(
+python/sglang/srt/entrypoints/engine.py:1411-1414	MultiTokenizerRouter(server_args, port_args)
+python/sglang/srt/managers/tokenizer_manager.py:839-844	tokenizer_worker_ipc_name
+python/sglang/srt/entrypoints/engine.py:1094-1150	run_multi_detokenizer_router_process
+python/sglang/srt/managers/scheduler_components/ipc_channels.py:51-56	if skip_tokenizer_init:
+python/sglang/srt/entrypoints/engine.py:985-1006	run_data_parallel_controller_process
+python/sglang/srt/managers/scheduler.py:7055-7077	event_loop_overlap_disagg_decode
+python/sglang/srt/entrypoints/engine.py:1362-1394	SGLANG_RUST_SERVER
+python/sglang/srt/entrypoints/http_server.py:3334-3363	SGLANG_RUST_SERVER
+python/sglang/launch_server.py:25-47	cfg.use_ray
+python/sglang/srt/managers/tokenizer_manager.py:2881	await asyncio.sleep(2)
+python/sglang/srt/entrypoints/openai/serving_chat.py:654-657	return chat_encoding_adapters.OPENAI_CHAT_WIRE

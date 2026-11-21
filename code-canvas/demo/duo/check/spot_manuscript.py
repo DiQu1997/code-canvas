@@ -92,16 +92,18 @@ def main():
 
     # ---- 提交
     hs = set(HASH_BT.findall(text)) | set(HASH_CTX.findall(text))
-    hs = set(h for h in hs if not h.isdigit())
-    ok_h, bad_h, msgs = [], [], {}
+    ok_h, bad_h, msgs, skipped = [], [], {}, 0
     for h in sorted(hs):
         r = git(repo, 'cat-file', '-t', h)
         if r.returncode == 0 and r.stdout.strip() == b'commit':
             ok_h.append(h)
             msgs[h] = git(repo, 'log', '-1', '--format=%B', h).stdout.decode('utf-8', 'replace')
+        elif h.isdigit():       # 纯数字：是提交就算提交（哈希可以碰巧全是数字），不是就当普通数字，不算错
+            skipped += 1
         else:
             bad_h.append(h)
-    print('提交 %d 个，通过 %d，不通过 %d' % (len(hs), len(ok_h), len(bad_h)))
+    print('提交 %d 个，通过 %d，不通过 %d%s' % (len(ok_h) + len(bad_h), len(ok_h), len(bad_h),
+                                      '（另有 %d 个纯数字串不是提交，按普通数字忽略）' % skipped if skipped else ''))
     for h in bad_h:
         print('  BAD 不是一个 commit: %s' % h)
 
