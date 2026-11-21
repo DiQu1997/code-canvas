@@ -7,6 +7,8 @@
 //          ② 机械排版检查（线标签压框、线穿过别的框、框里放不下、字被截断）—— 打印成 LAYOUT 行
 //          ③ 固定 8 张截图（d1~d5 桌面，p1~p3 手机）；--steps 额外把每一步推演各截一张
 //          ④ 图上有「钻进去」时：真点一次，看是不是到了下层、下层是不是空页、能不能回来（多截 d6 / p4 两张）
+//          ⑤ 每个节点打开后先查「量到的位置 = 点得中的位置」（见 geom）—— 这条是查舞台自己的，报 FAIL 不是内容的错
+//   --dsf2   按两倍屏幕密度跑（截图给人看时用；交互和 ⑤ 在两种密度下都该过）
 // 只在无头 Chromium 里跑：iOS Safari 的手势和渲染这里验不到。
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
@@ -82,6 +84,41 @@ async function allLayouts(page, tag, s) {
   await page.evaluate(() => window.__cv.scene.step(-1)); await settle(page, 200);
 }
 
+// 「量到的位置」是不是「点得中的位置」：抽当前页里几个看得见的可点元素，从它量到的矩形中心往上下左右各扫一遍，
+// 看真正能点中它的范围有没有跑到矩形外面去。页面是一层套一层缩小摆进去的，浏览器画一页时会把它的落点取整，
+// 排版位置要是带小数，放大几十上百倍以后「量到的」和「画出来的」能差几十像素：镜头停歪、按量到的位置点会点空。
+// 舞台已经把落点补成整数（template_zoom.html 的 snapAll），这一条是防它再坏。每个节点、每种屏幕密度都查。
+async function geom(page, vp) {
+  const r = await page.evaluate(() => {
+    const f = document.querySelector('.nf.cur'), W = document.getElementById('world'), vw = innerWidth, vh = innerHeight, out = { n: 0, bad: [] };
+    const pick = sel => [...f.querySelectorAll(sel)].filter(e => e.closest('.nf') === f);
+    let els = pick('.pt,.wl,a.ref,a.cm,.q,button.tgl,.sx,summary');
+    if (els.length < 3) els = els.concat(pick(':scope > .card > *, :scope > .kz > .kzh'));
+    for (const e of els) {
+      if (out.n >= 6) break;
+      const b = e.getBoundingClientRect();
+      if (b.width < 8 || b.height < 8 || b.left < 2 || b.top < 50 || b.right > vw - 2 || b.bottom > vh - 2) continue;
+      const cx = b.left + b.width / 2, cy = b.top + b.height / 2, c = document.elementFromPoint(cx, cy);
+      if (c && !W.contains(c)) continue;                        // 被固定面板盖住的不算
+      const scan = (ax, half, oy) => {
+        let lo = null, hi = null;
+        for (let d = -Math.ceil(half) - 160; d <= Math.ceil(half) + 160; d++) { const t = document.elementFromPoint(cx + (ax ? 0 : d), cy + (ax ? d : oy)); if (t && e.contains(t)) { if (lo === null) lo = d; hi = d; } }
+        return lo === null ? null : [lo, hi];
+      };
+      // 先竖着扫出「真正点得中的那一段」，再在那一段的正中间横着扫
+      const y = scan(1, b.height / 2, 0), x = y ? scan(0, b.width / 2, (y[0] + y[1]) / 2) : null, nm = e.tagName.toLowerCase() + (e.classList[0] ? '.' + e.classList[0] : '');
+      const inY = y && y[0] >= -b.height / 2 - 2 && y[1] <= b.height / 2 + 2, inX = x && x[0] >= -b.width / 2 - 2 && x[1] <= b.width / 2 + 2;
+      if (c && !e.contains(c) && inY && inX) continue;          // 中心被页面里别的东西压住、其余都在矩形里：是遮挡，不是位置偏
+      out.n++;
+      if (!y || !x) { out.bad.push(nm + '：从量到的中心往上下 160px 都点不中它'); continue; }
+      if (!inY || !inX) out.bad.push(nm + '：点得中的位置比量到的位置偏了 竖向 ' + ((y[0] + y[1]) / 2) + 'px、横向 ' + ((x[0] + x[1]) / 2) + 'px（这一页放大 ' + Math.round(window.__cv.t().k * 10) / 10 + ' 倍）');
+    }
+    return out;
+  });
+  if (!r.n) { console.log('INFO [' + tg(vp) + '] 这一页当前屏里没有可抽查的元素，「量到的位置 = 点得中的位置」没查'); return; }
+  ok(r.bad.length === 0, '[' + vp + '] 量到的位置就是点得中的位置（抽了 ' + r.n + ' 个元素，上下左右各扫一遍）', r.bad.slice(0, 3));
+}
+
 // 没有机器图的下层页（源码页 / 文字页）：只看是不是空页、有没有报错，截一张（手机截整页）
 async function plain(page, vp, name, errs) {
   const st = await page.evaluate(() => { const f = document.querySelector('.nf.cur'); return { stub: f.classList.contains('stub'), code: f.querySelectorAll(':scope > .card figure.code').length }; });
@@ -126,6 +163,7 @@ async function desktop(browser) {
   const page = await ctx.newPage(); const errs = []; listen(page, errs);
   await page.goto(url()); await page.waitForSelector('.nf.cur'); await settle(page);
   if (NODE) ok(await page.evaluate(() => window.__cv.cur()) === NODE, '[桌面] 打开的是要查的节点', await page.evaluate(() => window.__cv.cur()));
+  await geom(page, '桌面');
   let s = await sc(page);
   if (!s && NODE) { await plain(page, '桌面', 'd-page', errs); await ctx.close(); return; }
   ok(!!s, '[桌面] 打开的这一页有机器图');
@@ -190,6 +228,7 @@ async function phone(browser) {
   const page = await ctx.newPage(); const errs = []; listen(page, errs);
   await page.goto(url()); await page.waitForSelector('.nf.cur'); await settle(page);
   if (NODE) ok(await page.evaluate(() => window.__cv.cur()) === NODE, '[手机] 打开的是要查的节点', await page.evaluate(() => window.__cv.cur()));
+  await geom(page, '手机');
   const s = await sc(page);
   if (!s && NODE) { await plain(page, '手机', 'p-page', errs); await ctx.close(); return; }
   ok(!!s, '[手机] 打开的这一页有机器图');

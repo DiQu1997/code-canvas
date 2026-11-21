@@ -1019,7 +1019,8 @@ function sizeAll(){
     m.forEach(function(x){
       var s=Math.min(x.sw/x.fw,SMAX),sh=Math.min(SH,x.fh*s);
       x.el.style.transform='scale('+s+')';
-      x.el.style.left=((x.sw-x.fw*s)/2)+'px';
+      x.el._bl=q64((x.sw-x.fw*s)/2);x.el._sx=0;x.el._sy=0;
+      x.el.style.left=x.el._bl+'px';x.el.style.top='0px';
       x.slot.style.height=sh+'px';
       x.el.style.setProperty('--ch',(sh/s)+'px');
       x.slot.classList.toggle('cut',x.fh*s>SH+1);
@@ -1028,7 +1029,38 @@ function sizeAll(){
   }
   SC={};SC[ROOT]=1;minSC=1;
   ORD.forEach(function(id){if(id!==ROOT){SC[id]=SC[par[id]]*LS[id];if(SC[id]<minSC)minSC=SC[id];}});
+  snapAll();
 }
+/* 落点对齐到整像素。
+   每一页（.nf）都是缩小了塞在上一层格子里的。带 scale 的元素，浏览器「画它」和「判定点没点中它」时，
+   会把它在上一层里的落点四舍五入到整像素；可 getBoundingClientRect 量到的仍是带小数的落点。
+   两者最多差半个像素——是上一层尺度里的半个像素。镜头飞到第三、四层要放大三十到一百多倍，
+   这半个像素就成了十几到几十个屏幕像素：镜头按量到的位置停，停歪；脚本按量到的位置点，点空。
+   （实测：第四层差 81px。跟屏幕密度无关，只看排版恰好落在几点几像素上。）
+   所以这里把每一页相对「上一层那一页」的落点补成整数：量到的 = 画出来的 = 点得中的。
+   画面不会因此挪动——它本来就画在整像素上，补的只是排版位置里那点小数。
+   所有数都取 1/64 像素的整倍数（浏览器排版的最小单位），免得它再舍入一次。 */
+function q64(v){return Math.round(v*64)/64;}
+function snapAll(){
+  var m=[];
+  ORD.forEach(function(id){
+    if(id===ROOT)return;
+    var el=F[id],pe=F[par[id]];
+    if(!el||!pe||el._bl==null)return;
+    var a=el.getBoundingClientRect(),b=pe.getBoundingClientRect(),k=b.width/pe.offsetWidth;
+    if(!(k>0))return;
+    m.push({el:el,x:(a.left-b.left)/k-(el._sx||0),y:(a.top-b.top)/k-(el._sy||0)});
+  });
+  m.forEach(function(o){
+    var sx=q64(Math.round(o.x)-o.x),sy=q64(Math.round(o.y)-o.y),el=o.el;
+    if(sx===el._sx&&sy===el._sy)return;
+    el._sx=sx;el._sy=sy;
+    el.style.left=(el._bl+sx)+'px';
+    el.style.top=sy+'px';
+  });
+}
+var snapRaf=0;
+function snapSoon(){if(!snapRaf)snapRaf=requestAnimationFrame(function(){snapRaf=0;snapAll();});}
 function build(){
   stops.forEach(function(f){f();});stops=[];jobs=[];
   setMode();
@@ -1038,6 +1070,12 @@ function build(){
   Array.prototype.forEach.call(world.querySelectorAll('.nf'),function(el){F[el.dataset.id]=el;});
   jobs.forEach(function(f){f();});jobs=[];
   sizeAll();
+  /* 卡片里一展开一收起、字体晚到，下面各页的落点都会跟着变，变了就重新对齐 */
+  if(window.ResizeObserver){
+    var ro=new ResizeObserver(snapSoon);
+    Array.prototype.forEach.call(world.querySelectorAll('.nf>.card,.nf>.kz'),function(c){ro.observe(c);});
+    stops.push(function(){ro.disconnect();});
+  }
   OPEN={};LOD={};cur=null;
 }
 
