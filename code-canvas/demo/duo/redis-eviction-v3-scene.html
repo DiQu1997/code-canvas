@@ -230,6 +230,9 @@ body.nar .tile{padding:6px}
 #dock button,#zb button{height:36px;min-width:36px;padding:0 10px;border:0;border-radius:8px;background:#2f384c;color:#fff;font-size:13.5px;white-space:nowrap}
 #dock button:disabled{opacity:.35;cursor:default}
 #dock .pos{background:transparent;font-family:var(--mono);font-size:12.5px;color:#c9d6ff}
+/* 只有一页（单张机器图、没有下层）：翻页 / 层级这些控件没有意义，收起来，只留「回正」 */
+body.solo #bmap,body.solo .where,body.solo #dock button:not(.pos){display:none}
+body.solo #dock .pos{font-family:inherit;font-size:13.5px;color:#fff}
 #zb{position:fixed;right:12px;bottom:12px;z-index:30;display:flex;flex-direction:column;gap:4px;padding:5px;background:rgba(29,35,48,.94);border-radius:12px}
 #zb button{padding:0;font-size:16px}
 @media (hover:none){#zb{display:none}}
@@ -460,6 +463,7 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 var D=JSON.parse(document.getElementById('data').textContent),M=D.meta;
 var byId={},par={},DEP={},ORD=[],OI={},maxDep=0;
 (function ix(n,p,d){byId[n.id]=n;par[n.id]=p;DEP[n.id]=d;OI[n.id]=ORD.length;ORD.push(n.id);if(d>maxDep)maxDep=d;n.children.forEach(function(c){ix(c,n.id,d+1);});})(D.root,null,0);
+var SOLO=!D.root.children.length;if(SOLO)document.body.classList.add('solo');
 var LV={};M.levels.forEach(function(l){LV[l.name]=l;});
 function $(s){return document.querySelector(s);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -1130,15 +1134,15 @@ function crumb(p){
     else if(i===p.length-1)h+='<b>'+esc(byId[p[i]].nav)+'</b>';
     else h+='<a href="#/'+p[i]+'">'+esc(byId[p[i]].nav)+'</a>';
   });
-  $('#crumb').innerHTML=h;
+  $('#crumb').innerHTML=SOLO?'<b>'+esc(M.title)+'</b>':h;
 }
 function chromeUpd(){
   var n=byId[cur],p=pathOf(cur),i=OI[cur],on={};
   crumb(p);
-  document.title=n.nav+' · '+M.title;
+  document.title=SOLO?M.title:n.nav+' · '+M.title;
   A.up.disabled=!par[cur];A.prev.disabled=i<=0;A.next.disabled=i>=ORD.length-1;
   A.kids.disabled=!n.children.length;A.kids.textContent=n.children.length?'▾ 下层 '+n.children.length:'▾ 下层';
-  A.fit.textContent=(i+1)+' / '+ORD.length;
+  A.fit.textContent=SOLO?'⤢ 回正':(i+1)+' / '+ORD.length;
   p.forEach(function(x){on[x]=1;});
   ORD.forEach(function(id){var c=OL[id].classList;c.toggle('cur',id===cur);c.toggle('on',!!on[id]&&id!==cur);});
   if(document.body.classList.contains('mapopen'))OL[cur].scrollIntoView({block:'nearest'});
@@ -1159,11 +1163,17 @@ function chromeUpd(){
   h+='<h3>其它标记</h3>';
   Object.keys(M.who||{}).forEach(function(k){h+='<div><span class="who">'+esc(M.who[k])+'</span> '+esc((M.whoDesc||{})[k]||'')+'</div>';});
   h+='<div><a class="ref">文件:行号</a> 点开看仓库里的原文</div><div><a class="cm">哈希</a> 点开看日期和标题</div>';
-  h+='<h3>困惑类型（# 标签）</h3>';
+  if((M.tags||[]).length)h+='<h3>困惑类型（# 标签）</h3>';
   (M.tags||[]).forEach(function(t){h+='<div><span class="tg">'+esc(t.name)+'</span> '+esc(t.desc)+'</div>';});
-  h+='<h3>操作</h3><div>整份讲解是一张可以缩放的大画布。每一块里面放的就是下一层的真页面（缩小了）：点一下飞进去，或者一直放大，放到够大它自己展开。</div>';
-  h+='<div><b>电脑</b>：滚轮 / 触控板双指滑动 = 平移；Ctrl + 滚轮 / 捏合 = 缩放；← → 按顺序翻页，↑ 回上一层，↓ 进第一个下层，0 回正，Home 回总览。当前这一页上按住鼠标拖是选文字，想拖动画布请拖页面以外的地方。</div>';
-  h+='<div><b>手机</b>：单指拖动，双指缩放；底部按钮依次是 上层 / 上页 / 位置（点一下回正）/ 下页 / 下层。</div>';
+  h+='<h3>操作</h3>';
+  if(SOLO){
+    h+='<div><b>电脑</b>：滚轮 / 触控板双指滑动 = 平移；Ctrl + 滚轮 / 捏合 = 缩放；0 或底部「回正」回到全图。</div>';
+    h+='<div><b>手机</b>：单指拖动，双指缩放；底部「回正」回到全图。</div>';
+  }else{
+    h+='<div>整份讲解是一张可以缩放的大画布。每一块里面放的就是下一层的真页面（缩小了）：点一下飞进去，或者一直放大，放到够大它自己展开。</div>';
+    h+='<div><b>电脑</b>：滚轮 / 触控板双指滑动 = 平移；Ctrl + 滚轮 / 捏合 = 缩放；← → 按顺序翻页，↑ 回上一层，↓ 进第一个下层，0 回正，Home 回总览。当前这一页上按住鼠标拖是选文字，想拖动画布请拖页面以外的地方。</div>';
+    h+='<div><b>手机</b>：单指拖动，双指缩放；底部按钮依次是 上层 / 上页 / 位置（点一下回正）/ 下页 / 下层。</div>';
+  }
   var hasSc=false;walk(D.root,function(n){(n.blocks||[]).forEach(function(b){if(b.t==='scene')hasSc=true;});});
   if(hasSc)h+='<div><b>机器图</b>：点任何一个框或一条线展开说明卡（干什么 / 怎么设计 / 为什么）；底部切换图层 主流程 / 为什么 / 易混点；▶ ◀ 或键盘 . , 逐步推演。</div>';
   L.innerHTML=h;
@@ -1367,7 +1377,9 @@ stage.addEventListener('wheel',function(ev){
 zoom=d3.zoom().filter(filt).wheelDelta(wd).clickDistance(6).tapDistance(12).constrain(lockFn).on('start',onStart).on('zoom',onZoom).on('end',onEnd);
 sel.call(zoom).on('dblclick.zoom',null);
 
-hint.textContent=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches?'拖动平移 · 双指缩放 · 点小块飞进去':'滚轮 / 双指滑动 = 平移 · Ctrl+滚轮 / 捏合 = 缩放 · 点任意一块 = 飞进去';
+(function(){var touch=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+  if(SOLO)hint.textContent=touch?'拖动平移 · 双指缩放 · 点框或线看说明':'滚轮 / 双指滑动 = 平移 · Ctrl+滚轮 / 捏合 = 缩放 · 点框或线 = 看说明';
+  else hint.textContent=touch?'拖动平移 · 双指缩放 · 点小块飞进去':'滚轮 / 双指滑动 = 平移 · Ctrl+滚轮 / 捏合 = 缩放 · 点任意一块 = 飞进去';})();
 setTimeout(hideHint,7000);
 
 var rsT=0;
