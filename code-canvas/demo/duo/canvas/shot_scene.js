@@ -1,19 +1,31 @@
 // shot_scene.js —— 机器图（scene.html）的自检 + 固定一组截图
-// 用法：node shot_scene.js <scene.html> <输出目录> [--check] [--dsf2] [--steps]
+// 用法：node shot_scene.js <scene.html> <输出目录> [--check] [--dsf2] [--steps] [--node <节点id>] [--all]
 //   --check  只做机械排版检查（不截图、不点交互，几秒钟）—— 改坐标时反复跑这个，不花看图的钱
-// 做三件事：① 交互自检（图层 / 说明卡 / 推演，桌面 1440×900 + 手机 390×844 带触摸）
+//   --node   查下层某个节点（不写就是顶层）：它有机器图就全套检查；是源码页 / 文字页就只截图。截图文件名前面带上节点 id
+//   --all    顶层和每个下层节点各查一遍（「未展开」的空页跳过）
+// 做四件事：① 交互自检（图层 / 说明卡 / 推演，桌面 1440×900 + 手机 390×844 带触摸）
 //          ② 机械排版检查（线标签压框、线穿过别的框、框里放不下、字被截断）—— 打印成 LAYOUT 行
 //          ③ 固定 8 张截图（d1~d5 桌面，p1~p3 手机）；--steps 额外把每一步推演各截一张
+//          ④ 图上有「钻进去」时：真点一次，看是不是到了下层、下层是不是空页、能不能回来（多截 d6 / p4 两张）
 // 只在无头 Chromium 里跑：iOS Safari 的手势和渲染这里验不到。
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
-const [file, outDir] = process.argv.slice(2);
-const DSF = process.argv.includes('--dsf2') ? 2 : 1, ALL = process.argv.includes('--steps'), CHECK = process.argv.includes('--check');
-if (!file || !outDir) { console.error('用法：node shot_scene.js <scene.html> <输出目录> [--check] [--dsf2] [--steps]'); process.exit(2); }
+const argv = process.argv.slice(2), pos = [], flags = {};
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === '--node') flags.node = argv[++i];
+  else if (argv[i].slice(0, 2) === '--') flags[argv[i].slice(2)] = true;
+  else pos.push(argv[i]);
+}
+const [file, outDir] = pos;
+const DSF = flags.dsf2 ? 2 : 1, ALL = !!flags.steps, CHECK = !!flags.check, EVERY = !!flags.all;
+if (!file || !outDir || flags.node === undefined && argv.indexOf('--node') >= 0) { console.error('用法：node shot_scene.js <scene.html> <输出目录> [--check] [--dsf2] [--steps] [--node <节点id>] [--all]'); process.exit(2); }
 fs.mkdirSync(outDir, { recursive: true });
-const url = 'file://' + path.resolve(file);
+const base = 'file://' + path.resolve(file);
+let NODE = null;      // 正在查哪个节点的机器图；null = 顶层
+const url = () => base + (NODE ? '#/' + NODE : '');
+const tg = t => NODE ? t + ' · ' + NODE : t;
 let pass = 0, fail = 0; const lay = new Map(), seen = {};
-function ok(c, msg, extra) { if (c) { pass++; console.log('PASS ' + msg); } else { fail++; console.log('FAIL ' + msg + (extra !== undefined ? '  → ' + JSON.stringify(extra) : '')); } }
+function ok(c, msg, extra) { if (NODE) msg = msg.replace(/^\[(桌面|手机)\]/, '[$1 · ' + NODE + ']'); if (c) { pass++; console.log('PASS ' + msg); } else { fail++; console.log('FAIL ' + msg + (extra !== undefined ? '  → ' + JSON.stringify(extra) : '')); } }
 function listen(page, errs) {
   page.on('pageerror', e => errs.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
@@ -30,13 +42,13 @@ async function settle(page, extra) {
 }
 const sc = page => page.evaluate(() => window.__cv.scene.get());
 const rect = (page, sel) => page.evaluate(s => { const e = document.querySelector(s); if (!e || e.hidden) return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, r: r.right, b: r.bottom }; }, sel);
-const shot = (page, name) => CHECK ? null : page.screenshot({ path: path.join(outDir, name + '.png') });
+const shot = (page, name) => CHECK ? null : page.screenshot({ path: path.join(outDir, (NODE ? NODE + '-' : '') + name + '.png') });
 
 // 机械排版检查：在页面里量真实像素
 async function layout(page, vp, where) {
   (seen[vp] = seen[vp] || []).push(where);
   const out = await page.evaluate(() => {
-    const s = window.__cv.scene.get(), fig = document.querySelector('.nf.cur .scn'), out = [];
+    const s = window.__cv.scene.get(), fig = document.querySelector('.nf.cur > .card .scn'), out = [];
     if (!s || !fig) return out;
     const R = e => e.getBoundingClientRect();
     const hit = (a, b, pad) => a.left < b.right - pad && a.right > b.left + pad && a.top < b.bottom - pad && a.bottom > b.top + pad;
@@ -70,22 +82,63 @@ async function allLayouts(page, tag, s) {
   await page.evaluate(() => window.__cv.scene.step(-1)); await settle(page, 200);
 }
 
+// 没有机器图的下层页（源码页 / 文字页）：只看是不是空页、有没有报错，截一张（手机截整页）
+async function plain(page, vp, name, errs) {
+  const st = await page.evaluate(() => { const f = document.querySelector('.nf.cur'); return { stub: f.classList.contains('stub'), code: f.querySelectorAll(':scope > .card figure.code').length }; });
+  console.log('INFO [' + tg(vp) + '] 这一页没有机器图（源码页 / 文字页），只截图：代码块 ' + st.code + ' 段');
+  ok(!st.stub, '[' + vp + '] 这一页有内容（不是「未展开」的空页）');
+  ok(errs.length === 0, '[' + vp + '] 没有 JS 报错', errs.slice(0, 3));
+  if (!CHECK) await page.screenshot({ path: path.join(outDir, NODE + '-' + name + '.png'), fullPage: vp === '手机' });
+}
+
+// 「钻进去」：把每张说明卡打开看一眼有没有按钮；有的话真点第一个，看到没到下层、下层是不是空页、回不回得来
+async function dive(page, vp, s, touch) {
+  const here = await page.evaluate(() => window.__cv.cur()), gos = {};
+  for (const id of s.ids) {
+    await page.evaluate(x => window.__cv.scene.open(x), id); await page.waitForTimeout(40);
+    const g = await page.evaluate(() => [...document.querySelectorAll('#xp .xgo[data-go]')].map(e => e.dataset.go));
+    if (g.length) gos[id] = g;
+  }
+  await page.evaluate(() => window.__cv.scene.close()); await settle(page, 150);
+  const from = Object.keys(gos);
+  if (!from.length) { console.log('INFO [' + tg(vp) + '] 这张图上没有带「钻进去」的说明卡（这张图下面没有再下一层就不用管）'); return; }
+  const tos = [...new Set([].concat(...from.map(k => gos[k])))];
+  const stubs = await page.evaluate(ids => ids.filter(i => { const f = document.querySelector('.nf[data-id="' + i + '"]'); return !f || f.classList.contains('stub'); }), tos);
+  ok(stubs.length === 0, '[' + vp + '] 「钻进去」指到的 ' + tos.length + ' 个页面都有内容（不是「未展开」的空页）', stubs);
+  const id = from[0], to = gos[id][0], btn = '#xp .xgo[data-go="' + to + '"]';
+  await page.evaluate(x => window.__cv.scene.open(x), id); await settle(page);
+  await page.evaluate(q => document.querySelector(q).scrollIntoView({ block: 'nearest' }), btn); await page.waitForTimeout(120);
+  let hit = true;
+  try { if (touch) await page.tap(btn, { timeout: 4000 }); else await page.click(btn, { timeout: 4000 }); } catch (e) { hit = false; }
+  ok(hit, '[' + vp + '] 说明卡「' + id + '」里的「钻进去」按钮点得到（没被别的东西挡住）');
+  if (!hit) { await page.evaluate(() => window.__cv.scene.close()); return; }
+  await settle(page);
+  const st = await page.evaluate(() => ({ cur: window.__cv.cur(), xp: !document.getElementById('xp').hidden }));
+  ok(st.cur === to, '[' + vp + '] 点「钻进去」→ 到了下层「' + to + '」', st);
+  ok(!st.xp, '[' + vp + '] 到了下层，上一层的说明卡收起来了', st);
+  await shot(page, (touch ? 'p4' : 'd6') + '-dive');
+  await page.evaluate(x => window.__cv.go(x), here); await settle(page);
+  ok(await page.evaluate(() => window.__cv.cur()) === here, '[' + vp + '] 能回到这张图');
+}
+
 async function desktop(browser) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: DSF });
   const page = await ctx.newPage(); const errs = []; listen(page, errs);
-  await page.goto(url); await page.waitForSelector('.nf.cur'); await settle(page);
+  await page.goto(url()); await page.waitForSelector('.nf.cur'); await settle(page);
+  if (NODE) ok(await page.evaluate(() => window.__cv.cur()) === NODE, '[桌面] 打开的是要查的节点', await page.evaluate(() => window.__cv.cur()));
   let s = await sc(page);
+  if (!s && NODE) { await plain(page, '桌面', 'd-page', errs); await ctx.close(); return; }
   ok(!!s, '[桌面] 打开的这一页有机器图');
   if (!s) { await shot(page, 'd1-overview'); await ctx.close(); return; }
   ok(!s.mob, '[桌面] 用的是桌面那套坐标', s.mob);
-  let f = await rect(page, '.nf.cur .scn .scw'), pl = await rect(page, '#play');
+  let f = await rect(page, '.nf.cur > .card .scn .scw'), pl = await rect(page, '#play');
   ok(f && pl && f.x >= 0 && f.r <= 1440 && f.y >= 48 && f.b <= pl.y + 1, '[桌面] 整张机器图在推演条上方、一屏看全', { fig: f, play: pl });
   await shot(page, 'd1-overview');
-  await allLayouts(page, '桌面', s);
+  await allLayouts(page, tg('桌面'), s);
   if (CHECK) { ok(errs.length === 0, '[桌面] 没有 JS 报错', errs.slice(0, 3)); await ctx.close(); return; }
 
   await page.click('#play [data-lens="why"]'); await page.waitForTimeout(250);
-  ok((await sc(page)).lens === 'why' && await page.evaluate(() => document.querySelector('.nf.cur .scn').classList.contains('l-why')), '[桌面] 点「为什么」切到为什么图层');
+  ok((await sc(page)).lens === 'why' && await page.evaluate(() => document.querySelector('.nf.cur > .card .scn').classList.contains('l-why')), '[桌面] 点「为什么」切到为什么图层');
   await shot(page, 'd2-why');
   await page.click('#play [data-lens="trap"]'); await page.waitForTimeout(250);
   ok((await sc(page)).lens === 'trap', '[桌面] 点「易混点」切到易混点图层');
@@ -94,15 +147,15 @@ async function desktop(browser) {
 
   const parts = s.ids.filter(i => !s.ends[i]), wires = s.ids.filter(i => s.ends[i]);
   const pid = parts[Math.min(1, parts.length - 1)];
-  await page.click('.nf.cur .scn .pt[data-p="' + pid + '"]'); await settle(page);
-  let xp = await rect(page, '#xp'), pr = await rect(page, '.nf.cur .scn .pt[data-p="' + pid + '"]');
+  await page.click('.nf.cur > .card .scn .pt[data-p="' + pid + '"]'); await settle(page);
+  let xp = await rect(page, '#xp'), pr = await rect(page, '.nf.cur > .card .scn .pt[data-p="' + pid + '"]');
   ok((await sc(page)).open === pid && !!xp, '[桌面] 点部件 → 说明卡打开', pid);
   ok(xp && pr && pr.r <= xp.x + 1 && pr.x >= 0, '[桌面] 被点的部件没被说明卡挡住', { part: pr, panel: xp });
   const secs = await page.evaluate(() => [...document.querySelectorAll('#xp .xs h5')].map(e => e.textContent));
   ok(secs.length >= 3, '[桌面] 说明卡有 干什么 / 怎么设计 / 为什么 三栏', secs);
   await shot(page, 'd4-card');
   if (wires.length) {
-    await page.click('.nf.cur .scn .wl[data-w="' + wires[0] + '"]'); await settle(page);
+    await page.click('.nf.cur > .card .scn .wl[data-w="' + wires[0] + '"]'); await settle(page);
     ok((await sc(page)).open === wires[0], '[桌面] 点线上的标签 → 换成这条线的说明卡', wires[0]);
     await page.keyboard.press('ArrowRight'); await settle(page, 150);
     ok((await sc(page)).open === s.ids[(s.ids.indexOf(wires[0]) + 1) % s.ids.length], '[桌面] → 键翻到下一张说明卡');
@@ -116,17 +169,18 @@ async function desktop(browser) {
     const mid = Math.min(s.n - 1, Math.max(1, Math.floor(s.n / 2)));
     for (let i = 0; i < s.n; i++) {
       await page.evaluate(x => window.__cv.scene.step(x), i); await settle(page, 250);
-      const fx = await page.evaluate(() => document.querySelectorAll('.nf.cur .scn .pt.fx,.nf.cur .scn .wl.fx').length);
+      const fx = await page.evaluate(() => document.querySelectorAll('.nf.cur > .card .scn .pt.fx,.nf.cur > .card .scn .wl.fx').length);
       if (i === 0) ok(fx > 0, '[桌面] 推演时有部件 / 连线被点亮', fx);
       if (ALL) await shot(page, 'ds' + (i + 1) + '-step');
       if (i === mid) await shot(page, 'd5-step' + (i + 1));
     }
     await page.keyboard.press(','); await page.waitForTimeout(200);
     ok((await sc(page)).step === s.n - 2, '[桌面] , 键退一步');
-    f = await rect(page, '.nf.cur .scn .scw'); pl = await rect(page, '#play');
+    f = await rect(page, '.nf.cur > .card .scn .scw'); pl = await rect(page, '#play');
     ok(f && pl && f.b <= pl.y + 1, '[桌面] 推演时机器图仍在推演条上方', { fig: f, play: pl });
     await page.evaluate(() => window.__cv.scene.step(-1));
   }
+  await dive(page, '桌面', s, false);
   ok(errs.length === 0, '[桌面] 没有 JS 报错', errs.slice(0, 3));
   await ctx.close();
 }
@@ -134,24 +188,26 @@ async function desktop(browser) {
 async function phone(browser) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: DSF, isMobile: true, hasTouch: true });
   const page = await ctx.newPage(); const errs = []; listen(page, errs);
-  await page.goto(url); await page.waitForSelector('.nf.cur'); await settle(page);
+  await page.goto(url()); await page.waitForSelector('.nf.cur'); await settle(page);
+  if (NODE) ok(await page.evaluate(() => window.__cv.cur()) === NODE, '[手机] 打开的是要查的节点', await page.evaluate(() => window.__cv.cur()));
   const s = await sc(page);
+  if (!s && NODE) { await plain(page, '手机', 'p-page', errs); await ctx.close(); return; }
   ok(!!s, '[手机] 打开的这一页有机器图');
   if (!s) { await shot(page, 'p1-overview'); await ctx.close(); return; }
   ok(s.mob, '[手机] 用的是手机那套坐标（m / mw / mh）', s.mob);
-  let f = await rect(page, '.nf.cur .scn .scw'), pl = await rect(page, '#play');
+  let f = await rect(page, '.nf.cur > .card .scn .scw'), pl = await rect(page, '#play');
   ok(f && f.x >= 0 && f.r <= 390, '[手机] 机器图左右不出屏', f);
   ok(pl && pl.x >= 0 && pl.r <= 390 && pl.b <= 844, '[手机] 推演条不出屏', pl);
   await shot(page, 'p1-overview');
-  await allLayouts(page, '手机', s);
+  await allLayouts(page, tg('手机'), s);
   if (CHECK) { ok(errs.length === 0, '[手机] 没有 JS 报错', errs.slice(0, 3)); await ctx.close(); return; }
 
   const parts = s.ids.filter(i => !s.ends[i]);
   const pid = parts[Math.min(1, parts.length - 1)];
-  await page.evaluate(id => { const e = document.querySelector('.nf.cur .scn .pt[data-p="' + id + '"]'); const r = e.getBoundingClientRect(); window.__in = r.top > 56 && r.bottom < innerHeight - 8; }, pid);
+  await page.evaluate(id => { const e = document.querySelector('.nf.cur > .card .scn .pt[data-p="' + id + '"]'); const r = e.getBoundingClientRect(); window.__in = r.top > 56 && r.bottom < innerHeight - 8; }, pid);
   if (!(await page.evaluate(() => window.__in))) { await page.evaluate(id => window.__cv.scene.open(id), pid); await settle(page); await page.evaluate(() => window.__cv.scene.close()); await settle(page, 150); }
-  await page.tap('.nf.cur .scn .pt[data-p="' + pid + '"]'); await settle(page);
-  let xp = await rect(page, '#xp'), pr = await rect(page, '.nf.cur .scn .pt[data-p="' + pid + '"]');
+  await page.tap('.nf.cur > .card .scn .pt[data-p="' + pid + '"]'); await settle(page);
+  let xp = await rect(page, '#xp'), pr = await rect(page, '.nf.cur > .card .scn .pt[data-p="' + pid + '"]');
   ok((await sc(page)).open === pid && !!xp, '[手机] 点部件 → 说明卡从底部升起', pid);
   ok(xp && pr && pr.b <= xp.y + 1 && pr.y >= 48, '[手机] 被点的部件露在说明卡上方', { part: pr, panel: xp });
   ok(xp && xp.h <= 844 * .6 + 2, '[手机] 说明卡不超过屏幕六成高', xp);
@@ -173,7 +229,7 @@ async function phone(browser) {
       pl = await rect(page, '#play');
       const vis = await page.evaluate(top => {
         const id = (window.__cv.scene.get().focus || [])[0]; if (!id) return null;
-        const e = document.querySelector('.nf.cur .scn .pt[data-p="' + id + '"]'), w = e ? null : document.querySelector('.nf.cur .scn .wl[data-w="' + id + '"]');
+        const e = document.querySelector('.nf.cur > .card .scn .pt[data-p="' + id + '"]'), w = e ? null : document.querySelector('.nf.cur > .card .scn .wl[data-w="' + id + '"]');
         if (!e && !w) return null;
         const r = (e || w).getBoundingClientRect();
         return e ? (r.top >= 47 && r.bottom <= top + 1 && r.left >= -1 && r.right <= 391) : (r.bottom > 60 && r.top < top - 12 && r.right > 0 && r.left < 390);
@@ -184,17 +240,32 @@ async function phone(browser) {
     ok(hid.length === 0, '[手机] 每一步的主角（focus 的第一个）都在推演条上方看得见', hid.length ? '看不见的步：' + hid.join('、') : null);
     pl = await rect(page, '#play');
     ok(pl && pl.h <= 844 * .5, '[手机] 推演条不超过半屏', pl);
+    await page.evaluate(() => window.__cv.scene.step(-1)); await settle(page, 150);
   }
+  await dive(page, '手机', s, true);
   ok(errs.length === 0, '[手机] 没有 JS 报错', errs.slice(0, 3));
   await ctx.close();
 }
 
 (async () => {
   const browser = await chromium.launch();
-  try { await desktop(browser); await phone(browser); } catch (e) { fail++; console.log('FAIL 脚本中断：' + e.message.split('\n')[0]); }
+  let subs = [], rest = [];      // 下层节点：带机器图的 / 不带的（源码页、文字页）
+  try {
+    const pg = await browser.newPage(); await pg.goto(base); await pg.waitForSelector('.nf.cur');
+    const all = await pg.evaluate(() => [...document.querySelectorAll('.nf')].filter(e => e.dataset.id !== window.__cv.cur() && !e.classList.contains('stub')).map(e => ({ id: e.dataset.id, sc: e.classList.contains('sc') })));
+    subs = all.filter(x => x.sc).map(x => x.id); rest = all.filter(x => !x.sc).map(x => x.id);
+    await pg.close();
+    if (flags.node && !all.some(x => x.id === flags.node)) console.log('注意：页面里没有「' + flags.node + '」这个有内容的节点（有：' + (all.map(x => x.id).join('、') || '无') + '）');
+    for (const n of (EVERY ? [null].concat(subs, rest) : [flags.node || null])) {
+      NODE = n;
+      if (EVERY) console.log('\n—— ' + (n ? '下层节点 ' + n : '顶层') + ' ——');
+      await desktop(browser); await phone(browser);
+    }
+  } catch (e) { fail++; console.log('FAIL 脚本中断：' + e.message.split('\n')[0]); }
   await browser.close();
   lay.forEach((v, k) => console.log('LAYOUT ' + k + '（' + (v.at.length === seen[v.vp].length ? '所有图层和步骤' : v.at.join('、')) + '）'));
   console.log('\n交互自检 ' + pass + ' PASS / ' + fail + ' FAIL；排版问题 ' + lay.size + ' 条' + (lay.size ? '（每条都要改掉，或说明为什么可以留）' : ''));
+  if (!EVERY && !flags.node && (subs.length || rest.length)) console.log('这次只查了顶层那张图。下层还有：带机器图的 ' + (subs.join('、') || '无') + '；源码页 / 文字页 ' + (rest.join('、') || '无') + ' —— 用 --node <id> 单独查（源码页只截图），或 --all 一次全查');
   if (!CHECK) console.log('截图在 ' + path.resolve(outDir));
   process.exit(fail ? 1 : 0);
 })();
