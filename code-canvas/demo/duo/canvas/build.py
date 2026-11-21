@@ -337,6 +337,9 @@ def do_scene(b, cx, counter):
         raise BuildError('机器图的 mw / mh 要么都给要么都不给')
     if not mw:
         warn(cx, '机器图没给手机画幅（mw / mh + 每个部件的 m）：手机上会把桌面版整体缩小，字会很小')
+    if H > 520:
+        warn(cx, '机器图桌面画幅高 %d（建议 ≤ 520）：1440×900 的屏上全景会缩到约 %.2f 倍，框里的字偏小；'
+                 '把部件排得更横一些，或者把次要部件挪进说明卡' % (H, min(1.0, 641.0 / (H + 186))))
     ids, parts, wires = {}, [], []
 
     def one(s, what, budget):

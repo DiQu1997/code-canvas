@@ -378,14 +378,19 @@ body.nar.xpo #play{display:none}
 .seg button{border:0;background:none;height:30px;padding:0 10px;border-radius:6px;font:13px/1 var(--sans);color:#2c3445;cursor:pointer;white-space:nowrap}
 .seg button.on{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.18);font-weight:700}
 .seg small{margin-left:3px;font-size:11px;color:var(--mut);font-weight:400}
-.pnav{margin-left:auto;display:flex;align-items:center;gap:4px}
+.pnav{margin-left:auto;display:flex;align-items:center;gap:4px;flex:none}
 .pnav button,.pcol{height:30px;min-width:34px;border:1px solid var(--line);background:#fff;border-radius:8px;font:13px/1 var(--sans);color:var(--ink);cursor:pointer}
+.pnav button{white-space:nowrap}
 .pnav button:disabled{opacity:.35;cursor:default}
 .pnav button.go{background:var(--acc);border-color:var(--acc);color:#fff;padding:0 12px}
 .pcnt{min-width:3.6em;text-align:center;font:12.5px/1 var(--mono);color:var(--mut)}
 .pbody{border-top:1px solid var(--line);padding:8px 12px 10px;max-height:30vh;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;font-size:14.5px;line-height:1.55}
 body.wide #play .pbody{height:150px;max-height:none;box-sizing:border-box}
 body.wide #play.nost .pbody{height:auto}
+body.wide #play.ov .pbody{height:auto;padding:7px 12px 8px}
+body.wide #play.ov .phint{margin:0}
+body.wide #play.ov .pidx{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;margin-top:6px;padding-bottom:3px}
+body.wide #play.ov .pidx button{flex:none}
 #play.col .pbody{display:none}
 .pbody p{margin:2px 0 4px}
 .pbody h4{display:flex;align-items:center;gap:7px;margin:0 0 4px;font-size:15px;line-height:1.4}
@@ -395,6 +400,11 @@ body.wide .pcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
 #play .note{margin:2px 0 0;padding:5px 10px;font-size:14px}
 .phint{color:#2c3445}
 body.nar .ph-l,body.wide .ph-s{display:none}
+body.nar .pr1{gap:6px}
+body.nar .seg{min-width:0}
+body.nar .seg button{padding:0 7px}
+body.nar .pnav button.go{padding:0 9px}
+body.nar #play.ov .pcnt,body.nar #play.ov .pnav button:disabled{display:none}
 body.nar .pidx{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 body.nar .pidx::-webkit-scrollbar{display:none}
 body.nar .pidx button{flex:none}
@@ -629,6 +639,8 @@ var jobs=[],stops=[],flying=false,flyTok=0,raf=0,lock=null,iner=null,samp=[],zoo
 Array.prototype.forEach.call(document.querySelectorAll('[data-act]'),function(b){A[b.dataset.act]=b;});
 /* ---------- 机器图（scene）：部件 + 连线 + 图层 + 推演条 + 说明卡 ---------- */
 var SCF={},SCS={},SCK={},XP=null,PLAY=$('#play'),XPE=$('#xp'),scFly=-1;
+/* 步骤目录是一行横向滚的条：鼠标滚轮直接横着滚 */
+PLAY.addEventListener('wheel',function(e){var x=e.target.closest&&e.target.closest('.pidx');if(x&&x.scrollWidth>x.clientWidth+1&&Math.abs(e.deltaY)>Math.abs(e.deltaX)){x.scrollLeft+=e.deltaY;e.preventDefault();}},{passive:false});
 var SNRM={l:[-1,0],r:[1,0],t:[0,-1],b:[0,1]};
 var XSEC=[['does','这里是干什么的'],['how','怎么设计的'],['why','为什么这么设计 · 好处'],['traps','容易看错的地方']];
 function r1(v){return Math.round(v*10)/10;}
@@ -795,7 +807,7 @@ function scGlyphAt(rec,pid,i){
   return g;
 }
 function scStep(rec,i,quiet){
-  var n=rec.b.steps.length,fo={};
+  var n=rec.b.steps.length,fo={},was=rec.step;
   i=Math.max(-1,Math.min(n-1,i|0));
   rec.step=i;
   rec.fig.classList.toggle('st',i>=0);
@@ -814,6 +826,7 @@ function scStep(rec,i,quiet){
   });
   if(quiet)return;
   playUpd();
+  if(mode==='wide'&&!XP&&rec.nid===cur&&(was<0)!==(i<0)){flyTo(cur,null);return;}
   if(i>=0)scReveal(rec,rec.b.steps[i].focus);
 }
 function scLens(rec,l,quiet){
@@ -844,6 +857,7 @@ function playUpd(){
   }
   PLAY.innerHTML=h+'</div>';
   PLAY.classList.toggle('nost',!n);
+  PLAY.classList.toggle('ov',i<0);
   PLAY.hidden=false;
 }
 function playClick(t){
@@ -907,18 +921,24 @@ function xpClick(t){
 function scReveal(rec,ids){
   if(rec.nid!==cur||(flying&&scFly!==flyTok)||!ids||!ids.length)return;
   var u=null,s=stage.getBoundingClientRect(),fr,dx=0,dy=0;
-  ids.forEach(function(id){
-    Array.prototype.forEach.call(rec.fig.querySelectorAll('.pt[data-p="'+id+'"],.wl[data-w="'+id+'"]'),function(el){
-      var r=el.getBoundingClientRect();
-      if(!u)u={l:r.left,t:r.top,r:r.right,b:r.bottom};
-      else{u.l=Math.min(u.l,r.left);u.t=Math.min(u.t,r.top);u.r=Math.max(u.r,r.right);u.b=Math.max(u.b,r.bottom);}
-    });
-  });
-  if(!u)return;
   fr={l:s.left+12,t:s.top+12,r:s.right-12,b:s.bottom-12};
   if(XP&&mode==='wide')fr.r=XPE.getBoundingClientRect().left-16;
   if(XP&&mode!=='wide')fr.b=XPE.getBoundingClientRect().top-12;
   else if(!PLAY.hidden)fr.b=PLAY.getBoundingClientRect().top-12;
+  /* focus 的第一个是主角，一定露出来；后面的按顺序加，加进来还装得下才一起入镜 */
+  ids.forEach(function(id){
+    var o=null,n;
+    Array.prototype.forEach.call(rec.fig.querySelectorAll('.pt[data-p="'+id+'"],.wl[data-w="'+id+'"]'),function(el){
+      var r=el.getBoundingClientRect();
+      if(!o)o={l:r.left,t:r.top,r:r.right,b:r.bottom};
+      else{o.l=Math.min(o.l,r.left);o.t=Math.min(o.t,r.top);o.r=Math.max(o.r,r.right);o.b=Math.max(o.b,r.bottom);}
+    });
+    if(!o)return;
+    if(!u){u=o;return;}
+    n={l:Math.min(u.l,o.l),t:Math.min(u.t,o.t),r:Math.max(u.r,o.r),b:Math.max(u.b,o.b)};
+    if(n.r-n.l<=fr.r-fr.l&&n.b-n.t<=fr.b-fr.t)u=n;
+  });
+  if(!u)return;
   if(u.r-u.l>fr.r-fr.l)dx=fr.l-u.l;else if(u.l<fr.l)dx=fr.l-u.l;else if(u.r>fr.r)dx=fr.r-u.r;
   if(u.b-u.t>fr.b-fr.t)dy=fr.t-u.t;else if(u.t<fr.t)dy=fr.t-u.t;else if(u.b>fr.b)dy=fr.b-u.b;
   if(Math.abs(dx)<=1&&Math.abs(dy)<=1)return;
@@ -1024,13 +1044,14 @@ function viewOf(id,nk){
   var el=F[id],w=wr(el),fw=el.offsetWidth,vw=stage.clientWidth,vh=stage.clientHeight,K,pad;
   if(mode==='wide'){K=Math.max(.6,Math.min(1.15,(vw-56)/fw));pad=16;}
   else{K=Math.min(1,(vw-16)/fw);pad=8;}
-  var sc=SCS[id],cb,fb;
+  var sc=SCS[id],cb,fb,top=null;
   if(mode==='wide'&&sc&&!nk){
-    cb=(cur===id&&!PLAY.hidden)?window.innerHeight-PLAY.getBoundingClientRect().top:(sc.b.steps.length?262:112);
+    cb=(cur===id&&!PLAY.hidden)?window.innerHeight-PLAY.getBoundingClientRect().top:(sc.b.steps.length?(sc.step>=0?262:192):112);
     fb=wr(sc.fig);fb=(fb.y+fb.h-w.y)/SC[id];
-    K=Math.max(.6,Math.min(K,(vh-cb-28)/fb));
+    if(sc.step>=0){top=wr(sc.fig.querySelector('.scw'));fb=top.h/SC[id];K=Math.max(.6,Math.min(K,(vh-cb-22)/fb));}
+    else K=Math.max(.6,Math.min(K,(vh-cb-28)/fb));
   }
-  var k=K/SC[id],x=(vw-K*fw)/2-k*w.x,y=pad-k*w.y,nt=noteEl(id,nk);
+  var k=K/SC[id],x=(vw-K*fw)/2-k*w.x,y=top?10-k*top.y:pad-k*w.y,nt=noteEl(id,nk);
   if(nt)y=Math.max(60,vh*.3)-k*wr(nt).y;
   return {x:x,y:y,k:k};
 }
@@ -1358,7 +1379,7 @@ window.addEventListener('resize',function(){
   },200);
 });
 window.addEventListener('hashchange',function(){route();});
-window.__cv={cur:function(){return cur;},has:function(id){return !!byId[id];},t:function(){return {x:T.x,y:T.y,k:T.k};},flying:function(){return flying;},K:function(id){return T.k*SC[id];},mode:function(){return mode+(ph?'/ph':'');},go:go,scene:{get:function(){var r=cur&&SCS[cur];return r?{step:r.step,lens:r.lens,open:XP?XP.id:null,n:r.b.steps.length,mob:r.mob,ids:r.order.slice(),s:r.s,ends:(function(){var o={};r.b.wires.forEach(function(w){o[w.id]=[w.f,w.t];});return o;})()}:null;},step:function(i){var r=cur&&SCS[cur];if(r)scStep(r,i);},lens:function(l){var r=cur&&SCS[cur];if(r)scLens(r,l);},open:function(id){var r=cur&&SCS[cur];if(r)openX(r,id);},close:closeX}};
+window.__cv={cur:function(){return cur;},has:function(id){return !!byId[id];},t:function(){return {x:T.x,y:T.y,k:T.k};},flying:function(){return flying;},K:function(id){return T.k*SC[id];},mode:function(){return mode+(ph?'/ph':'');},go:go,scene:{get:function(){var r=cur&&SCS[cur];return r?{step:r.step,lens:r.lens,open:XP?XP.id:null,n:r.b.steps.length,focus:r.step>=0?r.b.steps[r.step].focus.slice():[],mob:r.mob,ids:r.order.slice(),s:r.s,ends:(function(){var o={};r.b.wires.forEach(function(w){o[w.id]=[w.f,w.t];});return o;})()}:null;},step:function(i){var r=cur&&SCS[cur];if(r)scStep(r,i);},lens:function(l){var r=cur&&SCS[cur];if(r)scLens(r,l);},open:function(id){var r=cur&&SCS[cur];if(r)openX(r,id);},close:closeX}};
 build();setExtent();route(true);
 })();
 </script>

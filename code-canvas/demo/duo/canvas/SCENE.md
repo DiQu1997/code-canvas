@@ -44,7 +44,7 @@ def root(base):                 # base = 原来的顶层节点（title / lead / 
 | `part(id, name, d, m=None, code=None, kind='act', n=None, glyph=None, say=None, why=None, trap=None, card=None, to=None)` | 一个部件。`d` / `m` = 桌面 / 手机的 `[x, y, w, h]` |
 | `wire(id, f, t, label, n=None, why=None, trap=None, card=None, to=None, ml=None, fs=None, ts=None, mfs=None, mts=None, lp=None, mlp=None, cls=None)` | 从部件 `f` 到 `t` 的线；`f == t` 画成回环 |
 | `card(does, how, why, traps=None)` | 说明卡。每栏是一条或一组条目；条目 = 一段字，或 `note(...)`。`why` 栏必须是 `note` |
-| `beat(title, what, why=None, focus=None, state=None)` | 推演的一步。`focus` = 点亮的部件 / 连线 id；`state = {部件id: 新小图}`：从这一步起那个框换成新小图，一直保持到后面再换；给 `None` = 从这一步起不画小图 |
+| `beat(title, what, why=None, focus=None, state=None)` | 推演的一步。`focus` = 点亮的部件 / 连线 id，**第一个是镜头的主角**（屏幕装不下全部时，保证第一个露出来，后面的按顺序、装得下才一起入镜；所以把这一步最该看的那个框放第一个）；`state = {部件id: 新小图}`：从这一步起那个框换成新小图，一直保持到后面再换；给 `None` = 从这一步起不画小图 |
 | `group(label, d, m=None)` | 虚线分组框（把几个部件圈成一个子系统），传给 `scene(groups=[...])` |
 
 - `kind`（决定框的颜色）：`act` 动作 · `store` 存着的数据 · `ext` 外部来的 · `bg` 后台 / 旁路 · `gate` 判断 · `out` 结果。
@@ -83,7 +83,7 @@ def root(base):                 # base = 原来的顶层节点（title / lead / 
 
 两套坐标各排各的：桌面是横向的大图，手机是竖着的长图，**不要把桌面版按比例缩一下当手机版**。
 
-**桌面**（宽 1220，高 460–520 时在 1440×900 的屏上能一屏看全；主流程从左到右）
+**桌面**（宽 1220，高 460–520 时在 1440×900 的屏上能一屏看全；主流程从左到右。**高超过 520 构建会 WARN**：全景会被整体缩小，630 高时约 0.8 倍。推演时镜头只框图本身，会比全景大一些）
 - 有小图 + 两行字的框，高度 **≥ 120–130**（判断框里三四行的 `g_checks` 要 150 左右）；没有小图的 ≥ 80。
   **按最挤的图层留高度**：「为什么」那一行前面带一个等级小标，通常要占两行。
 - 左右相连的两个框，中间留 **≥ 120–150**：线上的字会自动折行去适应这个空隙，空隙越小字折得越高。

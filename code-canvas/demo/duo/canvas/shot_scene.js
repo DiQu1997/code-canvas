@@ -165,17 +165,23 @@ async function phone(browser) {
   if (s.n) {
     await page.tap('#play [data-st="1"]'); await settle(page);
     ok((await sc(page)).step === 0, '[手机] 点 ▶ 进入第 1 步');
-    const mid = Math.min(s.n - 1, Math.max(1, Math.floor(s.n / 2)));
+    const mid = Math.min(s.n - 1, Math.max(1, Math.floor(s.n / 2))); const hid = [];
     for (let i = 0; i < s.n; i++) {
       await page.evaluate(x => window.__cv.scene.step(x), i); await settle(page, 250);
       if (ALL) await shot(page, 'ps' + (i + 1) + '-step');
-      if (i === mid) {
-        pl = await rect(page, '#play');
-        const vis = await page.evaluate(top => { const e = document.querySelector('.nf.cur .scn .pt.fx'); if (!e) return null; const r = e.getBoundingClientRect(); return r.top >= 47 && r.bottom <= top + 1 && r.left >= -1 && r.right <= 391; }, pl.y);
-        ok(vis !== false, '[手机] 这一步点亮的部件在推演条上方看得见', vis);
-        await shot(page, 'p3-step' + (i + 1));
-      }
+      // 每一步的主角（focus 的第一个）都得露在推演条上方：部件要整个露出来，连线露出一截就算
+      pl = await rect(page, '#play');
+      const vis = await page.evaluate(top => {
+        const id = (window.__cv.scene.get().focus || [])[0]; if (!id) return null;
+        const e = document.querySelector('.nf.cur .scn .pt[data-p="' + id + '"]'), w = e ? null : document.querySelector('.nf.cur .scn .wl[data-w="' + id + '"]');
+        if (!e && !w) return null;
+        const r = (e || w).getBoundingClientRect();
+        return e ? (r.top >= 47 && r.bottom <= top + 1 && r.left >= -1 && r.right <= 391) : (r.bottom > 60 && r.top < top - 12 && r.right > 0 && r.left < 390);
+      }, pl.y);
+      if (vis === false) hid.push(i + 1);
+      if (i === mid) await shot(page, 'p3-step' + (i + 1));
     }
+    ok(hid.length === 0, '[手机] 每一步的主角（focus 的第一个）都在推演条上方看得见', hid.length ? '看不见的步：' + hid.join('、') : null);
     pl = await rect(page, '#play');
     ok(pl && pl.h <= 844 * .5, '[手机] 推演条不超过半屏', pl);
   }
