@@ -1,0 +1,204 @@
+{
+ "question": "How does a request go through sglang and get the response back to client, step by step（一条请求在 sglang 里是怎么一步一步走完、响应又是怎么回到客户端的）",
+ "repo": "/tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/corpus2/sglang",
+ "head": "c569c43446",
+ "models": {
+  "research_top": "opus",
+  "present_top": "opus",
+  "research_dive": "sonnet",
+  "present_dive": "opus"
+ },
+ "budget": 50.0,
+ "steps": [
+  {
+   "step": "research-top",
+   "role": "research",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 11.5654,
+   "secs": 1425,
+   "turns": 140,
+   "tools": 139,
+   "session": "3480e034-c345-4260-8e4d-81edb9c544b9",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "present-top",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.6505,
+   "secs": 917,
+   "turns": 41,
+   "tools": 40,
+   "session": "5b6966e9-599f-41fb-bcd6-e0b5a70a2003",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-sched_loop",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 4.3982,
+   "secs": 856,
+   "turns": 112,
+   "tools": 111,
+   "session": "9704944b-1598-485b-a8aa-cf425a225ca5",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "present-sched_loop",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 5.4105,
+   "secs": 1615,
+   "turns": 1,
+   "tools": 46,
+   "session": "dbfb9afa-7727-4e7f-b4ce-94b1c7740bf1",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-kv_cache",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.9316,
+   "secs": 997,
+   "turns": 94,
+   "tools": 93,
+   "session": "74e2e35e-b663-4514-a100-97e582d04b24",
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "cost_session_total": 3.9316
+  },
+  {
+   "step": "present-kv_cache",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 4.306,
+   "secs": 1432,
+   "turns": 1,
+   "tools": 43,
+   "session": "13c0ebc5-6031-4aeb-9e13-765989c86636",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-model_fwd",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 6.761,
+   "secs": 1260,
+   "turns": 160,
+   "tools": 159,
+   "session": "59246f28-2de6-4e5c-be4c-2039011ca2c9",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "present-model_fwd",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 5.5381,
+   "cost_session_total": 5.5381,
+   "secs": 1645,
+   "turns": 4,
+   "tools": 47,
+   "session": "9bd3f6fa-b440-4a74-96af-d25c3b94e787",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  }
+ ],
+ "dives": [
+  {
+   "id": "sched_loop",
+   "title": "调度循环",
+   "why": "整台机器的心脏：一条请求在这里被反复调度，overlap 让「发射」和「处理结果」差一圈，读者最容易在这里卡住；顶层只画成一个框，里面有等待队列、running batch、result_queue、future_map 几样状态在每圈变化。",
+   "research": "核对通过",
+   "content": true
+  },
+  {
+   "id": "kv_cache",
+   "title": "KV 缓存 + 前缀树",
+   "why": "「命中 5 个、只算 15 个」「结束时顺手插进树」是这条请求省掉算力的地方；里面有三层存储（req_to_token、分配器、前缀树）和匹配 / 分配 / 插入 / 淘汰一整套机制，顶层只讲到高层。",
+   "research": "核对通过",
+   "content": true
+  },
+  {
+   "id": "model_fwd",
+   "title": "模型前向 + 采样",
+   "why": "顶层只说了「ScheduleBatch → ForwardBatch → logits → 采样」；里面有 CUDA graph 回放 / prefill 分段图 / eager 的分叉、attention backend 和采样器，读者想知道 GPU 那一步到底怎么跑。",
+   "research": "核对通过",
+   "content": true
+  }
+ ],
+ "research_top": "核对通过",
+ "dive_requests": [
+  {
+   "id": "sched_loop",
+   "title": "调度循环",
+   "why": "整台机器的心脏：一条请求在这里被反复调度，overlap 让「发射」和「处理结果」差一圈，读者最容易在这里卡住；顶层只画成一个框，里面有等待队列、running batch、result_queue、future_map 几样状态在每圈变化。"
+  },
+  {
+   "id": "kv_cache",
+   "title": "KV 缓存 + 前缀树",
+   "why": "「命中 5 个、只算 15 个」「结束时顺手插进树」是这条请求省掉算力的地方；里面有三层存储（req_to_token、分配器、前缀树）和匹配 / 分配 / 插入 / 淘汰一整套机制，顶层只讲到高层。"
+  },
+  {
+   "id": "model_fwd",
+   "title": "模型前向 + 采样",
+   "why": "顶层只说了「ScheduleBatch → ForwardBatch → logits → 采样」；里面有 CUDA graph 回放 / prefill 分段图 / eager 的分叉、attention backend 和采样器，读者想知道 GPU 那一步到底怎么跑。"
+  }
+ ],
+ "dive_notes": [],
+ "fatal": null,
+ "build": {
+  "rc": 0,
+  "warn": 0,
+  "unfilled": [],
+  "tail": "\n机器图 → /tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/sglang-auto-1/out/final/scene.html（1001 KB）\n部件 52  连线 58  说明卡 110  推演 63 步；锚点条目 1027  提交 10\n下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：\n      src_chat · 聊天协议层源码\n      src_tm · TokenizerManager 源码\n      src_hloop · handle_loop 源码\n      src_detok · Detokenizer 源码\n      sched_loop · 调度循环里面\n        sched_loop.pick · 选批里面\n          sched_loop.pick.src_pick · 选批源码\n          sched_loop.pick.src_budget · 预算员源码\n          sched_loop.pick.src_decode · decode 检查源码\n          sched_loop.pick.src_retract · 退回源码\n        sched_loop.src_loop · 主循环源码\n        sched_loop.src_launch · 发射与 future_map 源码\n        sched_loop.src_result · 处理结果源码\n      kv_cache · KV 缓存里面\n        kv_cache.match · 匹配源码\n        kv_cache.alloc · 分槽源码\n        kv_cache.ckpt · 写树源码\n        kv_cache.release · 释放源码\n        kv_cache.evict · 锁与淘汰源码\n        kv_cache.ledger · 账本源码\n      model_fwd · 模型前向 + 采样里面\n        model_fwd.graph · 图回放里面\n          model_fwd.src_dgraph · decode 图源码\n          model_fwd.src_pgraph · prefill 图源码\n        model_fwd.src_worker · 总管源码\n        model_fwd.src_pack · 打包源码\n        model_fwd.src_fork · 三选一源码\n        model_fwd.src_attn · attention 源码\n        model_fwd.src_sample · 采样源码\n        model_fwd.src_stream · 三条流源码\n已填槽位 3：sched_loop←content_sched_loop kv_cache←content_kv_cache model_fwd←content_model_fwd\n未填槽位 0：（无）\nWARN 0 条\n"
+ },
+ "shots": {
+  "rc": 0,
+  "fail": 0,
+  "fail_lines": [],
+  "summary": [
+   "交互自检 456 PASS / 0 FAIL；排版问题 0 条"
+  ]
+ },
+ "page": "/tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/sglang-auto-1/sglang-request-v5-auto.html",
+ "spent": 45.69,
+ "wall_min": 7.6
+}

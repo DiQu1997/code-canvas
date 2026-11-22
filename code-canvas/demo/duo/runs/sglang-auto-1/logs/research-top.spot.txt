@@ -1,0 +1,32 @@
+锚点 194 处（去重 187），通过 194，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 11 个，通过 11，不通过 0
+疑似引文 108 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 82，找不到 26
+  ??? 底稿第 116 行  await loop.run_in_executor(None, self._convert_to_internal_request, ...)
+  ??? 底稿第 121 行  ("input_ids", prompt_ids)
+  ??? 底稿第 139 行  ReqState(out_list=[], finished=False, event=asyncio.Event(), obj, time_stats)
+  ??? 底稿第 148 行  rid → ReqState + asyncio.Event
+  ??? 底稿第 179 行  placeholder for overlap
+  ??? 底稿第 195 行  TokenizedGenerateReqInput → handle_generate_request
+  ??? 底稿第 195 行  AbortReq → abort_request
+  ??? 底稿第 200 行  self._create_generation_req(recv_req, recv_req.rid, recv_req.input_text, recv_req.input_ids, recv_req.sampling_params, ...)
+  ??? 底稿第 218 行  CONTINUE / NO_TOKEN / OTHER / UNSCHEDULABLE
+  ??? 底稿第 249 行  self.model_worker.forward_batch_generation(batch, ...)
+  ??? 底稿第 256 行  ForwardBatch.init_new(batch, self.model_runner, ...)
+  ??? 底稿第 259 行  self.model_runner.forward(forward_batch, ...)
+  ??? 底稿第 260 行  self.model_runner.sample(logits_output, forward_batch)
+  ??? 底稿第 305 行  BatchStrOutput(output_strs=..., ...)
+  ??? 底稿第 341 行  yield out; break
+  ??? 底稿第 361 行  StreamingResponse(..., background=create_abort_task(...))
+  ??? 底稿第 383 行  GenerateReqInput(input_ids=[...20 个...], stream=True, sampling_params={max_new_tokens:32,...}, rid=None)
+  ??? 底稿第 384 行  ReqState(out_list=[], finished=False, event)
+  ??? 底稿第 385 行  TokenizedGenerateReqInput(input_ids=array('q',[20 个]), sampling_params=SamplingParams(...))
+  ??? 底稿第 387 行  Req(origin_input_ids=20 个, output_ids=[])
+  ??? 底稿第 391 行  DetokenizeHeader(prompt_tail_ids=最后 5 个 prompt token, ...)
+  ??? 底稿第 391 行  BatchTokenIDOutput(rids=["9f3c…"], output_ids_flat=[X1], finished_reasons=[None])
+  ??? 底稿第 394 行  data: {"object":"chat.completion.chunk",...,"delta":{"content":"巴"}}
+  ??? 底稿第 399 行  {"type": "stop", "matched": X5}
+  ??? 底稿第 400 行  del rid_to_state[rid]
+  ??? 底稿第 447 行  schedule_policy: str = "lpm"
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

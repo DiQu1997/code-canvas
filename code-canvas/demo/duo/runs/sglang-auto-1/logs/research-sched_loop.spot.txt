@@ -1,0 +1,38 @@
+锚点 187 处（去重 179），通过 187，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 12 个，通过 12，不通过 0
+疑似引文 143 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 111，找不到 32
+  ??? 底稿第 30 行  waiting_queue / running_reqs / prefill_launched_reqs / chunked_reqs
+  ??? 底稿第 88 行  filter_batch / merge_batch / prepare_for_decode
+  ??? 底稿第 171 行  total_tokens < remaining_total
+  ??? 底稿第 178 行  total_offset += Σ _get_running_request_total_token_offset(r)
+  ??? 底稿第 196 行  min(8−6, 4096)×0.7 = 1.4
+  ??? 底稿第 197 行  max_new = min(32,4096)=32
+  ??? 底稿第 197 行  total_tokens = 15+32+1(overhead)=48
+  ??? 底稿第 197 行  remaining_total = 42000−1.4 ≈ 41998.6 > 48
+  ??? 底稿第 198 行  total_offset += 16+32=48
+  ??? 底稿第 198 行  current_offset += 16
+  ??? 底稿第 198 行  rem_input_tokens = 16384−15 = 16369
+  ??? 底稿第 198 行  rem_chunk_tokens = 8192−15 = 8177
+  ??? 底稿第 219 行  len(output_ids)+1 >= max_new_tokens
+  ??? 底稿第 222 行  MAX_NEW_TOKENS − 1
+  ??? 底稿第 247 行  non-overlap = 没有 FutureMap
+  ??? 底稿第 251 行  max_running_requests * (3 + max_num_chunks)
+  ??? 底稿第 268 行  min(kv_committed_len, len(prompt) + len(通过 stop 的输出))
+  ??? 底稿第 271 行  kv_committed = 20+4 = 24
+  ??? 底稿第 271 行  owned = min(24, 25) = 24
+  ??? 底稿第 272 行  kv_committed = 25
+  ??? 底稿第 272 行  owned = min(25, 25) = 25
+  ??? 底稿第 272 行  [owned, allocated)
+  ??? 底稿第 292 行  running_reqs / prefill_launched_reqs / chunked_reqs
+  ??? 底稿第 294 行  not req.finished() and not req.is_retracted
+  ??? 底稿第 294 行  if req.is_retracted or req.finished()
+  ??? 底稿第 294 行  should_commit_output = (not req.finished() and not req.is_retracted and not is_middle_chunk)
+  ??? 底稿第 333 行  (len(output_ids), -len(origin_input_ids))
+  ??? 底稿第 334 行  while first_iter or not self.check_decode_mem(selected_indices=...)
+  ??? 底稿第 335 行  evict_from_tree_cache(tree_cache, 剩余请求数 × SGLANG_RETRACT_DECODE_STEPS)
+  ??? 底稿第 336 行  is_retracted / retracted_stain
+  ??? 底稿第 420 行  over-allocated tokens are freed in release_kv_cache
+  ??? 底稿第 434 行  CPU 在 `prepare_for_decode` 里自己 `seq_lens+1`
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

@@ -1,0 +1,17 @@
+{
+ "step": "present-model_fwd",
+ "role": "present",
+ "model_req": "opus",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 5.5381,
+ "cost_session_total": 5.5381,
+ "secs": 1645,
+ "turns": 4,
+ "tools": 47,
+ "session": "9bd3f6fa-b440-4a74-96af-d25c3b94e787",
+ "models": [
+  "claude-opus-5-5"
+ ]
+}

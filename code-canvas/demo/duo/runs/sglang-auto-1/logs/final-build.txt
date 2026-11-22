@@ -1,0 +1,37 @@
+
+机器图 → /tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/sglang-auto-1/out/final/scene.html（1001 KB）
+部件 52  连线 58  说明卡 110  推演 63 步；锚点条目 1027  提交 10
+下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：
+      src_chat · 聊天协议层源码
+      src_tm · TokenizerManager 源码
+      src_hloop · handle_loop 源码
+      src_detok · Detokenizer 源码
+      sched_loop · 调度循环里面
+        sched_loop.pick · 选批里面
+          sched_loop.pick.src_pick · 选批源码
+          sched_loop.pick.src_budget · 预算员源码
+          sched_loop.pick.src_decode · decode 检查源码
+          sched_loop.pick.src_retract · 退回源码
+        sched_loop.src_loop · 主循环源码
+        sched_loop.src_launch · 发射与 future_map 源码
+        sched_loop.src_result · 处理结果源码
+      kv_cache · KV 缓存里面
+        kv_cache.match · 匹配源码
+        kv_cache.alloc · 分槽源码
+        kv_cache.ckpt · 写树源码
+        kv_cache.release · 释放源码
+        kv_cache.evict · 锁与淘汰源码
+        kv_cache.ledger · 账本源码
+      model_fwd · 模型前向 + 采样里面
+        model_fwd.graph · 图回放里面
+          model_fwd.src_dgraph · decode 图源码
+          model_fwd.src_pgraph · prefill 图源码
+        model_fwd.src_worker · 总管源码
+        model_fwd.src_pack · 打包源码
+        model_fwd.src_fork · 三选一源码
+        model_fwd.src_attn · attention 源码
+        model_fwd.src_sample · 采样源码
+        model_fwd.src_stream · 三条流源码
+已填槽位 3：sched_loop←content_sched_loop kv_cache←content_kv_cache model_fwd←content_model_fwd
+未填槽位 0：（无）
+WARN 0 条

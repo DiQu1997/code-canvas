@@ -1,0 +1,46 @@
+锚点 146 处（去重 135），通过 146，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 15 个，通过 15，不通过 0
+疑似引文 143 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 103，找不到 40
+  ??? 底稿第 40 行  int32 [size+1, max_context_len]
+  ??? 底稿第 43 行  FutureMap.output_tokens_buf / new_seq_lens_buf
+  ??? 底稿第 64 行  input_ids / req_pool_indices / seq_lens / out_cache_loc / seq_lens_sum
+  ??? 底稿第 72 行  clamp(seq_lens-1, min=0)
+  ??? 底稿第 89 行  prefix_len + 0..14
+  ??? 底稿第 100 行  can_run_graph = forward_mode.is_cuda_graph() and decode_cuda_graph_runner and decode_cuda_graph_runner.can_run_graph(forward_batch)
+  ??? 底稿第 100 行  DECODE / TARGET_VERIFY / IDLE / DLLM_EXTEND
+  ??? 底稿第 125 行  batch_size > max_bs
+  ??? 底稿第 129 行  [1,2,4,8,12] + range(16,257,8) + range(272,512,16) + range(512,max_bs+1,32)
+  ??? 底稿第 130 行  gpu_mem < 90*1024
+  ??? 底稿第 136 行  req_pool_indices / out_cache_loc / positions
+  ??? 底稿第 164 行  num_tokens > max_num_tokens
+  ??? 底稿第 165 行  padded > num_tokens * 2
+  ??? 底稿第 174 行  _execute_decode / _execute_idle / _execute_extend
+  ??? 底稿第 174 行  model.forward(input_ids, positions, forward_batch)
+  ??? 底稿第 180 行  forward_decode / forward_extend
+  ??? 底稿第 185 行  metadata.page_table = req_to_token_pool.req_to_token[forward_batch.req_pool_indices, : metadata.max_seq_len_k]
+  ??? 底稿第 185 行  cu_seqlens_q = cumsum(extend_seq_lens)
+  ??? 底稿第 187 行  self.kv_layers.layer(layer.layer_id).store(layer, KVWriteLoc.for_layer(forward_batch, layer, ...), k, v, ...)
+  ??? 底稿第 188 行  page_table[i, j]
+  ??? 底稿第 192 行  req_to_token[3, 0:20] = [37,38,39,40,41, 212,213,…,226]
+  ??? 底稿第 193 行  req_to_token[3, 20] = 227
+  ??? 底稿第 193 行  req_to_token_pool.write((req_pool_indices, locs), out_cache_loc)
+  ??? 底稿第 193 行  seq_lens = seq_lens + 1
+  ??? 底稿第 193 行  page_table=req_to_token[3, 0:21]
+  ??? 底稿第 197 行  return self.logits_processor(input_ids, hidden_states, self.lm_head, forward_batch, aux_hidden_states)
+  ??? 底稿第 199 行  last_index = cumsum(extend_seq_lens) - 1; pruned_states = hidden_states[last_index]
+  ??? 底稿第 206 行  batch_result.next_token_ids = self.model_runner.sample(logits_output, forward_batch)
+  ??? 底稿第 216 行  is_all_greedy = all(k <= 1 ...)
+  ??? 底稿第 217 行  simple_sampling_case = not (need_top_p or need_top_k or need_min_p)
+  ??? 底稿第 217 行  need_top_p_sampling = any(top_p != 1.0)
+  ??? 底稿第 219 行  multinomial_with_seed(torch.log(probs), seed, positions)
+  ??? 底稿第 220 行  top_k_top_p_sampling_from_probs(probs, top_ks, top_ps, filter_apply_order="joint")
+  ??? 底稿第 236 行  batch_result = self.model_worker.forward_batch_generation(batch, ...)
+  ??? 底稿第 271 行  input_ids = output_tokens_buf[[3]] = [X1]
+  ??? 底稿第 273 行  page_table[0, 0:21]
+  ??? 底稿第 277 行  _pad_to_bucket(5, [1,2,4,8,12,…])
+  ??? 底稿第 277 行  [: raw_num_token]
+  ??? 底稿第 299 行  raw_num_token = raw_bs * 1
+  ??? 底稿第 311 行  req_to_token[req_pool_indices, :max_seq_len_k]
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

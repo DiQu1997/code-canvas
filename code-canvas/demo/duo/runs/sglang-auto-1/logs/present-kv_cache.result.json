@@ -1,0 +1,16 @@
+{
+ "step": "present-kv_cache",
+ "role": "present",
+ "model_req": "opus",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 4.306,
+ "secs": 1432,
+ "turns": 1,
+ "tools": 43,
+ "session": "13c0ebc5-6031-4aeb-9e13-765989c86636",
+ "models": [
+  "claude-opus-5-5"
+ ]
+}

@@ -1,0 +1,571 @@
+
+—— 顶层 ——
+PASS [桌面] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面] 打开的这一页有机器图
+PASS [桌面] 用的是桌面那套坐标
+PASS [桌面] 整张机器图在推演条上方、一屏看全
+PASS [桌面] 点「为什么」切到为什么图层
+PASS [桌面] 点「易混点」切到易混点图层
+PASS [桌面] 点部件 → 说明卡打开
+PASS [桌面] 被点的部件没被说明卡挡住
+PASS [桌面] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面] → 键翻到下一张说明卡
+PASS [桌面] Esc 关掉说明卡
+PASS [桌面] 点 ▶ 进入第 1 步
+PASS [桌面] 推演时有部件 / 连线被点亮
+PASS [桌面] , 键退一步
+PASS [桌面] 推演时机器图仍在推演条上方
+PASS [桌面] 「钻进去」指到的 7 个页面都有内容（不是「未展开」的空页）
+PASS [桌面] 说明卡「chat」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面] 点「钻进去」→ 到了下层「src_chat」
+PASS [桌面] 到了下层，上一层的说明卡收起来了
+PASS [桌面] 能回到这张图
+PASS [桌面] 没有 JS 报错
+PASS [手机] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+PASS [手机] 打开的这一页有机器图
+PASS [手机] 用的是手机那套坐标（m / mw / mh）
+PASS [手机] 机器图左右不出屏
+PASS [手机] 推演条不出屏
+PASS [手机] 点部件 → 说明卡从底部升起
+PASS [手机] 被点的部件露在说明卡上方
+PASS [手机] 说明卡不超过屏幕六成高
+PASS [手机] 点 ✕ 关掉说明卡
+PASS [手机] 点「为什么」切图层
+PASS [手机] 点 ▶ 进入第 1 步
+PASS [手机] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机] 推演条不超过半屏
+PASS [手机] 「钻进去」指到的 7 个页面都有内容（不是「未展开」的空页）
+PASS [手机] 说明卡「chat」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机] 点「钻进去」→ 到了下层「src_chat」
+PASS [手机] 到了下层，上一层的说明卡收起来了
+PASS [手机] 能回到这张图
+PASS [手机] 没有 JS 报错
+
+—— 下层节点 sched_loop ——
+PASS [桌面 · sched_loop] 打开的是要查的节点
+PASS [桌面 · sched_loop] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · sched_loop] 打开的这一页有机器图
+PASS [桌面 · sched_loop] 用的是桌面那套坐标
+PASS [桌面 · sched_loop] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · sched_loop] 点「为什么」切到为什么图层
+PASS [桌面 · sched_loop] 点「易混点」切到易混点图层
+PASS [桌面 · sched_loop] 点部件 → 说明卡打开
+PASS [桌面 · sched_loop] 被点的部件没被说明卡挡住
+PASS [桌面 · sched_loop] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · sched_loop] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · sched_loop] → 键翻到下一张说明卡
+PASS [桌面 · sched_loop] Esc 关掉说明卡
+PASS [桌面 · sched_loop] 点 ▶ 进入第 1 步
+PASS [桌面 · sched_loop] 推演时有部件 / 连线被点亮
+PASS [桌面 · sched_loop] , 键退一步
+PASS [桌面 · sched_loop] 推演时机器图仍在推演条上方
+PASS [桌面 · sched_loop] 「钻进去」指到的 4 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop] 说明卡「pick」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · sched_loop] 点「钻进去」→ 到了下层「sched_loop.pick」
+PASS [桌面 · sched_loop] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · sched_loop] 能回到这张图
+PASS [桌面 · sched_loop] 没有 JS 报错
+PASS [手机 · sched_loop] 打开的是要查的节点
+PASS [手机 · sched_loop] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+PASS [手机 · sched_loop] 打开的这一页有机器图
+PASS [手机 · sched_loop] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · sched_loop] 机器图左右不出屏
+PASS [手机 · sched_loop] 推演条不出屏
+PASS [手机 · sched_loop] 点部件 → 说明卡从底部升起
+PASS [手机 · sched_loop] 被点的部件露在说明卡上方
+PASS [手机 · sched_loop] 说明卡不超过屏幕六成高
+PASS [手机 · sched_loop] 点 ✕ 关掉说明卡
+PASS [手机 · sched_loop] 点「为什么」切图层
+PASS [手机 · sched_loop] 点 ▶ 进入第 1 步
+PASS [手机 · sched_loop] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · sched_loop] 推演条不超过半屏
+PASS [手机 · sched_loop] 「钻进去」指到的 4 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop] 说明卡「pick」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · sched_loop] 点「钻进去」→ 到了下层「sched_loop.pick」
+PASS [手机 · sched_loop] 到了下层，上一层的说明卡收起来了
+PASS [手机 · sched_loop] 能回到这张图
+PASS [手机 · sched_loop] 没有 JS 报错
+
+—— 下层节点 sched_loop.pick ——
+PASS [桌面 · sched_loop.pick] 打开的是要查的节点
+PASS [桌面 · sched_loop.pick] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · sched_loop.pick] 打开的这一页有机器图
+PASS [桌面 · sched_loop.pick] 用的是桌面那套坐标
+PASS [桌面 · sched_loop.pick] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · sched_loop.pick] 点「为什么」切到为什么图层
+PASS [桌面 · sched_loop.pick] 点「易混点」切到易混点图层
+PASS [桌面 · sched_loop.pick] 点部件 → 说明卡打开
+PASS [桌面 · sched_loop.pick] 被点的部件没被说明卡挡住
+PASS [桌面 · sched_loop.pick] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · sched_loop.pick] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · sched_loop.pick] → 键翻到下一张说明卡
+PASS [桌面 · sched_loop.pick] Esc 关掉说明卡
+PASS [桌面 · sched_loop.pick] 点 ▶ 进入第 1 步
+PASS [桌面 · sched_loop.pick] 推演时有部件 / 连线被点亮
+PASS [桌面 · sched_loop.pick] , 键退一步
+PASS [桌面 · sched_loop.pick] 推演时机器图仍在推演条上方
+PASS [桌面 · sched_loop.pick] 「钻进去」指到的 4 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop.pick] 说明卡「p_mf」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · sched_loop.pick] 点「钻进去」→ 到了下层「sched_loop.pick.src_pick」
+PASS [桌面 · sched_loop.pick] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · sched_loop.pick] 能回到这张图
+PASS [桌面 · sched_loop.pick] 没有 JS 报错
+PASS [手机 · sched_loop.pick] 打开的是要查的节点
+PASS [手机 · sched_loop.pick] 量到的位置就是点得中的位置（抽了 4 个元素，上下左右各扫一遍）
+PASS [手机 · sched_loop.pick] 打开的这一页有机器图
+PASS [手机 · sched_loop.pick] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · sched_loop.pick] 机器图左右不出屏
+PASS [手机 · sched_loop.pick] 推演条不出屏
+PASS [手机 · sched_loop.pick] 点部件 → 说明卡从底部升起
+PASS [手机 · sched_loop.pick] 被点的部件露在说明卡上方
+PASS [手机 · sched_loop.pick] 说明卡不超过屏幕六成高
+PASS [手机 · sched_loop.pick] 点 ✕ 关掉说明卡
+PASS [手机 · sched_loop.pick] 点「为什么」切图层
+PASS [手机 · sched_loop.pick] 点 ▶ 进入第 1 步
+PASS [手机 · sched_loop.pick] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · sched_loop.pick] 推演条不超过半屏
+PASS [手机 · sched_loop.pick] 「钻进去」指到的 4 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop.pick] 说明卡「p_mf」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · sched_loop.pick] 点「钻进去」→ 到了下层「sched_loop.pick.src_pick」
+PASS [手机 · sched_loop.pick] 到了下层，上一层的说明卡收起来了
+PASS [手机 · sched_loop.pick] 能回到这张图
+PASS [手机 · sched_loop.pick] 没有 JS 报错
+
+—— 下层节点 kv_cache ——
+PASS [桌面 · kv_cache] 打开的是要查的节点
+PASS [桌面 · kv_cache] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · kv_cache] 打开的这一页有机器图
+PASS [桌面 · kv_cache] 用的是桌面那套坐标
+PASS [桌面 · kv_cache] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · kv_cache] 点「为什么」切到为什么图层
+PASS [桌面 · kv_cache] 点「易混点」切到易混点图层
+PASS [桌面 · kv_cache] 点部件 → 说明卡打开
+PASS [桌面 · kv_cache] 被点的部件没被说明卡挡住
+PASS [桌面 · kv_cache] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · kv_cache] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · kv_cache] → 键翻到下一张说明卡
+PASS [桌面 · kv_cache] Esc 关掉说明卡
+PASS [桌面 · kv_cache] 点 ▶ 进入第 1 步
+PASS [桌面 · kv_cache] 推演时有部件 / 连线被点亮
+PASS [桌面 · kv_cache] , 键退一步
+PASS [桌面 · kv_cache] 推演时机器图仍在推演条上方
+PASS [桌面 · kv_cache] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · kv_cache] 说明卡「match」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · kv_cache] 点「钻进去」→ 到了下层「kv_cache.match」
+PASS [桌面 · kv_cache] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · kv_cache] 能回到这张图
+PASS [桌面 · kv_cache] 没有 JS 报错
+PASS [手机 · kv_cache] 打开的是要查的节点
+PASS [手机 · kv_cache] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+PASS [手机 · kv_cache] 打开的这一页有机器图
+PASS [手机 · kv_cache] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · kv_cache] 机器图左右不出屏
+PASS [手机 · kv_cache] 推演条不出屏
+PASS [手机 · kv_cache] 点部件 → 说明卡从底部升起
+PASS [手机 · kv_cache] 被点的部件露在说明卡上方
+PASS [手机 · kv_cache] 说明卡不超过屏幕六成高
+PASS [手机 · kv_cache] 点 ✕ 关掉说明卡
+PASS [手机 · kv_cache] 点「为什么」切图层
+PASS [手机 · kv_cache] 点 ▶ 进入第 1 步
+PASS [手机 · kv_cache] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · kv_cache] 推演条不超过半屏
+PASS [手机 · kv_cache] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · kv_cache] 说明卡「match」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · kv_cache] 点「钻进去」→ 到了下层「kv_cache.match」
+PASS [手机 · kv_cache] 到了下层，上一层的说明卡收起来了
+PASS [手机 · kv_cache] 能回到这张图
+PASS [手机 · kv_cache] 没有 JS 报错
+
+—— 下层节点 model_fwd ——
+PASS [桌面 · model_fwd] 打开的是要查的节点
+PASS [桌面 · model_fwd] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · model_fwd] 打开的这一页有机器图
+PASS [桌面 · model_fwd] 用的是桌面那套坐标
+PASS [桌面 · model_fwd] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · model_fwd] 点「为什么」切到为什么图层
+PASS [桌面 · model_fwd] 点「易混点」切到易混点图层
+PASS [桌面 · model_fwd] 点部件 → 说明卡打开
+PASS [桌面 · model_fwd] 被点的部件没被说明卡挡住
+PASS [桌面 · model_fwd] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · model_fwd] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · model_fwd] → 键翻到下一张说明卡
+PASS [桌面 · model_fwd] Esc 关掉说明卡
+PASS [桌面 · model_fwd] 点 ▶ 进入第 1 步
+PASS [桌面 · model_fwd] 推演时有部件 / 连线被点亮
+PASS [桌面 · model_fwd] , 键退一步
+PASS [桌面 · model_fwd] 推演时机器图仍在推演条上方
+PASS [桌面 · model_fwd] 「钻进去」指到的 7 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd] 说明卡「sbatch」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · model_fwd] 点「钻进去」→ 到了下层「model_fwd.src_stream」
+PASS [桌面 · model_fwd] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · model_fwd] 能回到这张图
+PASS [桌面 · model_fwd] 没有 JS 报错
+PASS [手机 · model_fwd] 打开的是要查的节点
+PASS [手机 · model_fwd] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+PASS [手机 · model_fwd] 打开的这一页有机器图
+PASS [手机 · model_fwd] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · model_fwd] 机器图左右不出屏
+PASS [手机 · model_fwd] 推演条不出屏
+PASS [手机 · model_fwd] 点部件 → 说明卡从底部升起
+PASS [手机 · model_fwd] 被点的部件露在说明卡上方
+PASS [手机 · model_fwd] 说明卡不超过屏幕六成高
+PASS [手机 · model_fwd] 点 ✕ 关掉说明卡
+PASS [手机 · model_fwd] 点「为什么」切图层
+PASS [手机 · model_fwd] 点 ▶ 进入第 1 步
+PASS [手机 · model_fwd] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · model_fwd] 推演条不超过半屏
+PASS [手机 · model_fwd] 「钻进去」指到的 7 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd] 说明卡「sbatch」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · model_fwd] 点「钻进去」→ 到了下层「model_fwd.src_stream」
+PASS [手机 · model_fwd] 到了下层，上一层的说明卡收起来了
+PASS [手机 · model_fwd] 能回到这张图
+PASS [手机 · model_fwd] 没有 JS 报错
+
+—— 下层节点 model_fwd.graph ——
+PASS [桌面 · model_fwd.graph] 打开的是要查的节点
+PASS [桌面 · model_fwd.graph] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · model_fwd.graph] 打开的这一页有机器图
+PASS [桌面 · model_fwd.graph] 用的是桌面那套坐标
+PASS [桌面 · model_fwd.graph] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · model_fwd.graph] 点「为什么」切到为什么图层
+PASS [桌面 · model_fwd.graph] 点「易混点」切到易混点图层
+PASS [桌面 · model_fwd.graph] 点部件 → 说明卡打开
+PASS [桌面 · model_fwd.graph] 被点的部件没被说明卡挡住
+PASS [桌面 · model_fwd.graph] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · model_fwd.graph] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · model_fwd.graph] → 键翻到下一张说明卡
+PASS [桌面 · model_fwd.graph] Esc 关掉说明卡
+PASS [桌面 · model_fwd.graph] 点 ▶ 进入第 1 步
+PASS [桌面 · model_fwd.graph] 推演时有部件 / 连线被点亮
+PASS [桌面 · model_fwd.graph] , 键退一步
+PASS [桌面 · model_fwd.graph] 推演时机器图仍在推演条上方
+PASS [桌面 · model_fwd.graph] 「钻进去」指到的 2 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.graph] 说明卡「d_bucket」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · model_fwd.graph] 点「钻进去」→ 到了下层「model_fwd.src_dgraph」
+PASS [桌面 · model_fwd.graph] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · model_fwd.graph] 能回到这张图
+PASS [桌面 · model_fwd.graph] 没有 JS 报错
+PASS [手机 · model_fwd.graph] 打开的是要查的节点
+PASS [手机 · model_fwd.graph] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+PASS [手机 · model_fwd.graph] 打开的这一页有机器图
+PASS [手机 · model_fwd.graph] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · model_fwd.graph] 机器图左右不出屏
+PASS [手机 · model_fwd.graph] 推演条不出屏
+PASS [手机 · model_fwd.graph] 点部件 → 说明卡从底部升起
+PASS [手机 · model_fwd.graph] 被点的部件露在说明卡上方
+PASS [手机 · model_fwd.graph] 说明卡不超过屏幕六成高
+PASS [手机 · model_fwd.graph] 点 ✕ 关掉说明卡
+PASS [手机 · model_fwd.graph] 点「为什么」切图层
+PASS [手机 · model_fwd.graph] 点 ▶ 进入第 1 步
+PASS [手机 · model_fwd.graph] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · model_fwd.graph] 推演条不超过半屏
+PASS [手机 · model_fwd.graph] 「钻进去」指到的 2 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.graph] 说明卡「d_bucket」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · model_fwd.graph] 点「钻进去」→ 到了下层「model_fwd.src_dgraph」
+PASS [手机 · model_fwd.graph] 到了下层，上一层的说明卡收起来了
+PASS [手机 · model_fwd.graph] 能回到这张图
+PASS [手机 · model_fwd.graph] 没有 JS 报错
+
+—— 下层节点 src_chat ——
+PASS [桌面 · src_chat] 打开的是要查的节点
+PASS [桌面 · src_chat] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · src_chat] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · src_chat] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_chat] 没有 JS 报错
+PASS [手机 · src_chat] 打开的是要查的节点
+PASS [手机 · src_chat] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_chat] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · src_chat] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_chat] 没有 JS 报错
+
+—— 下层节点 src_tm ——
+PASS [桌面 · src_tm] 打开的是要查的节点
+PASS [桌面 · src_tm] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · src_tm] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · src_tm] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_tm] 没有 JS 报错
+PASS [手机 · src_tm] 打开的是要查的节点
+PASS [手机 · src_tm] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_tm] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · src_tm] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_tm] 没有 JS 报错
+
+—— 下层节点 src_hloop ——
+PASS [桌面 · src_hloop] 打开的是要查的节点
+PASS [桌面 · src_hloop] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · src_hloop] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · src_hloop] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_hloop] 没有 JS 报错
+PASS [手机 · src_hloop] 打开的是要查的节点
+PASS [手机 · src_hloop] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_hloop] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · src_hloop] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_hloop] 没有 JS 报错
+
+—— 下层节点 src_detok ——
+PASS [桌面 · src_detok] 打开的是要查的节点
+PASS [桌面 · src_detok] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · src_detok] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · src_detok] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_detok] 没有 JS 报错
+PASS [手机 · src_detok] 打开的是要查的节点
+PASS [手机 · src_detok] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_detok] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · src_detok] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_detok] 没有 JS 报错
+
+—— 下层节点 sched_loop.pick.src_pick ——
+PASS [桌面 · sched_loop.pick.src_pick] 打开的是要查的节点
+PASS [桌面 · sched_loop.pick.src_pick] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched_loop.pick.src_pick] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · sched_loop.pick.src_pick] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop.pick.src_pick] 没有 JS 报错
+PASS [手机 · sched_loop.pick.src_pick] 打开的是要查的节点
+PASS [手机 · sched_loop.pick.src_pick] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched_loop.pick.src_pick] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · sched_loop.pick.src_pick] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop.pick.src_pick] 没有 JS 报错
+
+—— 下层节点 sched_loop.pick.src_budget ——
+PASS [桌面 · sched_loop.pick.src_budget] 打开的是要查的节点
+PASS [桌面 · sched_loop.pick.src_budget] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [桌面 · sched_loop.pick.src_budget] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [桌面 · sched_loop.pick.src_budget] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop.pick.src_budget] 没有 JS 报错
+PASS [手机 · sched_loop.pick.src_budget] 打开的是要查的节点
+PASS [手机 · sched_loop.pick.src_budget] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched_loop.pick.src_budget] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [手机 · sched_loop.pick.src_budget] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop.pick.src_budget] 没有 JS 报错
+
+—— 下层节点 sched_loop.pick.src_decode ——
+PASS [桌面 · sched_loop.pick.src_decode] 打开的是要查的节点
+PASS [桌面 · sched_loop.pick.src_decode] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · sched_loop.pick.src_decode] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · sched_loop.pick.src_decode] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop.pick.src_decode] 没有 JS 报错
+PASS [手机 · sched_loop.pick.src_decode] 打开的是要查的节点
+PASS [手机 · sched_loop.pick.src_decode] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched_loop.pick.src_decode] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · sched_loop.pick.src_decode] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop.pick.src_decode] 没有 JS 报错
+
+—— 下层节点 sched_loop.pick.src_retract ——
+PASS [桌面 · sched_loop.pick.src_retract] 打开的是要查的节点
+PASS [桌面 · sched_loop.pick.src_retract] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched_loop.pick.src_retract] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [桌面 · sched_loop.pick.src_retract] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop.pick.src_retract] 没有 JS 报错
+PASS [手机 · sched_loop.pick.src_retract] 打开的是要查的节点
+PASS [手机 · sched_loop.pick.src_retract] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched_loop.pick.src_retract] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [手机 · sched_loop.pick.src_retract] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop.pick.src_retract] 没有 JS 报错
+
+—— 下层节点 sched_loop.src_loop ——
+PASS [桌面 · sched_loop.src_loop] 打开的是要查的节点
+PASS [桌面 · sched_loop.src_loop] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched_loop.src_loop] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · sched_loop.src_loop] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop.src_loop] 没有 JS 报错
+PASS [手机 · sched_loop.src_loop] 打开的是要查的节点
+PASS [手机 · sched_loop.src_loop] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched_loop.src_loop] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · sched_loop.src_loop] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop.src_loop] 没有 JS 报错
+
+—— 下层节点 sched_loop.src_launch ——
+PASS [桌面 · sched_loop.src_launch] 打开的是要查的节点
+PASS [桌面 · sched_loop.src_launch] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched_loop.src_launch] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · sched_loop.src_launch] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop.src_launch] 没有 JS 报错
+PASS [手机 · sched_loop.src_launch] 打开的是要查的节点
+PASS [手机 · sched_loop.src_launch] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched_loop.src_launch] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · sched_loop.src_launch] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop.src_launch] 没有 JS 报错
+
+—— 下层节点 sched_loop.src_result ——
+PASS [桌面 · sched_loop.src_result] 打开的是要查的节点
+PASS [桌面 · sched_loop.src_result] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched_loop.src_result] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · sched_loop.src_result] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched_loop.src_result] 没有 JS 报错
+PASS [手机 · sched_loop.src_result] 打开的是要查的节点
+PASS [手机 · sched_loop.src_result] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched_loop.src_result] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · sched_loop.src_result] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched_loop.src_result] 没有 JS 报错
+
+—— 下层节点 kv_cache.match ——
+PASS [桌面 · kv_cache.match] 打开的是要查的节点
+PASS [桌面 · kv_cache.match] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+INFO [桌面 · kv_cache.match] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · kv_cache.match] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · kv_cache.match] 没有 JS 报错
+PASS [手机 · kv_cache.match] 打开的是要查的节点
+PASS [手机 · kv_cache.match] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [手机 · kv_cache.match] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · kv_cache.match] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · kv_cache.match] 没有 JS 报错
+
+—— 下层节点 kv_cache.alloc ——
+PASS [桌面 · kv_cache.alloc] 打开的是要查的节点
+PASS [桌面 · kv_cache.alloc] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [桌面 · kv_cache.alloc] 这一页没有机器图（源码页 / 文字页），只截图：代码块 6 段
+PASS [桌面 · kv_cache.alloc] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · kv_cache.alloc] 没有 JS 报错
+PASS [手机 · kv_cache.alloc] 打开的是要查的节点
+PASS [手机 · kv_cache.alloc] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [手机 · kv_cache.alloc] 这一页没有机器图（源码页 / 文字页），只截图：代码块 6 段
+PASS [手机 · kv_cache.alloc] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · kv_cache.alloc] 没有 JS 报错
+
+—— 下层节点 kv_cache.ckpt ——
+PASS [桌面 · kv_cache.ckpt] 打开的是要查的节点
+PASS [桌面 · kv_cache.ckpt] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [桌面 · kv_cache.ckpt] 这一页没有机器图（源码页 / 文字页），只截图：代码块 7 段
+PASS [桌面 · kv_cache.ckpt] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · kv_cache.ckpt] 没有 JS 报错
+PASS [手机 · kv_cache.ckpt] 打开的是要查的节点
+PASS [手机 · kv_cache.ckpt] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [手机 · kv_cache.ckpt] 这一页没有机器图（源码页 / 文字页），只截图：代码块 7 段
+PASS [手机 · kv_cache.ckpt] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · kv_cache.ckpt] 没有 JS 报错
+
+—— 下层节点 kv_cache.release ——
+PASS [桌面 · kv_cache.release] 打开的是要查的节点
+PASS [桌面 · kv_cache.release] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · kv_cache.release] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · kv_cache.release] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · kv_cache.release] 没有 JS 报错
+PASS [手机 · kv_cache.release] 打开的是要查的节点
+PASS [手机 · kv_cache.release] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · kv_cache.release] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · kv_cache.release] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · kv_cache.release] 没有 JS 报错
+
+—— 下层节点 kv_cache.evict ——
+PASS [桌面 · kv_cache.evict] 打开的是要查的节点
+PASS [桌面 · kv_cache.evict] 量到的位置就是点得中的位置（抽了 4 个元素，上下左右各扫一遍）
+INFO [桌面 · kv_cache.evict] 这一页没有机器图（源码页 / 文字页），只截图：代码块 6 段
+PASS [桌面 · kv_cache.evict] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · kv_cache.evict] 没有 JS 报错
+PASS [手机 · kv_cache.evict] 打开的是要查的节点
+PASS [手机 · kv_cache.evict] 量到的位置就是点得中的位置（抽了 4 个元素，上下左右各扫一遍）
+INFO [手机 · kv_cache.evict] 这一页没有机器图（源码页 / 文字页），只截图：代码块 6 段
+PASS [手机 · kv_cache.evict] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · kv_cache.evict] 没有 JS 报错
+
+—— 下层节点 kv_cache.ledger ——
+PASS [桌面 · kv_cache.ledger] 打开的是要查的节点
+PASS [桌面 · kv_cache.ledger] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [桌面 · kv_cache.ledger] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · kv_cache.ledger] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · kv_cache.ledger] 没有 JS 报错
+PASS [手机 · kv_cache.ledger] 打开的是要查的节点
+PASS [手机 · kv_cache.ledger] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [手机 · kv_cache.ledger] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · kv_cache.ledger] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · kv_cache.ledger] 没有 JS 报错
+
+—— 下层节点 model_fwd.src_dgraph ——
+PASS [桌面 · model_fwd.src_dgraph] 打开的是要查的节点
+PASS [桌面 · model_fwd.src_dgraph] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · model_fwd.src_dgraph] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · model_fwd.src_dgraph] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.src_dgraph] 没有 JS 报错
+PASS [手机 · model_fwd.src_dgraph] 打开的是要查的节点
+PASS [手机 · model_fwd.src_dgraph] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · model_fwd.src_dgraph] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · model_fwd.src_dgraph] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.src_dgraph] 没有 JS 报错
+
+—— 下层节点 model_fwd.src_pgraph ——
+PASS [桌面 · model_fwd.src_pgraph] 打开的是要查的节点
+PASS [桌面 · model_fwd.src_pgraph] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [桌面 · model_fwd.src_pgraph] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · model_fwd.src_pgraph] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.src_pgraph] 没有 JS 报错
+PASS [手机 · model_fwd.src_pgraph] 打开的是要查的节点
+PASS [手机 · model_fwd.src_pgraph] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [手机 · model_fwd.src_pgraph] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · model_fwd.src_pgraph] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.src_pgraph] 没有 JS 报错
+
+—— 下层节点 model_fwd.src_worker ——
+PASS [桌面 · model_fwd.src_worker] 打开的是要查的节点
+PASS [桌面 · model_fwd.src_worker] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · model_fwd.src_worker] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · model_fwd.src_worker] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.src_worker] 没有 JS 报错
+PASS [手机 · model_fwd.src_worker] 打开的是要查的节点
+PASS [手机 · model_fwd.src_worker] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · model_fwd.src_worker] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · model_fwd.src_worker] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.src_worker] 没有 JS 报错
+
+—— 下层节点 model_fwd.src_pack ——
+PASS [桌面 · model_fwd.src_pack] 打开的是要查的节点
+PASS [桌面 · model_fwd.src_pack] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [桌面 · model_fwd.src_pack] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · model_fwd.src_pack] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.src_pack] 没有 JS 报错
+PASS [手机 · model_fwd.src_pack] 打开的是要查的节点
+PASS [手机 · model_fwd.src_pack] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · model_fwd.src_pack] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · model_fwd.src_pack] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.src_pack] 没有 JS 报错
+
+—— 下层节点 model_fwd.src_fork ——
+PASS [桌面 · model_fwd.src_fork] 打开的是要查的节点
+PASS [桌面 · model_fwd.src_fork] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · model_fwd.src_fork] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · model_fwd.src_fork] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.src_fork] 没有 JS 报错
+PASS [手机 · model_fwd.src_fork] 打开的是要查的节点
+PASS [手机 · model_fwd.src_fork] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · model_fwd.src_fork] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · model_fwd.src_fork] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.src_fork] 没有 JS 报错
+
+—— 下层节点 model_fwd.src_attn ——
+PASS [桌面 · model_fwd.src_attn] 打开的是要查的节点
+PASS [桌面 · model_fwd.src_attn] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [桌面 · model_fwd.src_attn] 这一页没有机器图（源码页 / 文字页），只截图：代码块 6 段
+PASS [桌面 · model_fwd.src_attn] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.src_attn] 没有 JS 报错
+PASS [手机 · model_fwd.src_attn] 打开的是要查的节点
+PASS [手机 · model_fwd.src_attn] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+INFO [手机 · model_fwd.src_attn] 这一页没有机器图（源码页 / 文字页），只截图：代码块 6 段
+PASS [手机 · model_fwd.src_attn] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.src_attn] 没有 JS 报错
+
+—— 下层节点 model_fwd.src_sample ——
+PASS [桌面 · model_fwd.src_sample] 打开的是要查的节点
+PASS [桌面 · model_fwd.src_sample] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · model_fwd.src_sample] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [桌面 · model_fwd.src_sample] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.src_sample] 没有 JS 报错
+PASS [手机 · model_fwd.src_sample] 打开的是要查的节点
+PASS [手机 · model_fwd.src_sample] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · model_fwd.src_sample] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [手机 · model_fwd.src_sample] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.src_sample] 没有 JS 报错
+
+—— 下层节点 model_fwd.src_stream ——
+PASS [桌面 · model_fwd.src_stream] 打开的是要查的节点
+PASS [桌面 · model_fwd.src_stream] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · model_fwd.src_stream] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · model_fwd.src_stream] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · model_fwd.src_stream] 没有 JS 报错
+PASS [手机 · model_fwd.src_stream] 打开的是要查的节点
+PASS [手机 · model_fwd.src_stream] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · model_fwd.src_stream] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · model_fwd.src_stream] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · model_fwd.src_stream] 没有 JS 报错
+
+交互自检 456 PASS / 0 FAIL；排版问题 0 条
+截图在 /tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/sglang-auto-1/out/final/shots

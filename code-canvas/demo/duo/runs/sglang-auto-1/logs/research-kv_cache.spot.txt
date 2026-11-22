@@ -1,0 +1,41 @@
+锚点 175 处（去重 163），通过 175，不通过 0；其中 4 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 6 个，通过 6，不通过 0
+疑似引文 100 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 65，找不到 35
+  ??? 底稿第 51 行  torch.zeros((size+1, max_context_len), dtype=torch.int32)
+  ??? 底稿第 51 行  write(indices, values)
+  ??? 底稿第 52 行  free_slots = range(1, size+1)
+  ??? 底稿第 58 行  arange(1, size+1)
+  ??? 底稿第 108 行  req.prefix_len = device_prefix_len
+  ??? 底稿第 116 行  FIXME: To work around some bugs in logprob computation, we need to ensure each
+  ??? 底稿第 116 行  request has at least one token. Later, we can relax this requirement and use `input_len`.
+  ??? 底稿第 117 行  git show 1e495e0847:python/sglang/srt/managers/schedule_batch.py
+  ??? 底稿第 117 行  Need at least one token to compute logits
+  ??? 底稿第 150 行  alloc_token_slots(tree_cache, extend_num_tokens)
+  ??? 底稿第 154 行  [101..105, 2001..2015]
+  ??? 底稿第 154 行  kv_allocated_len = kv_committed_len = 20
+  ??? 底稿第 158 行  _storage(tree_cache).take_tokens(num, make_room=_room_in(tree_cache))
+  ??? 底稿第 185 行  kv_indices_orig = req_to_token[row, :len]
+  ??? 底稿第 191 行  req_to_token_pool.write((row, slice(cache_protected_len, len(new_indices))), new_indices[cache_protected_len:])
+  ??? 底稿第 201 行  dup_start = max(0, prev_prefix_len - total_prefix_length)
+  ??? 底稿第 205 行  dup_start=max(0, 5-0)=5
+  ??? 底稿第 211 行  so LRU eviction can discard output KV without
+  ??? 底稿第 211 行  also losing the reusable prompt KV.
+  ??? 底稿第 211 行  hit_count drives eviction order, so an
+  ??? 底稿第 211 行  extra bump would silently promote every prompt node.
+  ??? 底稿第 216 行  node_end > inserted_len
+  ??? 底稿第 223 行  alloc_token_slots(tree_cache, bs * token_per_req)
+  ??? 底稿第 224 行  req_to_token_pool.write((req_pool_indices, locs), out_cache_loc)
+  ??? 底稿第 224 行  seq_lens = seq_lens + 1
+  ??? 底稿第 234 行  release_kv_cache(req, tree_cache, checkpoint=...)
+  ??? 底稿第 236 行  min(kv_committed_len, len(origin_input_ids) + len(output_ids_through_stop))
+  ??? 底稿第 239 行  tree_cache.free_kv_row(req.kv, [(cache_protected_len, owned_kv_len)])
+  ??? 底稿第 241 行  _release_overallocated_kv_indices(req, owned_kv_len, kv_allocated_len, ...)
+  ??? 底稿第 241 行  [owned_kv_len, kv_allocated_len)
+  ??? 底稿第 246 行  cache_protected_len = page_aligned_len ≈ owned_kv_len
+  ??? 底稿第 249 行  kv_committed_len = 20+4 = 24
+  ??? 底稿第 249 行  owned = min(24, 25) = 24
+  ??? 底稿第 325 行  return_logprob and logprob_start_len >= 0
+  ??? 底稿第 330 行  token_ids = origin_input_ids + output_ids
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

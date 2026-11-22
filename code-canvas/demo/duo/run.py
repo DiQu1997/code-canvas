@@ -235,7 +235,10 @@ def research(step, ms, scope, notes, hint, model, held=None):
     if not rec.get('ok') or not os.path.exists(ms):
         return False, recs, '研究员没交出底稿'
     ok, out = spot(step, ms)
-    if not ok and rec.get('session'):
+    prev_fix = done_before(step + '.fix')
+    if prev_fix:                    # 接着上次跑：返工那一步上次已经做过，记录照样算进报告
+        recs.append(prev_fix)
+    if not ok and rec.get('session') and not prev_fix:
         bad = '\n'.join(l for l in out.split('\n') if l.startswith('  BAD ') or l.startswith('  ??? '))[:6000]
         fix = run_agent(step + '.fix', (
             '交付后的独立机械核对（`%s`，对 HEAD）发现底稿 `%s` 里有核不过的锚点或提交哈希（BAD），'

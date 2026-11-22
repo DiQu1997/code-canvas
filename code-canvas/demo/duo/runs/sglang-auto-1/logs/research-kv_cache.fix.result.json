@@ -1,0 +1,18 @@
+{
+ "step": "research-kv_cache.fix",
+ "role": "research",
+ "model_req": "sonnet",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 0.1335,
+ "secs": 15,
+ "turns": 3,
+ "tools": 2,
+ "session": "74e2e35e-b663-4514-a100-97e582d04b24",
+ "models": [
+  "claude-sonnet-5-5"
+ ],
+ "cost_session_total": 4.0651,
+ "note": "cost 由调度脚本事后更正：claude --resume 报的是整段会话累计，这一步实际花费 = 累计 − 前一步"
+}
