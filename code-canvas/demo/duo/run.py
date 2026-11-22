@@ -138,13 +138,17 @@ def done_before(step):
     return None
 
 
-def run_agent(step, prompt, role, model, resume=None):
-    """跑一次 claude -p；返回记录 dict（ok / cost / secs / turns / session / models / reply）。"""
+def run_agent(step, prompt, role, model, resume=None, base_cost=0.0, held=None):
+    """跑一次 claude -p；返回记录 dict（ok / cost / secs / turns / session / models / reply）。
+    resume：接着某个会话说（claude 报的 total_cost_usd 是整段会话的累计，花费要减去 base_cost）。
+    held：调用方已经替这一步预留好的预估额度（整个框一起预留时用）。"""
     old = done_before(step)
     if old:
+        if held:
+            release(held, 0.0)
         log('跳过 %s（上次已成功，$%.2f）' % (step, old.get('cost', 0)))
         return old
-    est = reserve(step, role, model)
+    est = held if held else reserve(step, role, model)
     if est is None:
         log('不启动 %s：预算不够（已花 $%.2f，在跑预估 $%.2f，上限 $%.0f）' % (step, SPENT[0], RESERVED[0], A.budget))
         return dict(step=step, role=role, model_req=model, ok=False, skipped='budget', cost=0.0)
@@ -183,10 +187,12 @@ def run_agent(step, prompt, role, model, resume=None):
         errf.close()
     secs = int(time.time() - t)
     res = res or {}
-    cost = float(res.get('total_cost_usd') or 0.0)
+    cost_total = float(res.get('total_cost_usd') or 0.0)
+    cost = max(0.0, cost_total - base_cost)
     release(est, cost)
     rec = dict(step=step, role=role, model_req=model, ok=bool(res) and not res.get('is_error') and proc.returncode == 0,
-               subtype=res.get('subtype'), rc=proc.returncode, cost=round(cost, 4), secs=secs,
+               subtype=res.get('subtype'), rc=proc.returncode, cost=round(cost, 4),
+               cost_session_total=round(cost_total, 4), secs=secs,
                turns=res.get('num_turns'), tools=ntool, session=res.get('session_id'),
                models=sorted((res.get('modelUsage') or {}).keys()))
     write(os.path.join(OUT, 'logs', step + '.reply.md'), res.get('result') or '（没有最终回复）')
@@ -217,11 +223,11 @@ def build(out_dir, strict=False):
 
 
 # ---------------------------------------------------------------- 两种角色
-def research(step, ms, scope, notes, hint, model):
+def research(step, ms, scope, notes, hint, model, held=None):
     rec = run_agent(step, tpl('researcher.md', QUESTION=A.question, SCOPE=scope, HEAD=HEAD, REPO=REPO,
                               REPO_NOTES=notes, ENTRY_HINT=hint, MANUSCRIPT=ms,
                               WORKDIR=os.path.join(OUT, 'research', 'work-' + step), TOOLROOT=TOOLROOT),
-                    'research', model)
+                    'research', model, held=held)
     recs = [rec]
     if not rec.get('ok') or not os.path.exists(ms):
         return False, recs, '研究员没交出底稿'
@@ -234,17 +240,18 @@ def research(step, ms, scope, notes, hint, model):
             '请逐条核实：BAD 改成正确的锚点 / 哈希，核实不了的就删掉那条断言（或改标【推断】并说明依据）；'
             '??? 里真是引文却对不上原文的，照原文改。'
             '不要动别的地方。改完用你自己的核对脚本再跑一遍。最终回复只写：改了几处、删了几处。'
-            % (SPOT, ms, bad or out[-3000:])), 'research', model, resume=rec['session'])
+            % (SPOT, ms, bad or out[-3000:])), 'research', model, resume=rec['session'],
+            base_cost=float(rec.get('cost_session_total', rec.get('cost')) or 0.0))
         recs.append(fix)
         ok, out = spot(step + '.after-fix', ms)
     return True, recs, ('核对通过' if ok else '核对仍有不过的条目（见 logs/%s*.spot.txt）' % step)
 
 
-def present(step, task, focus, manuscripts, model):
+def present(step, task, focus, manuscripts, model, held=None):
     out_dir = os.path.join(OUT, 'out', step)
     return run_agent(step, tpl('presenter.md', QUESTION=A.question, FOCUS=focus, TASK=task, MANUSCRIPTS=manuscripts,
                                STAGE=STAGE, HEAD=HEAD, REPO=REPO, CONTENT=CONTENT, OUT=out_dir),
-                     'present', model)
+                     'present', model, held=held)
 
 
 def repo_notes():
@@ -300,6 +307,16 @@ def as_text(v):
 def dive(it, ms_top):
     sid, title = it['id'], str(it.get('title') or it['id'])
     why = str(it.get('why') or '（没写）')
+    er = 0 if done_before('research-' + sid) else ESTIMATE['research'][fam(A.models['research_dive'])]
+    ep = 0 if done_before('present-' + sid) else ESTIMATE['present'][fam(A.models['present_dive'])]
+    with LOCK:
+        room = SPENT[0] + RESERVED[0] + er + ep <= A.budget
+        if room:
+            RESERVED[0] += er + ep
+    if not room:
+        log('不做 %s 这个框：研究 + 讲解的预估 $%d 放不进预算（已花 $%.2f，在跑预估 $%.2f，上限 $%.0f）' % (
+            sid, er + ep, SPENT[0], RESERVED[0], A.budget))
+        return dict(id=sid, title=title, why=why, research='没做（预算）', recs=[])
     ms = os.path.join(OUT, 'research', 'manuscript-%s.md' % sid)
     notes = '\n'.join(x for x in [
         repo_notes(),
@@ -311,15 +328,17 @@ def dive(it, ms_top):
     hint = '、'.join('`%s`' % a for a in anchors) if isinstance(anchors, list) and anchors else '讲解员没给；从上一趟底稿里这个框的锚点出发'
     ok, recs, chk = research('research-' + sid, ms,
                              tpl('scope-dive.md', TITLE=title, WHY=why, ASK=as_text(it.get('ask'))),
-                             notes, hint, A.models['research_dive'])
+                             notes, hint, A.models['research_dive'], held=er or None)
     row = dict(id=sid, title=title, why=why, research=chk, recs=recs)
     if not ok:
+        if ep:
+            release(ep, 0.0)
         return row
     mss = ('  - 第一份（顶层研究；读者已经看过据此做的顶层图）：`%s`——只为接上例子和读者已经看到的东西，按需查\n'
            '  - 第二份（这一趟：「%s」这个框的下一层，主材料）：`%s`' % (ms_top, title, ms))
     rec = present('present-' + sid,
                   tpl('task-dive.md', TITLE=title, SLOT=sid, PART=str(it.get('part') or sid), WHY=why),
-                  tpl('focus-dive.md', TITLE=title), mss, A.models['present_dive'])
+                  tpl('focus-dive.md', TITLE=title), mss, A.models['present_dive'], held=ep or None)
     row['recs'].append(rec)
     row['content'] = os.path.exists(os.path.join(CONTENT, 'content_%s.py' % sid))
     return row
