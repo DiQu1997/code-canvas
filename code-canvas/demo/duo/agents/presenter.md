@@ -32,7 +32,7 @@
 
 你写的文件都在内容目录里：`content_scene.py`，下层内容多时再拆出 `content_<名字>.py`（舞台说明第 8.3 节）。其中哪些这一趟能动、哪些不能动，以上面「这一趟做到哪」为准。
 
-构建和自检（都用绝对路径，从 `/home/user/code-canvas` 运行）：
+构建和自检（都用绝对路径，在哪个目录下运行都行）：
 ```
 python3 -I {{STAGE}}/build.py {{REPO}} {{OUT}} --content {{CONTENT}}
 node {{STAGE}}/shot_scene.js {{OUT}}/scene.html {{OUT}}/shots --check                    # 顶层那张图，只查排版
