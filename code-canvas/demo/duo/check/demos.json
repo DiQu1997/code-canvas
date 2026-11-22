@@ -12,6 +12,8 @@
   {"name": "sg4", "corpus": "sglang", "content": "sglang-request", "strict": true,
    "pages": [{"file": "scene.html", "html": "sglang-request-v4-dive.html", "quick": ["shot_scene.js", "--node", "schedloop.main"], "full": ["shot_scene.js", "--all"]}]},
   {"name": "sg5", "corpus": "sglang", "content": "runs/sglang-auto-1/content", "strict": true,
-   "pages": [{"file": "scene.html", "html": "sglang-request-v5-auto.html", "quick": ["shot_scene.js", "--node", "src_tm"], "full": ["shot_scene.js", "--all"]}]}
+   "pages": [{"file": "scene.html", "html": "sglang-request-v5-auto.html", "quick": ["shot_scene.js", "--node", "src_tm"], "full": ["shot_scene.js", "--all"]}]},
+  {"name": "vl1", "corpus": "vllm", "content": "runs/vllm-auto-1/content", "strict": true,
+   "pages": [{"file": "scene.html", "html": "vllm-request-v1-auto.html", "quick": ["shot_scene.js", "--node", "gen_src"], "full": ["shot_scene.js", "--all"]}]}
  ]
 }

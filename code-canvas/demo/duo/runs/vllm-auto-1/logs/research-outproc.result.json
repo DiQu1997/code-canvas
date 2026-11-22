@@ -1,0 +1,17 @@
+{
+ "step": "research-outproc",
+ "role": "research",
+ "model_req": "sonnet",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 2.1303,
+ "cost_session_total": 2.1303,
+ "secs": 561,
+ "turns": 56,
+ "tools": 55,
+ "session": "38d61c1b-1254-4f3e-8f2d-364e87596bf4",
+ "models": [
+  "claude-sonnet-5-5"
+ ]
+}

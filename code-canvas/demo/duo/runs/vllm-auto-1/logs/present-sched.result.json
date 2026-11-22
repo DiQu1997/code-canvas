@@ -1,0 +1,17 @@
+{
+ "step": "present-sched",
+ "role": "present",
+ "model_req": "opus",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 5.6344,
+ "cost_session_total": 5.6344,
+ "secs": 1539,
+ "turns": 38,
+ "tools": 37,
+ "session": "6aaf373b-351f-4986-963f-7ea3371bbb9e",
+ "models": [
+  "claude-opus-5-5"
+ ]
+}

@@ -1,0 +1,248 @@
+{
+ "question": "How does a request go through vllm and get the response back to client, step by step",
+ "repo": "/tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/corpus3/vllm",
+ "head": "0e3c8dbdae",
+ "models": {
+  "research_top": "opus",
+  "present_top": "opus",
+  "research_dive": "sonnet",
+  "present_dive": "opus"
+ },
+ "budget": 55.0,
+ "steps": [
+  {
+   "step": "research-top",
+   "role": "research",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 7.524,
+   "cost_session_total": 7.524,
+   "secs": 866,
+   "turns": 119,
+   "tools": 118,
+   "session": "6ba3b9e1-be4c-4a41-8dc2-c88625342fc0",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "present-top",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 2.7586,
+   "cost_session_total": 2.7586,
+   "secs": 699,
+   "turns": 30,
+   "tools": 29,
+   "session": "908c9235-300d-4d3a-b5c7-6c43976899c6",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-sched",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.8215,
+   "cost_session_total": 3.8215,
+   "secs": 883,
+   "turns": 88,
+   "tools": 87,
+   "session": "c830f2b1-3b3c-42eb-be5c-698455270d34",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "present-sched",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 5.6344,
+   "cost_session_total": 5.6344,
+   "secs": 1539,
+   "turns": 38,
+   "tools": 37,
+   "session": "6aaf373b-351f-4986-963f-7ea3371bbb9e",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-gpu",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.4707,
+   "cost_session_total": 3.4707,
+   "secs": 745,
+   "turns": 95,
+   "tools": 94,
+   "session": "2069a1f2-ac07-4aff-a24c-636ae8ec6856",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "research-gpu.fix",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 0.1224,
+   "cost_session_total": 3.5931,
+   "secs": 14,
+   "turns": 3,
+   "tools": 2,
+   "session": "2069a1f2-ac07-4aff-a24c-636ae8ec6856",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "present-gpu",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.3939,
+   "cost_session_total": 3.3939,
+   "secs": 867,
+   "turns": 3,
+   "tools": 35,
+   "session": "e788aad8-f459-4ba1-b8a1-903978ac6e5b",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-outproc",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 2.1303,
+   "cost_session_total": 2.1303,
+   "secs": 561,
+   "turns": 56,
+   "tools": 55,
+   "session": "38d61c1b-1254-4f3e-8f2d-364e87596bf4",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "present-outproc",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.3882,
+   "cost_session_total": 3.3882,
+   "secs": 1010,
+   "turns": 35,
+   "tools": 34,
+   "session": "7d2c7f81-853e-4da9-8a02-2d16901fbf54",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "present-top.fix",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 0.3995,
+   "cost_session_total": 3.1581,
+   "secs": 79,
+   "turns": 6,
+   "tools": 5,
+   "session": "908c9235-300d-4d3a-b5c7-6c43976899c6",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  }
+ ],
+ "dives": [
+  {
+   "id": "sched",
+   "title": "调度器",
+   "why": "整台机器「这一步算谁、算几个 token、KV 放哪」都在这里决定；顶层只能画出三个数（本步排 / 已算 / 占位），里面是 token 预算、running/waiting 两个队列、KV block 分配、前缀缓存、抢占一整套在变的状态。",
+   "research": "核对通过",
+   "content": true
+  },
+  {
+   "id": "gpu",
+   "title": "GPU 执行",
+   "why": "async scheduling 能成立全靠这里：常驻请求状态、GPU 上的 last_sampled_tokens、主 stream 与 copy_stream、AsyncOutput 的 event。顶层只能说「前向 + 采样，异步拷回」，读者会想看一步之内 GPU 上到底排了哪些活、数据在哪几块显存之间流。",
+   "research": "核对通过",
+   "content": true
+  },
+  {
+   "id": "outproc",
+   "title": "输出处理",
+   "why": "token id 变成客户端看到的文字发生在这里：增量去分词、stop 串扣字、单槽信箱合并、反向 abort。里面有每请求状态在一步步变，顶层一张卡讲不出「文字为什么会晚几个字」「信箱怎么合并」。",
+   "research": "核对通过",
+   "content": true
+  }
+ ],
+ "research_top": "核对通过",
+ "dive_requests": [
+  {
+   "id": "sched",
+   "title": "调度器",
+   "why": "整台机器「这一步算谁、算几个 token、KV 放哪」都在这里决定；顶层只能画出三个数（本步排 / 已算 / 占位），里面是 token 预算、running/waiting 两个队列、KV block 分配、前缀缓存、抢占一整套在变的状态。"
+  },
+  {
+   "id": "gpu",
+   "title": "GPU 执行",
+   "why": "async scheduling 能成立全靠这里：常驻请求状态、GPU 上的 last_sampled_tokens、主 stream 与 copy_stream、AsyncOutput 的 event。顶层只能说「前向 + 采样，异步拷回」，读者会想看一步之内 GPU 上到底排了哪些活、数据在哪几块显存之间流。"
+  },
+  {
+   "id": "outproc",
+   "title": "输出处理",
+   "why": "token id 变成客户端看到的文字发生在这里：增量去分词、stop 串扣字、单槽信箱合并、反向 abort。里面有每请求状态在一步步变，顶层一张卡讲不出「文字为什么会晚几个字」「信箱怎么合并」。"
+  }
+ ],
+ "dive_notes": [],
+ "top_fixes": [
+  "top-fixes-outproc.md",
+  "top-fixes-sched.md"
+ ],
+ "fatal": null,
+ "build": {
+  "rc": 0,
+  "warn": 0,
+  "unfilled": [],
+  "tail": "\n机器图 → /tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/vllm-auto-1/out/final/scene.html（898 KB）\n部件 34  连线 43  说明卡 77  推演 50 步；锚点条目 810  提交 5\n下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：\n      chat_src · 协议层源码\n      gen_src · 引擎门面源码\n      loop_src · 忙循环源码\n      sched · 调度器内部\n        sched.loop · schedule() 主线\n        sched.admit · waiting 入场源码\n        sched.preempt · 抢占源码\n        sched.kv · KV 块源码\n        sched.ph · 占位与收结果源码\n      gpu · GPU 执行\n        gpu.state_src · 常驻状态源码\n        gpu.exec_src · execute_model 开头\n        gpu.prep_src · 拼输入源码\n        gpu.graph_src · CUDA graph 分派\n        gpu.copy_src · 采样与拷回源码\n        gpu.defer_src · 推迟采样\n      outproc · 输出处理\n        outproc.handler_src · 收包与分块\n        outproc.process_src · process_outputs\n        outproc.update_src · update 与判 stop\n        outproc.decode_src · 一个 token 怎么解\n        outproc.emit_src · 扣字与打包\n        outproc.mailbox_src · 单槽信箱\n已填槽位 3：sched←content_sched gpu←content_gpu outproc←content_outproc\n未填槽位 0：（无）\nWARN 0 条\n"
+ },
+ "shots": {
+  "rc": 0,
+  "fail": 0,
+  "fail_lines": [],
+  "summary": [
+   "交互自检 644 PASS / 0 FAIL；排版问题 0 条"
+  ]
+ },
+ "page": "/tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/vllm-auto-1/vllm-request-v1-auto.html",
+ "spent": 32.64,
+ "wall_min": 87.4
+}

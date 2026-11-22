@@ -1,0 +1,744 @@
+
+—— 顶层 ——
+PASS [桌面] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面] 打开的这一页有机器图
+PASS [桌面] 用的是桌面那套坐标
+PASS [桌面] 整张机器图在推演条上方、一屏看全
+PASS [桌面] 点「为什么」切到为什么图层
+PASS [桌面] 点「易混点」切到易混点图层
+PASS [桌面] 点部件 → 说明卡打开
+PASS [桌面] 被点的部件没被说明卡挡住
+PASS [桌面] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面] → 键翻到下一张说明卡
+PASS [桌面] Esc 关掉说明卡
+PASS [桌面] 点 ▶ 进入第 1 步
+PASS [桌面] 推演时有部件 / 连线被点亮
+PASS [桌面] , 键退一步
+PASS [桌面] 推演时机器图仍在推演条上方
+PASS [桌面] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [桌面] 说明卡「chat」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面] 点「钻进去」→ 到了下层「chat_src」
+PASS [桌面] 到了下层，上一层的说明卡收起来了
+PASS [桌面] 能回到这张图
+INFO [桌面] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面] 没有 JS 报错
+PASS [手机] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [手机] 打开的这一页有机器图
+PASS [手机] 用的是手机那套坐标（m / mw / mh）
+PASS [手机] 机器图左右不出屏
+PASS [手机] 推演条不出屏
+PASS [手机] 点部件 → 说明卡从底部升起
+PASS [手机] 被点的部件露在说明卡上方
+PASS [手机] 说明卡不超过屏幕六成高
+PASS [手机] 点 ✕ 关掉说明卡
+PASS [手机] 点「为什么」切图层
+PASS [手机] 点 ▶ 进入第 1 步
+PASS [手机] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机] 推演条不超过半屏
+PASS [手机] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [手机] 说明卡「chat」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机] 点「钻进去」→ 到了下层「chat_src」
+PASS [手机] 到了下层，上一层的说明卡收起来了
+PASS [手机] 能回到这张图
+INFO [手机] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机] 没有 JS 报错
+
+—— 下层节点 sched ——
+PASS [桌面 · sched] 打开的是要查的节点
+PASS [桌面 · sched] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · sched] 打开的这一页有机器图
+PASS [桌面 · sched] 用的是桌面那套坐标
+PASS [桌面 · sched] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · sched] 点「为什么」切到为什么图层
+PASS [桌面 · sched] 点「易混点」切到易混点图层
+PASS [桌面 · sched] 点部件 → 说明卡打开
+PASS [桌面 · sched] 被点的部件没被说明卡挡住
+PASS [桌面 · sched] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · sched] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · sched] → 键翻到下一张说明卡
+PASS [桌面 · sched] Esc 关掉说明卡
+PASS [桌面 · sched] 点 ▶ 进入第 1 步
+PASS [桌面 · sched] 推演时有部件 / 连线被点亮
+PASS [桌面 · sched] , 键退一步
+PASS [桌面 · sched] 推演时机器图仍在推演条上方
+PASS [桌面 · sched] 「钻进去」指到的 5 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · sched] 说明卡「req」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · sched] 点「钻进去」→ 到了下层「sched.ph」
+PASS [桌面 · sched] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · sched] 能回到这张图
+INFO [桌面 · sched] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · sched] 没有 JS 报错
+PASS [手机 · sched] 打开的是要查的节点
+PASS [手机 · sched] 量到的位置就是点得中的位置（抽了 4 个元素，上下左右各扫一遍）
+PASS [手机 · sched] 打开的这一页有机器图
+PASS [手机 · sched] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · sched] 机器图左右不出屏
+PASS [手机 · sched] 推演条不出屏
+PASS [手机 · sched] 点部件 → 说明卡从底部升起
+PASS [手机 · sched] 被点的部件露在说明卡上方
+PASS [手机 · sched] 说明卡不超过屏幕六成高
+PASS [手机 · sched] 点 ✕ 关掉说明卡
+PASS [手机 · sched] 点「为什么」切图层
+PASS [手机 · sched] 点 ▶ 进入第 1 步
+PASS [手机 · sched] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · sched] 推演条不超过半屏
+PASS [手机 · sched] 「钻进去」指到的 5 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · sched] 说明卡「req」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · sched] 点「钻进去」→ 到了下层「sched.ph」
+PASS [手机 · sched] 到了下层，上一层的说明卡收起来了
+PASS [手机 · sched] 能回到这张图
+INFO [手机 · sched] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · sched] 没有 JS 报错
+
+—— 下层节点 gpu ——
+PASS [桌面 · gpu] 打开的是要查的节点
+PASS [桌面 · gpu] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · gpu] 打开的这一页有机器图
+PASS [桌面 · gpu] 用的是桌面那套坐标
+PASS [桌面 · gpu] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · gpu] 点「为什么」切到为什么图层
+PASS [桌面 · gpu] 点「易混点」切到易混点图层
+PASS [桌面 · gpu] 点部件 → 说明卡打开
+PASS [桌面 · gpu] 被点的部件没被说明卡挡住
+PASS [桌面 · gpu] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · gpu] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · gpu] → 键翻到下一张说明卡
+PASS [桌面 · gpu] Esc 关掉说明卡
+PASS [桌面 · gpu] 点 ▶ 进入第 1 步
+PASS [桌面 · gpu] 推演时有部件 / 连线被点亮
+PASS [桌面 · gpu] , 键退一步
+PASS [桌面 · gpu] 推演时机器图仍在推演条上方
+PASS [桌面 · gpu] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · gpu] 说明卡「state」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · gpu] 点「钻进去」→ 到了下层「gpu.state_src」
+PASS [桌面 · gpu] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · gpu] 能回到这张图
+INFO [桌面 · gpu] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · gpu] 没有 JS 报错
+PASS [手机 · gpu] 打开的是要查的节点
+PASS [手机 · gpu] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+PASS [手机 · gpu] 打开的这一页有机器图
+PASS [手机 · gpu] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · gpu] 机器图左右不出屏
+PASS [手机 · gpu] 推演条不出屏
+PASS [手机 · gpu] 点部件 → 说明卡从底部升起
+PASS [手机 · gpu] 被点的部件露在说明卡上方
+PASS [手机 · gpu] 说明卡不超过屏幕六成高
+PASS [手机 · gpu] 点 ✕ 关掉说明卡
+PASS [手机 · gpu] 点「为什么」切图层
+PASS [手机 · gpu] 点 ▶ 进入第 1 步
+PASS [手机 · gpu] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · gpu] 推演条不超过半屏
+PASS [手机 · gpu] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · gpu] 说明卡「state」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · gpu] 点「钻进去」→ 到了下层「gpu.state_src」
+PASS [手机 · gpu] 到了下层，上一层的说明卡收起来了
+PASS [手机 · gpu] 能回到这张图
+INFO [手机 · gpu] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · gpu] 没有 JS 报错
+
+—— 下层节点 outproc ——
+PASS [桌面 · outproc] 打开的是要查的节点
+PASS [桌面 · outproc] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · outproc] 打开的这一页有机器图
+PASS [桌面 · outproc] 用的是桌面那套坐标
+PASS [桌面 · outproc] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · outproc] 点「为什么」切到为什么图层
+PASS [桌面 · outproc] 点「易混点」切到易混点图层
+PASS [桌面 · outproc] 点部件 → 说明卡打开
+PASS [桌面 · outproc] 被点的部件没被说明卡挡住
+PASS [桌面 · outproc] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · outproc] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · outproc] → 键翻到下一张说明卡
+PASS [桌面 · outproc] Esc 关掉说明卡
+PASS [桌面 · outproc] 点 ▶ 进入第 1 步
+PASS [桌面 · outproc] 推演时有部件 / 连线被点亮
+PASS [桌面 · outproc] , 键退一步
+PASS [桌面 · outproc] 推演时机器图仍在推演条上方
+PASS [桌面 · outproc] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · outproc] 说明卡「inbox」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · outproc] 点「钻进去」→ 到了下层「outproc.handler_src」
+PASS [桌面 · outproc] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · outproc] 能回到这张图
+INFO [桌面 · outproc] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · outproc] 没有 JS 报错
+PASS [手机 · outproc] 打开的是要查的节点
+PASS [手机 · outproc] 量到的位置就是点得中的位置（抽了 4 个元素，上下左右各扫一遍）
+PASS [手机 · outproc] 打开的这一页有机器图
+PASS [手机 · outproc] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · outproc] 机器图左右不出屏
+PASS [手机 · outproc] 推演条不出屏
+PASS [手机 · outproc] 点部件 → 说明卡从底部升起
+PASS [手机 · outproc] 被点的部件露在说明卡上方
+PASS [手机 · outproc] 说明卡不超过屏幕六成高
+PASS [手机 · outproc] 点 ✕ 关掉说明卡
+PASS [手机 · outproc] 点「为什么」切图层
+PASS [手机 · outproc] 点 ▶ 进入第 1 步
+PASS [手机 · outproc] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · outproc] 推演条不超过半屏
+PASS [手机 · outproc] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · outproc] 说明卡「inbox」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · outproc] 点「钻进去」→ 到了下层「outproc.handler_src」
+PASS [手机 · outproc] 到了下层，上一层的说明卡收起来了
+PASS [手机 · outproc] 能回到这张图
+INFO [手机 · outproc] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · outproc] 没有 JS 报错
+
+—— 下层节点 chat_src ——
+PASS [桌面 · chat_src] 打开的是要查的节点
+PASS [桌面 · chat_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · chat_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · chat_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · chat_src] 没有 JS 报错
+PASS [桌面 · chat_src] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [桌面 · chat_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · chat_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · chat_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · chat_src] 便签贴着被点的那几行
+PASS [桌面 · chat_src] 便签整个在屏幕里
+PASS [桌面 · chat_src] 点便签上的 ✕ 收起
+PASS [桌面 · chat_src] 批注便签没有 JS 报错
+PASS [手机 · chat_src] 打开的是要查的节点
+PASS [手机 · chat_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · chat_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · chat_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · chat_src] 没有 JS 报错
+PASS [手机 · chat_src] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [手机 · chat_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · chat_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · chat_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · chat_src] 便签贴着被点的那几行
+PASS [手机 · chat_src] 便签整个在屏幕里
+PASS [手机 · chat_src] 点便签上的 ✕ 收起
+PASS [手机 · chat_src] 批注便签没有 JS 报错
+
+—— 下层节点 gen_src ——
+PASS [桌面 · gen_src] 打开的是要查的节点
+PASS [桌面 · gen_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · gen_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · gen_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · gen_src] 没有 JS 报错
+PASS [桌面 · gen_src] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [桌面 · gen_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · gen_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · gen_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · gen_src] 便签贴着被点的那几行
+PASS [桌面 · gen_src] 便签整个在屏幕里
+PASS [桌面 · gen_src] 点便签上的 ✕ 收起
+PASS [桌面 · gen_src] 批注便签没有 JS 报错
+PASS [手机 · gen_src] 打开的是要查的节点
+PASS [手机 · gen_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · gen_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · gen_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · gen_src] 没有 JS 报错
+PASS [手机 · gen_src] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [手机 · gen_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · gen_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · gen_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · gen_src] 便签贴着被点的那几行
+PASS [手机 · gen_src] 便签整个在屏幕里
+PASS [手机 · gen_src] 点便签上的 ✕ 收起
+PASS [手机 · gen_src] 批注便签没有 JS 报错
+
+—— 下层节点 loop_src ——
+PASS [桌面 · loop_src] 打开的是要查的节点
+PASS [桌面 · loop_src] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · loop_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · loop_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · loop_src] 没有 JS 报错
+PASS [桌面 · loop_src] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [桌面 · loop_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · loop_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · loop_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · loop_src] 便签贴着被点的那几行
+PASS [桌面 · loop_src] 便签整个在屏幕里
+PASS [桌面 · loop_src] 点便签上的 ✕ 收起
+PASS [桌面 · loop_src] 批注便签没有 JS 报错
+PASS [手机 · loop_src] 打开的是要查的节点
+PASS [手机 · loop_src] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [手机 · loop_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · loop_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · loop_src] 没有 JS 报错
+PASS [手机 · loop_src] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [手机 · loop_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · loop_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · loop_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · loop_src] 便签贴着被点的那几行
+PASS [手机 · loop_src] 便签整个在屏幕里
+PASS [手机 · loop_src] 点便签上的 ✕ 收起
+PASS [手机 · loop_src] 批注便签没有 JS 报错
+
+—— 下层节点 sched.loop ——
+PASS [桌面 · sched.loop] 打开的是要查的节点
+PASS [桌面 · sched.loop] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.loop] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · sched.loop] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.loop] 没有 JS 报错
+PASS [桌面 · sched.loop] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · sched.loop] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.loop] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.loop] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.loop] 便签贴着被点的那几行
+PASS [桌面 · sched.loop] 便签整个在屏幕里
+PASS [桌面 · sched.loop] 点便签上的 ✕ 收起
+PASS [桌面 · sched.loop] 批注便签没有 JS 报错
+PASS [手机 · sched.loop] 打开的是要查的节点
+PASS [手机 · sched.loop] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.loop] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · sched.loop] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.loop] 没有 JS 报错
+PASS [手机 · sched.loop] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · sched.loop] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.loop] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.loop] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.loop] 便签贴着被点的那几行
+PASS [手机 · sched.loop] 便签整个在屏幕里
+PASS [手机 · sched.loop] 点便签上的 ✕ 收起
+PASS [手机 · sched.loop] 批注便签没有 JS 报错
+
+—— 下层节点 sched.admit ——
+PASS [桌面 · sched.admit] 打开的是要查的节点
+PASS [桌面 · sched.admit] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.admit] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · sched.admit] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.admit] 没有 JS 报错
+PASS [桌面 · sched.admit] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [桌面 · sched.admit] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.admit] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.admit] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.admit] 便签贴着被点的那几行
+PASS [桌面 · sched.admit] 便签整个在屏幕里
+PASS [桌面 · sched.admit] 点便签上的 ✕ 收起
+PASS [桌面 · sched.admit] 批注便签没有 JS 报错
+PASS [手机 · sched.admit] 打开的是要查的节点
+PASS [手机 · sched.admit] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [手机 · sched.admit] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · sched.admit] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.admit] 没有 JS 报错
+PASS [手机 · sched.admit] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [手机 · sched.admit] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.admit] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.admit] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.admit] 便签贴着被点的那几行
+PASS [手机 · sched.admit] 便签整个在屏幕里
+PASS [手机 · sched.admit] 点便签上的 ✕ 收起
+PASS [手机 · sched.admit] 批注便签没有 JS 报错
+
+—— 下层节点 sched.preempt ——
+PASS [桌面 · sched.preempt] 打开的是要查的节点
+PASS [桌面 · sched.preempt] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.preempt] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · sched.preempt] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.preempt] 没有 JS 报错
+PASS [桌面 · sched.preempt] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [桌面 · sched.preempt] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.preempt] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.preempt] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.preempt] 便签贴着被点的那几行
+PASS [桌面 · sched.preempt] 便签整个在屏幕里
+PASS [桌面 · sched.preempt] 点便签上的 ✕ 收起
+PASS [桌面 · sched.preempt] 批注便签没有 JS 报错
+PASS [手机 · sched.preempt] 打开的是要查的节点
+PASS [手机 · sched.preempt] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.preempt] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · sched.preempt] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.preempt] 没有 JS 报错
+PASS [手机 · sched.preempt] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [手机 · sched.preempt] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.preempt] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.preempt] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.preempt] 便签贴着被点的那几行
+PASS [手机 · sched.preempt] 便签整个在屏幕里
+PASS [手机 · sched.preempt] 点便签上的 ✕ 收起
+PASS [手机 · sched.preempt] 批注便签没有 JS 报错
+
+—— 下层节点 sched.kv ——
+PASS [桌面 · sched.kv] 打开的是要查的节点
+PASS [桌面 · sched.kv] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.kv] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [桌面 · sched.kv] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.kv] 没有 JS 报错
+PASS [桌面 · sched.kv] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [桌面 · sched.kv] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.kv] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.kv] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.kv] 便签贴着被点的那几行
+PASS [桌面 · sched.kv] 便签整个在屏幕里
+PASS [桌面 · sched.kv] 点便签上的 ✕ 收起
+PASS [桌面 · sched.kv] 批注便签没有 JS 报错
+PASS [手机 · sched.kv] 打开的是要查的节点
+PASS [手机 · sched.kv] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.kv] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [手机 · sched.kv] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.kv] 没有 JS 报错
+PASS [手机 · sched.kv] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [手机 · sched.kv] 有批注的行染色、可点、行尾有「注」标记
+INFO [手机 · sched.kv] 当前屏里没有带批注的代码行，「点开便签」没查
+
+—— 下层节点 sched.ph ——
+PASS [桌面 · sched.ph] 打开的是要查的节点
+PASS [桌面 · sched.ph] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.ph] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · sched.ph] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.ph] 没有 JS 报错
+PASS [桌面 · sched.ph] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [桌面 · sched.ph] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.ph] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.ph] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.ph] 便签贴着被点的那几行
+PASS [桌面 · sched.ph] 便签整个在屏幕里
+PASS [桌面 · sched.ph] 点便签上的 ✕ 收起
+PASS [桌面 · sched.ph] 批注便签没有 JS 报错
+PASS [手机 · sched.ph] 打开的是要查的节点
+PASS [手机 · sched.ph] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.ph] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · sched.ph] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.ph] 没有 JS 报错
+PASS [手机 · sched.ph] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [手机 · sched.ph] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.ph] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.ph] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.ph] 便签贴着被点的那几行
+PASS [手机 · sched.ph] 便签整个在屏幕里
+PASS [手机 · sched.ph] 点便签上的 ✕ 收起
+PASS [手机 · sched.ph] 批注便签没有 JS 报错
+
+—— 下层节点 gpu.state_src ——
+PASS [桌面 · gpu.state_src] 打开的是要查的节点
+PASS [桌面 · gpu.state_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · gpu.state_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · gpu.state_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · gpu.state_src] 没有 JS 报错
+PASS [桌面 · gpu.state_src] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · gpu.state_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · gpu.state_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · gpu.state_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · gpu.state_src] 便签贴着被点的那几行
+PASS [桌面 · gpu.state_src] 便签整个在屏幕里
+PASS [桌面 · gpu.state_src] 点便签上的 ✕ 收起
+PASS [桌面 · gpu.state_src] 批注便签没有 JS 报错
+PASS [手机 · gpu.state_src] 打开的是要查的节点
+PASS [手机 · gpu.state_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · gpu.state_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · gpu.state_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · gpu.state_src] 没有 JS 报错
+PASS [手机 · gpu.state_src] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · gpu.state_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · gpu.state_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · gpu.state_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · gpu.state_src] 便签贴着被点的那几行
+PASS [手机 · gpu.state_src] 便签整个在屏幕里
+PASS [手机 · gpu.state_src] 点便签上的 ✕ 收起
+PASS [手机 · gpu.state_src] 批注便签没有 JS 报错
+
+—— 下层节点 gpu.exec_src ——
+PASS [桌面 · gpu.exec_src] 打开的是要查的节点
+PASS [桌面 · gpu.exec_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · gpu.exec_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · gpu.exec_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · gpu.exec_src] 没有 JS 报错
+PASS [桌面 · gpu.exec_src] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [桌面 · gpu.exec_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · gpu.exec_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · gpu.exec_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · gpu.exec_src] 便签贴着被点的那几行
+PASS [桌面 · gpu.exec_src] 便签整个在屏幕里
+PASS [桌面 · gpu.exec_src] 点便签上的 ✕ 收起
+PASS [桌面 · gpu.exec_src] 批注便签没有 JS 报错
+PASS [手机 · gpu.exec_src] 打开的是要查的节点
+PASS [手机 · gpu.exec_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · gpu.exec_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · gpu.exec_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · gpu.exec_src] 没有 JS 报错
+PASS [手机 · gpu.exec_src] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [手机 · gpu.exec_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · gpu.exec_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · gpu.exec_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · gpu.exec_src] 便签贴着被点的那几行
+PASS [手机 · gpu.exec_src] 便签整个在屏幕里
+PASS [手机 · gpu.exec_src] 点便签上的 ✕ 收起
+PASS [手机 · gpu.exec_src] 批注便签没有 JS 报错
+
+—— 下层节点 gpu.prep_src ——
+PASS [桌面 · gpu.prep_src] 打开的是要查的节点
+PASS [桌面 · gpu.prep_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · gpu.prep_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · gpu.prep_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · gpu.prep_src] 没有 JS 报错
+PASS [桌面 · gpu.prep_src] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · gpu.prep_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · gpu.prep_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · gpu.prep_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · gpu.prep_src] 便签贴着被点的那几行
+PASS [桌面 · gpu.prep_src] 便签整个在屏幕里
+PASS [桌面 · gpu.prep_src] 点便签上的 ✕ 收起
+PASS [桌面 · gpu.prep_src] 批注便签没有 JS 报错
+PASS [手机 · gpu.prep_src] 打开的是要查的节点
+PASS [手机 · gpu.prep_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · gpu.prep_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · gpu.prep_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · gpu.prep_src] 没有 JS 报错
+PASS [手机 · gpu.prep_src] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · gpu.prep_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · gpu.prep_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · gpu.prep_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · gpu.prep_src] 便签贴着被点的那几行
+PASS [手机 · gpu.prep_src] 便签整个在屏幕里
+PASS [手机 · gpu.prep_src] 点便签上的 ✕ 收起
+PASS [手机 · gpu.prep_src] 批注便签没有 JS 报错
+
+—— 下层节点 gpu.graph_src ——
+PASS [桌面 · gpu.graph_src] 打开的是要查的节点
+PASS [桌面 · gpu.graph_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · gpu.graph_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · gpu.graph_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · gpu.graph_src] 没有 JS 报错
+PASS [桌面 · gpu.graph_src] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [桌面 · gpu.graph_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · gpu.graph_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · gpu.graph_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · gpu.graph_src] 便签贴着被点的那几行
+PASS [桌面 · gpu.graph_src] 便签整个在屏幕里
+PASS [桌面 · gpu.graph_src] 点便签上的 ✕ 收起
+PASS [桌面 · gpu.graph_src] 批注便签没有 JS 报错
+PASS [手机 · gpu.graph_src] 打开的是要查的节点
+PASS [手机 · gpu.graph_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · gpu.graph_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · gpu.graph_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · gpu.graph_src] 没有 JS 报错
+PASS [手机 · gpu.graph_src] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [手机 · gpu.graph_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · gpu.graph_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · gpu.graph_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · gpu.graph_src] 便签贴着被点的那几行
+PASS [手机 · gpu.graph_src] 便签整个在屏幕里
+PASS [手机 · gpu.graph_src] 点便签上的 ✕ 收起
+PASS [手机 · gpu.graph_src] 批注便签没有 JS 报错
+
+—— 下层节点 gpu.copy_src ——
+PASS [桌面 · gpu.copy_src] 打开的是要查的节点
+PASS [桌面 · gpu.copy_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · gpu.copy_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · gpu.copy_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · gpu.copy_src] 没有 JS 报错
+PASS [桌面 · gpu.copy_src] 代码批注默认收起，不夹在代码中间（12 条）
+PASS [桌面 · gpu.copy_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · gpu.copy_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · gpu.copy_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · gpu.copy_src] 便签贴着被点的那几行
+PASS [桌面 · gpu.copy_src] 便签整个在屏幕里
+PASS [桌面 · gpu.copy_src] 点便签上的 ✕ 收起
+PASS [桌面 · gpu.copy_src] 批注便签没有 JS 报错
+PASS [手机 · gpu.copy_src] 打开的是要查的节点
+PASS [手机 · gpu.copy_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · gpu.copy_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · gpu.copy_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · gpu.copy_src] 没有 JS 报错
+PASS [手机 · gpu.copy_src] 代码批注默认收起，不夹在代码中间（12 条）
+PASS [手机 · gpu.copy_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · gpu.copy_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · gpu.copy_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · gpu.copy_src] 便签贴着被点的那几行
+PASS [手机 · gpu.copy_src] 便签整个在屏幕里
+PASS [手机 · gpu.copy_src] 点便签上的 ✕ 收起
+PASS [手机 · gpu.copy_src] 批注便签没有 JS 报错
+
+—— 下层节点 gpu.defer_src ——
+PASS [桌面 · gpu.defer_src] 打开的是要查的节点
+PASS [桌面 · gpu.defer_src] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · gpu.defer_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · gpu.defer_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · gpu.defer_src] 没有 JS 报错
+PASS [桌面 · gpu.defer_src] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · gpu.defer_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · gpu.defer_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · gpu.defer_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · gpu.defer_src] 便签贴着被点的那几行
+PASS [桌面 · gpu.defer_src] 便签整个在屏幕里
+PASS [桌面 · gpu.defer_src] 点便签上的 ✕ 收起
+PASS [桌面 · gpu.defer_src] 批注便签没有 JS 报错
+PASS [手机 · gpu.defer_src] 打开的是要查的节点
+PASS [手机 · gpu.defer_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · gpu.defer_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · gpu.defer_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · gpu.defer_src] 没有 JS 报错
+PASS [手机 · gpu.defer_src] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · gpu.defer_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · gpu.defer_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · gpu.defer_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · gpu.defer_src] 便签贴着被点的那几行
+PASS [手机 · gpu.defer_src] 便签整个在屏幕里
+PASS [手机 · gpu.defer_src] 点便签上的 ✕ 收起
+PASS [手机 · gpu.defer_src] 批注便签没有 JS 报错
+
+—— 下层节点 outproc.handler_src ——
+PASS [桌面 · outproc.handler_src] 打开的是要查的节点
+PASS [桌面 · outproc.handler_src] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · outproc.handler_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · outproc.handler_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · outproc.handler_src] 没有 JS 报错
+PASS [桌面 · outproc.handler_src] 代码批注默认收起，不夹在代码中间（15 条）
+PASS [桌面 · outproc.handler_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · outproc.handler_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · outproc.handler_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · outproc.handler_src] 便签贴着被点的那几行
+PASS [桌面 · outproc.handler_src] 便签整个在屏幕里
+PASS [桌面 · outproc.handler_src] 点便签上的 ✕ 收起
+PASS [桌面 · outproc.handler_src] 批注便签没有 JS 报错
+PASS [手机 · outproc.handler_src] 打开的是要查的节点
+PASS [手机 · outproc.handler_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · outproc.handler_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · outproc.handler_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · outproc.handler_src] 没有 JS 报错
+PASS [手机 · outproc.handler_src] 代码批注默认收起，不夹在代码中间（15 条）
+PASS [手机 · outproc.handler_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · outproc.handler_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · outproc.handler_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · outproc.handler_src] 便签贴着被点的那几行
+PASS [手机 · outproc.handler_src] 便签整个在屏幕里
+PASS [手机 · outproc.handler_src] 点便签上的 ✕ 收起
+PASS [手机 · outproc.handler_src] 批注便签没有 JS 报错
+
+—— 下层节点 outproc.process_src ——
+PASS [桌面 · outproc.process_src] 打开的是要查的节点
+PASS [桌面 · outproc.process_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · outproc.process_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · outproc.process_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · outproc.process_src] 没有 JS 报错
+PASS [桌面 · outproc.process_src] 代码批注默认收起，不夹在代码中间（12 条）
+PASS [桌面 · outproc.process_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · outproc.process_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · outproc.process_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · outproc.process_src] 便签贴着被点的那几行
+PASS [桌面 · outproc.process_src] 便签整个在屏幕里
+PASS [桌面 · outproc.process_src] 点便签上的 ✕ 收起
+PASS [桌面 · outproc.process_src] 批注便签没有 JS 报错
+PASS [手机 · outproc.process_src] 打开的是要查的节点
+PASS [手机 · outproc.process_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · outproc.process_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · outproc.process_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · outproc.process_src] 没有 JS 报错
+PASS [手机 · outproc.process_src] 代码批注默认收起，不夹在代码中间（12 条）
+PASS [手机 · outproc.process_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · outproc.process_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · outproc.process_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · outproc.process_src] 便签贴着被点的那几行
+PASS [手机 · outproc.process_src] 便签整个在屏幕里
+PASS [手机 · outproc.process_src] 点便签上的 ✕ 收起
+PASS [手机 · outproc.process_src] 批注便签没有 JS 报错
+
+—— 下层节点 outproc.update_src ——
+PASS [桌面 · outproc.update_src] 打开的是要查的节点
+PASS [桌面 · outproc.update_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · outproc.update_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · outproc.update_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · outproc.update_src] 没有 JS 报错
+PASS [桌面 · outproc.update_src] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [桌面 · outproc.update_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · outproc.update_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · outproc.update_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · outproc.update_src] 便签贴着被点的那几行
+PASS [桌面 · outproc.update_src] 便签整个在屏幕里
+PASS [桌面 · outproc.update_src] 点便签上的 ✕ 收起
+PASS [桌面 · outproc.update_src] 批注便签没有 JS 报错
+PASS [手机 · outproc.update_src] 打开的是要查的节点
+PASS [手机 · outproc.update_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · outproc.update_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · outproc.update_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · outproc.update_src] 没有 JS 报错
+PASS [手机 · outproc.update_src] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [手机 · outproc.update_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · outproc.update_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · outproc.update_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · outproc.update_src] 便签贴着被点的那几行
+PASS [手机 · outproc.update_src] 便签整个在屏幕里
+PASS [手机 · outproc.update_src] 点便签上的 ✕ 收起
+PASS [手机 · outproc.update_src] 批注便签没有 JS 报错
+
+—— 下层节点 outproc.decode_src ——
+PASS [桌面 · outproc.decode_src] 打开的是要查的节点
+PASS [桌面 · outproc.decode_src] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · outproc.decode_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [桌面 · outproc.decode_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · outproc.decode_src] 没有 JS 报错
+PASS [桌面 · outproc.decode_src] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [桌面 · outproc.decode_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · outproc.decode_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · outproc.decode_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · outproc.decode_src] 便签贴着被点的那几行
+PASS [桌面 · outproc.decode_src] 便签整个在屏幕里
+PASS [桌面 · outproc.decode_src] 点便签上的 ✕ 收起
+PASS [桌面 · outproc.decode_src] 批注便签没有 JS 报错
+PASS [手机 · outproc.decode_src] 打开的是要查的节点
+PASS [手机 · outproc.decode_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · outproc.decode_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [手机 · outproc.decode_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · outproc.decode_src] 没有 JS 报错
+PASS [手机 · outproc.decode_src] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [手机 · outproc.decode_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · outproc.decode_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · outproc.decode_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · outproc.decode_src] 便签贴着被点的那几行
+PASS [手机 · outproc.decode_src] 便签整个在屏幕里
+PASS [手机 · outproc.decode_src] 点便签上的 ✕ 收起
+PASS [手机 · outproc.decode_src] 批注便签没有 JS 报错
+
+—— 下层节点 outproc.emit_src ——
+PASS [桌面 · outproc.emit_src] 打开的是要查的节点
+PASS [桌面 · outproc.emit_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · outproc.emit_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · outproc.emit_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · outproc.emit_src] 没有 JS 报错
+PASS [桌面 · outproc.emit_src] 代码批注默认收起，不夹在代码中间（10 条）
+PASS [桌面 · outproc.emit_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · outproc.emit_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · outproc.emit_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · outproc.emit_src] 便签贴着被点的那几行
+PASS [桌面 · outproc.emit_src] 便签整个在屏幕里
+PASS [桌面 · outproc.emit_src] 点便签上的 ✕ 收起
+PASS [桌面 · outproc.emit_src] 批注便签没有 JS 报错
+PASS [手机 · outproc.emit_src] 打开的是要查的节点
+PASS [手机 · outproc.emit_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · outproc.emit_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · outproc.emit_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · outproc.emit_src] 没有 JS 报错
+PASS [手机 · outproc.emit_src] 代码批注默认收起，不夹在代码中间（10 条）
+PASS [手机 · outproc.emit_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · outproc.emit_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · outproc.emit_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · outproc.emit_src] 便签贴着被点的那几行
+PASS [手机 · outproc.emit_src] 便签整个在屏幕里
+PASS [手机 · outproc.emit_src] 点便签上的 ✕ 收起
+PASS [手机 · outproc.emit_src] 批注便签没有 JS 报错
+
+—— 下层节点 outproc.mailbox_src ——
+PASS [桌面 · outproc.mailbox_src] 打开的是要查的节点
+PASS [桌面 · outproc.mailbox_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · outproc.mailbox_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · outproc.mailbox_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · outproc.mailbox_src] 没有 JS 报错
+PASS [桌面 · outproc.mailbox_src] 代码批注默认收起，不夹在代码中间（16 条）
+PASS [桌面 · outproc.mailbox_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · outproc.mailbox_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · outproc.mailbox_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · outproc.mailbox_src] 便签贴着被点的那几行
+PASS [桌面 · outproc.mailbox_src] 便签整个在屏幕里
+PASS [桌面 · outproc.mailbox_src] 点便签上的 ✕ 收起
+PASS [桌面 · outproc.mailbox_src] 批注便签没有 JS 报错
+PASS [手机 · outproc.mailbox_src] 打开的是要查的节点
+PASS [手机 · outproc.mailbox_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · outproc.mailbox_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · outproc.mailbox_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · outproc.mailbox_src] 没有 JS 报错
+PASS [手机 · outproc.mailbox_src] 代码批注默认收起，不夹在代码中间（16 条）
+PASS [手机 · outproc.mailbox_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · outproc.mailbox_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · outproc.mailbox_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · outproc.mailbox_src] 便签贴着被点的那几行
+PASS [手机 · outproc.mailbox_src] 便签整个在屏幕里
+PASS [手机 · outproc.mailbox_src] 点便签上的 ✕ 收起
+PASS [手机 · outproc.mailbox_src] 批注便签没有 JS 报错
+
+交互自检 644 PASS / 0 FAIL；排版问题 0 条
+截图在 /tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/vllm-auto-1/out/final/shots

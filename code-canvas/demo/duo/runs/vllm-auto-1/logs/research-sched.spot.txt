@@ -1,0 +1,28 @@
+锚点 308 处（去重 252），通过 308，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 11 个，通过 11，不通过 0
+疑似引文 151 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 129，找不到 22
+  ??? 底稿第 66 行  min(num_new_tokens, token_budget, input_budget - draft_slots)
+  ??? 底稿第 86 行  status = RUNNING
+  ??? 底稿第 93 行  if not preempted_reqs:
+  ??? 底稿第 114 行  allocate_slots(request, num_new_tokens, ...)
+  ??? 底稿第 115 行  num_tokens_need_slot = min(已算 + 新排 + lookahead, max_model_len)
+  ??? 底稿第 122 行  CacheConfig.DEFAULT_BLOCK_SIZE = 64
+  ??? 底稿第 178 行  status = PREEMPTED
+  ??? 底稿第 187 行  free → `PREEMPTED` → `num_computed_tokens = 0` → `appendleft` 回 waiting
+  ??? 底稿第 191 行  num_stale_output_tokens = num_in_flight_tokens
+  ??? 底稿第 210 行  num_tokens_with_spec - num_computed_tokens
+  ??? 底稿第 220 行  min(5000, 2047)=2047
+  ??? 底稿第 221 行  min(2953, 2047)=2047
+  ??? 底稿第 236 行  num_tokens_with_spec + num_output_placeholders - num_computed_tokens
+  ??? 底稿第 237 行  request.num_output_placeholders += self.num_sampled_tokens_per_step + cur_num_spec_tokens
+  ??? 底稿第 237 行  num_computed_tokens < num_tokens + num_output_placeholders
+  ??? 底稿第 238 行  num_output_placeholders -= N
+  ??? 底稿第 255 行  num_output_placeholders > 0 and num_computed_tokens + (1 + 在飞最少产出) - num_output_placeholders >= num_prompt_tokens + max_tokens
+  ??? 底稿第 257 行  26 + (1+1) − 1 = 27 < 28
+  ??? 底稿第 258 行  27 + 2 − 1 = 28 >= 28
+  ??? 底稿第 260 行  prompt + max_tokens − 1
+  ??? 底稿第 266 行  if request is None or request.is_finished(): continue
+  ??? 底稿第 296 行  max(priority, arrival_time)
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

@@ -1,0 +1,29 @@
+锚点 326 处（去重 300），通过 326，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 11 个，通过 11，不通过 0
+疑似引文 106 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 83，找不到 23
+  ??? 底稿第 33 行  pp_size + async_scheduling_depth - 1
+  ??? 底稿第 39 行  scheduler 先 prefill 再 decode
+  ??? 底稿第 91 行  await online_renderer.render_chat()
+  ??? 底稿第 94 行  await engine_core.add_request_async(request)
+  ??? 底稿第 96 行  input_queue.put_nowait((类型, Request))
+  ??? 底稿第 99 行  output_queue.put_nowait((client_index, EngineCoreOutputs))
+  ??? 底稿第 101 行  await outputs_queue.get()
+  ??? 底稿第 160 行  engine_inputs = [{"type": "token", "prompt_token_ids": [20 个 id], ...}]
+  ??? 底稿第 166 行  output_kind = DELTA
+  ??? 底稿第 167 行  self.engine_client.generate(engine_input, sampling_params, sub_request_id, ...)
+  ??? 底稿第 180 行  RequestOutputCollector(DELTA, request_id)
+  ??? 底稿第 196 行  input_queue.put_nowait((ADD, (Request, wave)))
+  ??? 底稿第 206 行  num_output_placeholders += 1
+  ??? 底稿第 214 行  num_tokens_with_spec + num_output_placeholders - num_computed_tokens
+  ??? 底稿第 218 行  EngineCoreOutput(request_id, new_token_ids=[<"法国">], finish_reason=None, …)
+  ??? 底稿第 219 行  {0: EngineCoreOutputs(outputs=[…])}
+  ??? 底稿第 226 行  await output_socket.recv_multipart()
+  ??? 底稿第 228 行  detokenizer.update(new_token_ids, …)
+  ??? 底稿第 228 行  outputs[0].text = "法国"
+  ??? 底稿第 247 行  finally: q.close()
+  ??? 底稿第 250 行  num_output_tokens >= max_tokens
+  ??? 底稿第 252 行  SamplingParams.output_kind = FINAL_ONLY
+  ??? 底稿第 252 行  await chat_completion_full_generator
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

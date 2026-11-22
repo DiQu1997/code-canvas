@@ -1,0 +1,30 @@
+锚点 214 处（去重 195），通过 214，不通过 0；其中 1 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 11 个，通过 11，不通过 0
+疑似引文 114 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 90，找不到 24
+  ??? 底稿第 6 行  request_id = chatcmpl-9f1c…-a1b2c3d4
+  ??? 底稿第 17 行  [max_num_reqs, 1]
+  ??? 底稿第 32 行  [max_num_reqs, max_blocks]
+  ??? 底稿第 46 行  input_ids / positions / seq_lens / block table / slot_mapping
+  ??? 底稿第 71 行  all_token_ids[槽, :]
+  ??? 底稿第 77 行  1024 × 131072 × int32 ≈ 512 MiB
+  ??? 底稿第 82 行  prefill_len ≥ prompt_len
+  ??? 底稿第 111 行  num_computed_prefill_tokens=0 < prefill_len=20
+  ??? 底稿第 114 行  [0, 20, 20, 20, …]
+  ??? 底稿第 115 行  [prompt 的 20 个 token]
+  ??? 底稿第 122 行  seq_len == prefill_len
+  ??? 底稿第 123 行  num_computed_tokens 0→20
+  ??? 底稿第 123 行  num_computed 20→21
+  ??? 底稿第 129 行  (not draft_tokens.get(r), num != decode_query_len, num)
+  ??? 底稿第 130 行  idx_mapping=[1023, 1022]
+  ??? 底稿第 130 行  query_start_loc=[0, 1, 21]
+  ??? 底稿第 138 行  if seq_len <= prefill_len: return
+  ??? 底稿第 140 行  input_ids[logits_start] = last_sampled_tokens[槽]
+  ??? 底稿第 140 行  first_logit_seq_pos = 21−1 = 20 ≥ 20
+  ??? 底稿第 155 行  pp_size + async_scheduling_depth − 1
+  ??? 底稿第 197 行  git log -S'def sample_tokens'
+  ??? 底稿第 241 行  self.output_copy_event = …
+  ??? 底稿第 285 行  BLOCK_SIZE=next_power_of_2(num_speculative_steps + num_new_sampled_tokens)
+  ??? 底稿第 341 行  query_len − num_rejected
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

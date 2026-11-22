@@ -1,0 +1,17 @@
+{
+ "step": "research-sched",
+ "role": "research",
+ "model_req": "sonnet",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 3.8215,
+ "cost_session_total": 3.8215,
+ "secs": 883,
+ "turns": 88,
+ "tools": 87,
+ "session": "c830f2b1-3b3c-42eb-be5c-698455270d34",
+ "models": [
+  "claude-sonnet-5-5"
+ ]
+}

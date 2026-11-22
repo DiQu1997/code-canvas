@@ -1,0 +1,17 @@
+{
+ "step": "present-gpu",
+ "role": "present",
+ "model_req": "opus",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 3.3939,
+ "cost_session_total": 3.3939,
+ "secs": 867,
+ "turns": 3,
+ "tools": 35,
+ "session": "e788aad8-f459-4ba1-b8a1-903978ac6e5b",
+ "models": [
+  "claude-opus-5-5"
+ ]
+}
