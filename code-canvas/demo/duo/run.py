@@ -310,7 +310,9 @@ def as_text(v):
     return str(v or '')
 
 
-def dive(it, ms_top):
+def dive_research(it, ms_top, prev):
+    """一个框的补充研究。prev = 前面已经研究完的框 [(条目, 底稿路径)]：它们补设的值要接着用（并行时各设各的，实测对不上）。
+    返回 (row, 底稿路径或 None, 给讲解留的预算额度)。"""
     sid, title = it['id'], str(it.get('title') or it['id'])
     why = str(it.get('why') or '（没写）')
     er = 0 if done_before('research-' + sid) else ESTIMATE['research'][fam(A.models['research_dive'])]
@@ -322,14 +324,18 @@ def dive(it, ms_top):
     if not room:
         log('不做 %s 这个框：研究 + 讲解的预估 $%d 放不进预算（已花 $%.2f，在跑预估 $%.2f，上限 $%.0f）' % (
             sid, er + ep, SPENT[0], RESERVED[0], A.budget))
-        return dict(id=sid, title=title, why=why, research='没做（预算）', recs=[])
+        return dict(id=sid, title=title, why=why, research='没做（预算）', recs=[]), None, 0
     ms = os.path.join(OUT, 'research', 'manuscript-%s.md' % sid)
+    sib = ''.join('\n  - `%s`（「%s」）' % (m, str(i.get('title') or i['id'])) for i, m in prev)
     notes = '\n'.join(x for x in [
         repo_notes(),
         '- **上一趟（顶层）底稿**（只读；不要改它，也不要重写它）：`%s`。先读讲解员指出的相关部分（%s）和贯穿全程的那个例子，'
         '其余不必读。' % (ms_top, it.get('sections') or '讲解员没指出'),
         '- 读者在顶层图上已经看到的这个框：`%s` 里 id 为 `%s` 的部件和它的说明卡（只为让你知道下一层从哪里接着讲；只看这一段即可）。'
-        % (os.path.join(CONTENT, 'content_scene.py'), it.get('part') or sid)] if x)
+        % (os.path.join(CONTENT, 'content_scene.py'), it.get('part') or sid),
+        ('- **别的框的补充底稿**（前面几位研究员刚做完，只读）：' + sib + '\n  读者会在这几个框之间来回看，所以例子里**同一个量**'
+         '（同一条请求的编号、行号、槽位号、批里有谁……）凡是它们已经补设过的，你都照用、不另起一套；只需要读它们里标「设」的值'
+         '和与你这个框相交的部分。你新补设的值照样标「设」。') if prev else ''] if x)
     anchors = it.get('anchors') or []
     hint = '、'.join('`%s`' % a for a in anchors) if isinstance(anchors, list) and anchors else '讲解员没给；从上一趟底稿里这个框的锚点出发'
     ok, recs, chk = research('research-' + sid, ms,
@@ -339,7 +345,13 @@ def dive(it, ms_top):
     if not ok:
         if ep:
             release(ep, 0.0)
-        return row
+        return row, None, 0
+    return row, ms, ep
+
+
+def dive_present(row, it, ms_top, ms, ep):
+    sid, title = it['id'], str(it.get('title') or it['id'])
+    why = str(it.get('why') or '（没写）')
     mss = ('  - 第一份（顶层研究；读者已经看过据此做的顶层图）：`%s`——只为接上例子和读者已经看到的东西，按需查\n'
            '  - 第二份（这一趟：「%s」这个框的下一层，主材料）：`%s`' % (ms_top, title, ms))
     rec = present('present-' + sid,
@@ -408,18 +420,53 @@ def main():
     log('顶层讲解员申请往下钻 %d 个：%s%s' % (len(items), ' '.join(i['id'] for i in items) or '（无）',
                                      ('；' + '；'.join(notes)) if notes else ''))
 
-    # 3 往下钻（并行）
+    # 3 往下钻：补充研究按讲解员排的优先级依次跑（后一位接着用前面补设的值），每做完一份就并行派它的讲解员
     if items:
+        prev, futs = [], []
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, A.parallel)) as ex:
-            futs = [ex.submit(dive, it, ms_top) for it in items]
+            for it in items:
+                try:
+                    row, ms, ep = dive_research(it, ms_top, prev)
+                except Exception as e:          # 一个框出事不拖垮别的框
+                    row, ms, ep = dict(id=it.get('id', '?'), error=repr(e), recs=[]), None, 0
+                if ms:
+                    prev.append((it, ms))
+                    futs.append(ex.submit(dive_present, row, it, ms_top, ms, ep))
+                else:
+                    rep['steps'] += row.pop('recs', [])
+                    rep['dives'].append(row)
             for f in futs:
                 try:
                     row = f.result()
-                except Exception as e:          # 一个框出事不拖垮别的框
+                except Exception as e:
                     row = dict(id='?', error=repr(e), recs=[])
                 rep['steps'] += row.pop('recs', [])
                 rep['dives'].append(row)
+        top_fixes(rep, rec)
     return finish(rep, name)
+
+
+def top_fixes(rep, top_rec):
+    """下层讲解员发现顶层有事实问题时写进 top-fixes-<槽位>.md（它们不许改顶层）；这里接着顶层讲解员的会话让它统一改一次。"""
+    fs = sorted(f for f in os.listdir(CONTENT) if f.startswith('top-fixes-') and f.endswith('.md'))
+    body = '\n\n'.join('### 来自 %s\n\n%s' % (f[len('top-fixes-'):-3], read(os.path.join(CONTENT, f)).strip()) for f in fs)
+    rep['top_fixes'] = fs
+    if not body.strip():
+        return
+    if not top_rec.get('session'):
+        rep['top_fixes_note'] = '顶层讲解员的会话找不到，没交回'
+        return
+    log('下层讲解员报了顶层的问题（%s），交回顶层讲解员' % ' '.join(fs))
+    r = run_agent('present-top.fix', (
+        '你做的顶层图之后，系统按你的申请派了几位讲解员做下层。他们对照各自那份补充底稿，认为你的顶层有下面这些事实问题'
+        '（他们不许改你的文件，所以交回给你）：\n\n%s\n\n'
+        '请逐条对照底稿核实（补充底稿在 `%s` 下的 manuscript-*.md）：确实不准的，在 `content_scene.py` 里改准'
+        '（只改说法和数，不重做图、不动坐标和结构）；你认为没错的，不改，并说明理由。改完 `--strict` 构建一次、'
+        '`--check` 自检一次，确认 WARN 0、排版问题 0。不要改别的 content_*.py。最终回复只写：每条改了没有、为什么。'
+        % (body, os.path.join(OUT, 'research'))),
+        'present', A.models['present_top'], resume=top_rec['session'],
+        base_cost=float(top_rec.get('cost_session_total', top_rec.get('cost')) or 0.0))
+    rep['steps'].append(r)
 
 
 def finish(rep, name, fatal=None):
