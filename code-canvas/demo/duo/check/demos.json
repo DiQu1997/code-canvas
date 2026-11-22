@@ -1,0 +1,17 @@
+{
+ "_说明": "舞台的回归语料：每一项用当前舞台从内容目录重建，和入库的页面比字节，再跑自检。corpus 是仓库名，路径由命令行 --corpus 名字=路径 给（clone 不入库）。check 里的 quick 是改版时反复跑的快档，full 是收尾把关的全档。",
+ "demos": [
+  {"name": "redis", "corpus": "redis", "content": null, "strict": false,
+   "pages": [
+    {"file": "canvas.html", "html": "redis-eviction-v1.html", "quick": ["shot.js", "root", "main"], "full": ["shot.js", "root", "main", "pool.demo", "loop.take"]},
+    {"file": "zoom.html", "html": "redis-eviction-v2-zoom.html", "quick": ["shot_zoom.js"], "full": ["shot_zoom.js"]},
+    {"file": "scene.html", "html": "redis-eviction-v3-scene.html", "quick": ["shot_scene.js", "--check"], "full": ["shot_scene.js"]}
+   ]},
+  {"name": "sg3", "corpus": "sglang", "content": "sglang-request/v3-top", "strict": false,
+   "pages": [{"file": "scene.html", "html": "sglang-request-v3-scene.html", "quick": ["shot_scene.js", "--check"], "full": ["shot_scene.js"]}]},
+  {"name": "sg4", "corpus": "sglang", "content": "sglang-request", "strict": true,
+   "pages": [{"file": "scene.html", "html": "sglang-request-v4-dive.html", "quick": ["shot_scene.js", "--node", "schedloop.main"], "full": ["shot_scene.js", "--all"]}]},
+  {"name": "sg5", "corpus": "sglang", "content": "runs/sglang-auto-1/content", "strict": true,
+   "pages": [{"file": "scene.html", "html": "sglang-request-v5-auto.html", "quick": ["shot_scene.js", "--node", "src_tm"], "full": ["shot_scene.js", "--all"]}]}
+ ]
+}
