@@ -119,6 +119,48 @@ async function geom(page, vp) {
   ok(r.bad.length === 0, '[' + vp + '] 量到的位置就是点得中的位置（抽了 ' + r.n + ' 个元素，上下左右各扫一遍）', r.bad.slice(0, 3));
 }
 
+// 钉在代码行上的批注：默认收起（不占正文的行距），那几行染色可点；点开像 PDF 便签浮在那几行旁边、不把下面的代码挤开；能关掉。
+// 查的是当前页卡片里第一处「屏幕上看得见」的带批注代码行；这一页没有带批注的代码就只打一行 INFO。
+async function codeNotes(page, vp, touch, errs) {
+  const S = '.nf.cur > .card figure.code';
+  const st = await page.evaluate(S => {
+    const ns = [...document.querySelectorAll(S + ' .cb .note')], ls = [...document.querySelectorAll(S + ' .cl.hl')];
+    if (!ns.length) return null;
+    const shown = ns.filter(n => n.getBoundingClientRect().height > 0).length, vh = innerHeight;
+    const bad = ls.filter(l => !l.classList.contains('nl')).length;
+    const vis = ls.filter(l => { const r = l.getBoundingClientRect(); return r.top > 70 && r.bottom < vh - 260 && r.height > 4 && r.left >= 0 && r.right <= innerWidth; });
+    vis.forEach((l, i) => l.dataset.ck = i ? '' : '1');
+    return { n: ns.length, shown, lines: ls.length, notClickable: bad, marks: document.querySelectorAll(S + ' .nmk').length, vis: vis.length };
+  }, S);
+  if (!st) { console.log('INFO [' + tg(vp) + '] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查'); return; }
+  ok(st.shown === 0, '[' + vp + '] 代码批注默认收起，不夹在代码中间（' + st.n + ' 条）', st);
+  ok(st.notClickable === 0 && st.marks > 0, '[' + vp + '] 有批注的行染色、可点、行尾有「注」标记', st);
+  if (!st.vis) { console.log('INFO [' + tg(vp) + '] 当前屏里没有带批注的代码行，「点开便签」没查'); return; }
+  const L = S + ' .cl[data-ck="1"]';
+  const before = await page.evaluate(([S, L]) => { const c = [...document.querySelectorAll(S + ' .cl')].pop(); return c.getBoundingClientRect().top - document.querySelector(L).getBoundingClientRect().top; }, [S, L]);
+  if (touch) await page.tap(L); else await page.click(L);
+  await settle(page, 300);
+  const o = await page.evaluate(([S, L]) => {
+    const l = document.querySelector(L), k = (l.dataset.nk || '').split(' ')[0], n = k && document.querySelector('.nf.cur > .card [id="nt-' + k + '"]');
+    if (!n) return { h: 0, missing: '这一行没标它的批注（data-nk）' };
+    // 便签挂在这条批注管的那几行（被点亮的 .on）的最后一行下面
+    const r = n.getBoundingClientRect(), lr = l.getBoundingClientRect(), c = [...document.querySelectorAll(S + ' .cl')].pop();
+    const end = Math.max(...[...l.closest('figure').querySelectorAll('.cl.on')].map(x => x.getBoundingClientRect().bottom), lr.bottom);
+    return { h: r.height, pos: getComputedStyle(n).position, top: r.top, bottom: r.bottom, left: r.left, right: r.right, lineBottom: end, lineTop: lr.top, lastLine: c.getBoundingClientRect().top, vw: innerWidth, vh: innerHeight, on: l.classList.contains('on') };
+  }, [S, L]);
+  ok(o.h > 10 && o.on, '[' + vp + '] ' + (touch ? '点' : '单击') + '带批注的行 → 批注便签弹出来、那几行加深', o);
+  ok(o.pos === 'absolute' && Math.abs((o.lastLine - o.lineTop) - before) < 1, '[' + vp + '] 便签浮在代码上，不把下面的代码挤开', Object.assign({ before }, o));
+  ok(o.top >= o.lineBottom - 3 && o.top <= o.lineBottom + 40, '[' + vp + '] 便签贴着被点的那几行', o);
+  ok(o.left >= 0 && o.right <= o.vw && o.top >= 48 && o.bottom <= o.vh, '[' + vp + '] 便签整个在屏幕里', o);
+  await shot(page, (vp === '手机' ? 'p' : 'd') + '-note-open');
+  const nx = await page.$('.nf.cur > .card .cb .note.pop .nx');
+  if (nx) { if (touch) await nx.tap(); else await nx.click(); }
+  await page.waitForTimeout(150);
+  const left = await page.evaluate(S => [...document.querySelectorAll(S + ' .cb .note')].filter(n => n.getBoundingClientRect().height > 0).length, S);
+  ok(!!nx && left === 0, '[' + vp + '] 点便签上的 ✕ 收起', { nx: !!nx, left });
+  ok(errs.length === 0, '[' + vp + '] 批注便签没有 JS 报错', errs.slice(0, 3));
+}
+
 // 没有机器图的下层页（源码页 / 文字页）：只看是不是空页、有没有报错，截一张（手机截整页）
 async function plain(page, vp, name, errs) {
   const st = await page.evaluate(() => { const f = document.querySelector('.nf.cur'); return { stub: f.classList.contains('stub'), code: f.querySelectorAll(':scope > .card figure.code').length }; });
@@ -165,7 +207,7 @@ async function desktop(browser) {
   if (NODE) ok(await page.evaluate(() => window.__cv.cur()) === NODE, '[桌面] 打开的是要查的节点', await page.evaluate(() => window.__cv.cur()));
   await geom(page, '桌面');
   let s = await sc(page);
-  if (!s && NODE) { await plain(page, '桌面', 'd-page', errs); await ctx.close(); return; }
+  if (!s && NODE) { await plain(page, '桌面', 'd-page', errs); await codeNotes(page, '桌面', false, errs); await ctx.close(); return; }
   ok(!!s, '[桌面] 打开的这一页有机器图');
   if (!s) { await shot(page, 'd1-overview'); await ctx.close(); return; }
   ok(!s.mob, '[桌面] 用的是桌面那套坐标', s.mob);
@@ -219,6 +261,7 @@ async function desktop(browser) {
     await page.evaluate(() => window.__cv.scene.step(-1));
   }
   await dive(page, '桌面', s, false);
+  await codeNotes(page, '桌面', false, errs);
   ok(errs.length === 0, '[桌面] 没有 JS 报错', errs.slice(0, 3));
   await ctx.close();
 }
@@ -230,7 +273,7 @@ async function phone(browser) {
   if (NODE) ok(await page.evaluate(() => window.__cv.cur()) === NODE, '[手机] 打开的是要查的节点', await page.evaluate(() => window.__cv.cur()));
   await geom(page, '手机');
   const s = await sc(page);
-  if (!s && NODE) { await plain(page, '手机', 'p-page', errs); await ctx.close(); return; }
+  if (!s && NODE) { await plain(page, '手机', 'p-page', errs); await codeNotes(page, '手机', true, errs); await ctx.close(); return; }
   ok(!!s, '[手机] 打开的这一页有机器图');
   if (!s) { await shot(page, 'p1-overview'); await ctx.close(); return; }
   ok(s.mob, '[手机] 用的是手机那套坐标（m / mw / mh）', s.mob);
@@ -282,6 +325,7 @@ async function phone(browser) {
     await page.evaluate(() => window.__cv.scene.step(-1)); await settle(page, 150);
   }
   await dive(page, '手机', s, true);
+  await codeNotes(page, '手机', true, errs);
   ok(errs.length === 0, '[手机] 没有 JS 报错', errs.slice(0, 3));
   await ctx.close();
 }

@@ -1,0 +1,29 @@
+PASS [桌面 · src_tm] 打开的是要查的节点
+PASS [桌面 · src_tm] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · src_tm] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · src_tm] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_tm] 没有 JS 报错
+FAIL [桌面 · src_tm] 代码批注默认收起，不夹在代码中间（10 条）  → {"n":10,"shown":10,"lines":26,"notClickable":26,"marks":0,"vis":1}
+FAIL [桌面 · src_tm] 有批注的行染色、可点、行尾有「注」标记  → {"n":10,"shown":10,"lines":26,"notClickable":26,"marks":0,"vis":1}
+FAIL [桌面 · src_tm] 单击带批注的行 → 批注便签弹出来、那几行加深  → {"h":0,"missing":"这一行没标它的批注（data-nk）"}
+FAIL [桌面 · src_tm] 便签浮在代码上，不把下面的代码挤开  → {"before":2633.35693359375,"h":0,"missing":"这一行没标它的批注（data-nk）"}
+FAIL [桌面 · src_tm] 便签贴着被点的那几行  → {"h":0,"missing":"这一行没标它的批注（data-nk）"}
+FAIL [桌面 · src_tm] 便签整个在屏幕里  → {"h":0,"missing":"这一行没标它的批注（data-nk）"}
+FAIL [桌面 · src_tm] 点便签上的 ✕ 收起  → {"nx":false,"left":10}
+PASS [桌面 · src_tm] 批注便签没有 JS 报错
+PASS [手机 · src_tm] 打开的是要查的节点
+PASS [手机 · src_tm] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_tm] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · src_tm] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_tm] 没有 JS 报错
+FAIL [手机 · src_tm] 代码批注默认收起，不夹在代码中间（10 条）  → {"n":10,"shown":10,"lines":26,"notClickable":26,"marks":0,"vis":1}
+FAIL [手机 · src_tm] 有批注的行染色、可点、行尾有「注」标记  → {"n":10,"shown":10,"lines":26,"notClickable":26,"marks":0,"vis":1}
+FAIL [手机 · src_tm] 点带批注的行 → 批注便签弹出来、那几行加深  → {"h":0,"missing":"这一行没标它的批注（data-nk）"}
+FAIL [手机 · src_tm] 便签浮在代码上，不把下面的代码挤开  → {"before":2800.74951171875,"h":0,"missing":"这一行没标它的批注（data-nk）"}
+FAIL [手机 · src_tm] 便签贴着被点的那几行  → {"h":0,"missing":"这一行没标它的批注（data-nk）"}
+FAIL [手机 · src_tm] 便签整个在屏幕里  → {"h":0,"missing":"这一行没标它的批注（data-nk）"}
+FAIL [手机 · src_tm] 点便签上的 ✕ 收起  → {"nx":false,"left":10}
+PASS [手机 · src_tm] 批注便签没有 JS 报错
+
+交互自检 10 PASS / 14 FAIL；排版问题 0 条
+截图在 /tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/revise/1/shots-old

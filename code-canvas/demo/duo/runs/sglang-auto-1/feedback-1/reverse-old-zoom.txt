@@ -1,0 +1,38 @@
+PASS [桌面] 打开落在 root
+PASS [桌面] root 整页宽度在视口内
+PASS [桌面] 点「main」那块 → 当前页变成 main
+PASS [桌面] main 飞到位（贴顶、不出屏）
+PASS [桌面] main 以接近 1:1 显示
+PASS [桌面] 普通滚轮只平移（平移量 = 收到的滚轮量）、不缩放
+PASS [桌面] Ctrl+滚轮放大
+PASS [桌面] 缩小后当前页自动退回 root
+PASS [桌面] 看全图时远处的页只留名字（far 标签 53 个）
+PASS [桌面] #/pool.demo 直达
+PASS [桌面] pool.demo 不出屏
+PASS [桌面] 逐帧演示点三下到第 4 步
+PASS [桌面] 换步时格子有动画在跑（2 个）
+PASS [桌面] 播放会自动走到下一步
+PASS [桌面] 批注直达 #/root~n1：闪的是本页那条且在屏内
+FAIL [桌面] 直达代码批注 #/trig.cmd~n3：它以便签浮在屏内，同页其余代码批注仍收起  → {"pos":"static","h":99.81640625,"y":303.60009765625,"b":403.41650390625,"vh":900,"others":6}
+PASS [桌面] → 到顺序下一页，↑ 回上层
+PASS [桌面] 点 文件:行号 就地展开原文
+PASS [桌面] 地图里点 loop.take 飞过去
+PASS [桌面] 按住底板拖动 = 平移
+PASS [桌面] 控制台 0 错误
+PASS [手机] 打开落在 root，手机排版
+PASS [手机] root 宽度在屏内
+PASS [手机] 底部按钮条不出屏
+PASS [手机] 单指上滑只纵向移动（横向锁住）
+PASS [手机] 松手后有惯性继续滑
+PASS [手机]「下层」把小块区带进屏内
+PASS [手机] 点「main」小块 → 飞进 main
+PASS [手机] main 到位、不出屏
+PASS [手机]「下页」到 main.skel
+PASS [手机]「上层」回 main
+PASS [手机] 双指张开放大
+PASS [手机] 逐帧演示点到第 5 步
+PASS [手机] 逐帧演示不出屏
+PASS [手机] 地图里点 acct 飞过去
+PASS [手机] 控制台 0 错误
+
+35 PASS / 1 FAIL  截图在 shotsz-old

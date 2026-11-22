@@ -99,6 +99,14 @@ async function desktop(browser) {
     ok(await cur(page) === m[1] && hit.mine && hit.total === 1 && hit.y > 48 && hit.y < hit.vh, '[桌面] 批注直达 ' + g + '：闪的是本页那条且在屏内', hit);
     await shot(page, 'd6-note');
   } else ok(false, '[桌面] 没找到可测的批注直达链接');
+  // 代码里的批注平时收起；直达一条钉在代码行上的批注时，它以便签浮出来（不挤开代码），同一页别的代码批注仍收着
+  const gc = await page.evaluate(() => { for (const a of document.querySelectorAll('a.goto')) { const m = /^#\/([\w.]+)~(\w+)/.exec(a.getAttribute('href') || ''); const c = m && document.querySelector('.nf[data-id="' + m[1] + '"]>.card'); const n = c && c.querySelector('[id="nt-' + m[2] + '"]'); if (n && n.closest('.cb')) return [a.getAttribute('href'), m[1], m[2]]; } return null; });
+  if (gc) {
+    await page.evaluate(h => { location.hash = h; }, gc[0]); await settle(page, 300);
+    const pop = await page.evaluate(([id, k]) => { const c = document.querySelector('.nf[data-id="' + id + '"]>.card'), n = c.querySelector('[id="nt-' + k + '"]'), r = n.getBoundingClientRect(); const others = [...c.querySelectorAll('.cb .note')].filter(x => x !== n && x.getBoundingClientRect().height > 0).length; return { pos: getComputedStyle(n).position, h: r.height, y: r.top, b: r.bottom, vh: innerHeight, others }; }, [gc[1], gc[2]]);
+    ok(pop.pos === 'absolute' && pop.h > 10 && pop.y > 48 && pop.b < pop.vh && pop.others === 0, '[桌面] 直达代码批注 ' + gc[0] + '：它以便签浮在屏内，同页其余代码批注仍收起', pop);
+    await shot(page, 'd6b-codenote');
+  } else console.log('INFO [桌面] 没有指向代码批注的直达链接，「直达代码批注便签」没查');
 
   // 键盘
   await page.evaluate(() => { location.hash = '#/main'; }); await settle(page);

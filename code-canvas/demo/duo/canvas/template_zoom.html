@@ -96,8 +96,18 @@ figure.code>.cap{padding:0 10px 8px}
 .tx{flex:1;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;padding-left:1.6em;text-indent:-1.6em;padding-right:8px}
 .k-c{color:#5b6777}.k-s{color:#1a7f4b}.k-k{color:#8b2fa0}
 .gap{text-align:center;color:var(--mut);font:12.5px/1.6 var(--sans);background:repeating-linear-gradient(135deg,#f0eee6 0 6px,#f8f7f2 6px 12px);margin:4px 0;padding:1px 0}
-.cb .note{margin:6px 10px 10px 3.4em}
-figure.code.nonotes .cb .note{display:none}
+/* 钉在代码行上的批注：默认收起，只把那几行染色 + 行尾一个「注」；点行 → 像 PDF 便签一样浮在那几行旁边（不挤开下面的代码） */
+.cl.nl{cursor:pointer}
+.cl.nl:hover,.cl.nl.on{background:#ffe8a8}
+.cl.nl.on{box-shadow:inset 3px 0 0 var(--infer)}
+.nmk{flex:none;align-self:flex-start;margin:2px 8px 0 4px;min-width:18px;height:16px;padding:0 3px;border-radius:4px;background:var(--c);color:#fff;font:700 11px/16px var(--sans);text-align:center;user-select:none}
+.nmk.lv-infer,.nmk.lv-view,.nmk.lv-unk{background:#fff;color:var(--c);border:1px dashed var(--c);line-height:14px}
+.nmk.lv-fact{background:#e6e8ee;color:#475467}
+.cb .note{display:none;margin:6px 10px 10px 3.4em}
+.cb .note.pop{display:block;position:absolute;z-index:8;box-sizing:border-box;margin:2px 0 0;box-shadow:0 8px 26px rgba(20,25,40,.24);cursor:auto}
+.nx{flex:none;margin-left:6px;width:24px;height:22px;border:0;border-radius:5px;background:rgba(0,0,0,.06);font-size:12px;line-height:22px;color:var(--ink);cursor:pointer;padding:0}
+figure.code.allnotes .cb .note{display:block}
+figure.code.allnotes .nx{display:none}
 .snip{display:block;margin:6px 0 4px;border:1px solid #cbd6f2;border-radius:6px;background:#fbfbf8;overflow:hidden;white-space:normal;font-weight:400;text-align:left}
 .snip .sh{display:flex;gap:8px;align-items:center;font:12.5px/1.6 var(--mono);background:#eef2fb;padding:2px 8px;color:#1d3f9a}
 .snip .sx{margin-left:auto;font:12px var(--sans);border:1px solid #cbd6f2;background:#fff;border-radius:4px;padding:0 6px}
@@ -246,6 +256,8 @@ body.solo #dock .pos{font-family:inherit;font-size:13.5px;color:#fff}
 .ph .ind{letter-spacing:-.5ch}
 .ph .tx{padding-right:4px}
 .ph .cb .note{margin:6px 6px 10px 8px;font-size:14px}
+.ph .cb .note.pop{margin:2px 0 0}
+.ph .nmk{margin-right:4px}
 .ph .tb table,.ph .tb tbody,.ph .tb tr,.ph .tb td{display:block;width:100%}
 .ph .tb table{background:transparent}
 .ph .tb thead{display:none}
@@ -493,11 +505,11 @@ function hi(s,isC,st){
   }
   return (ind?'<span class="ind">'+ind+'</span>':'')+(out||'\u200b');
 }
-function linesH(file,a,lines,st,hl,byEnd){
+function linesH(file,a,lines,st,hl,byEnd,mk){
   var isC=/\.(c|h)$/.test(file),h='';
   lines.forEach(function(ln,i){
-    var no=a+i;
-    h+='<div class="cl'+(hl&&hl[no]?' hl':'')+'"><span class="no">'+no+'</span><span class="tx">'+hi(ln,isC,st)+'</span></div>';
+    var no=a+i,ks=hl&&hl[no],m=mk&&mk[no];
+    h+='<div class="cl'+(ks?' hl nl':'')+'"'+(ks?' data-nk="'+ks.join(' ')+'" title="点一下看批注"':'')+'><span class="no">'+no+'</span><span class="tx">'+hi(ln,isC,st)+'</span>'+(m?'<span class="nmk lv-'+(LV[m.lv]||{cls:'fact'}).cls+'">注</span>':'')+'</div>';
     if(byEnd&&byEnd[no])byEnd[no].forEach(function(n){h+=noteH(n,true,true);});
   });
   return h;
@@ -509,7 +521,7 @@ function noteH(n,inCode,withId){
   var h='<div class="note lv-'+l.cls+'"'+(withId?' id="nt-'+n.k+'"':'')+'><div class="nh">'+bd(n.lv);
   if(n.who)h+='<span class="who">'+esc(M.who[n.who]||n.who)+'</span>';
   if(n.tag)h+='<span class="tg">'+esc(n.tag)+'</span>';
-  if(inCode)h+='<span class="ln">第 '+rng(n.a,n.b)+' 行</span>';
+  if(inCode)h+='<span class="ln">第 '+rng(n.a,n.b)+' 行</span><button class="nx" title="收起（Esc）">✕</button>';
   h+='</div><div class="nb">'+n.html+'</div>';
   n.ev.forEach(function(e){
     h+='<div class="ev">'+(e.lv!==n.lv?bd(e.lv)+' ':'<span class="evl">依据 </span>')+e.rh+(e.q?'<div class="q" title="点一下展开/收起">'+esc(e.q)+'</div>':'')+'</div>';
@@ -518,15 +530,44 @@ function noteH(n,inCode,withId){
   return h+'</div>';
 }
 function codeH(b){
-  var h='<figure class="code"><figcaption><span class="fn">'+esc(b.file)+'</span><span class="rg">第 '+b.parts.map(function(p){return rng(p.a,p.b);}).join('、')+' 行</span>'+(b.notes.length?'<button class="tgl">只看代码</button>':'')+'</figcaption><div class="cb">';
-  var byEnd={},hl={},st={inC:false};
-  b.notes.forEach(function(n){(byEnd[n.b]=byEnd[n.b]||[]).push(n);for(var i=n.a;i<=n.b;i++)hl[i]=1;});
+  var h='<figure class="code"><figcaption><span class="fn">'+esc(b.file)+'</span><span class="rg">第 '+b.parts.map(function(p){return rng(p.a,p.b);}).join('、')+' 行</span>'+(b.notes.length?'<button class="tgl">展开全部批注</button>':'')+'</figcaption><div class="cb">';
+  var byEnd={},hl={},mk={},st={inC:false};
+  b.notes.forEach(function(n){(byEnd[n.b]=byEnd[n.b]||[]).push(n);for(var i=n.a;i<=n.b;i++)(hl[i]=hl[i]||[]).push(n.k);if(!mk[n.a])mk[n.a]=n;});
   b.parts.forEach(function(p,pi){
     if(pi>0){var pv=b.parts[pi-1];st.inC=false;
       h+='<div class="gap">'+(p.a>pv.b+1?'⋯ 省略第 '+rng(pv.b+1,p.a-1)+' 行 ⋯':'⋯ 以下是另一处 ⋯')+'</div>';}
-    h+=linesH(b.file,p.a,p.lines,st,hl,byEnd);
+    h+=linesH(b.file,p.a,p.lines,st,hl,byEnd,mk);
   });
   return h+'</div>'+cap(b)+'</figure>';
+}
+/* 代码批注便签：收着的批注点开后浮在那几行下方（桌面靠右、手机占满代码宽），不改排版，所以别的内容不会跳 */
+var NP=[];
+function closeNotes(){
+  NP.forEach(function(n){n.classList.remove('pop');n.style.width=n.style.marginLeft=n.style.marginTop='';});NP=[];
+  Array.prototype.forEach.call(document.querySelectorAll('.cl.nl.on'),function(c){c.classList.remove('on');});
+}
+function openNotes(list,reveal){
+  closeNotes();
+  list=list.filter(function(n){return n&&!n.closest('figure.allnotes');});
+  list.sort(function(x,y){return x.compareDocumentPosition(y)&2?1:-1;});
+  list.forEach(function(n){
+    var W=n.closest('.cb').clientWidth,ph=!!n.closest('.ph'),w=ph?W-12:Math.min(460,W-64),k=n.id.slice(3);
+    n.style.width=w+'px';n.style.marginLeft=(ph?6:W-w-10)+'px';n.classList.add('pop');NP.push(n);
+    Array.prototype.forEach.call(n.closest('figure').querySelectorAll('.cl.nl'),function(c){if((' '+c.dataset.nk+' ').indexOf(' '+k+' ')>=0)c.classList.add('on');});
+  });
+  for(var i=1;i<NP.length;i++){
+    var p=NP[i-1].getBoundingClientRect(),c=NP[i].getBoundingClientRect(),s=c.height/(NP[i].offsetHeight||c.height||1);
+    if(c.top<p.bottom+4)NP[i].style.marginTop=(2+(p.bottom+4-c.top)/s)+'px';
+  }
+  if(reveal&&NP.length){
+    var sr=stage.getBoundingClientRect(),a=NP[0].getBoundingClientRect(),z=NP[NP.length-1].getBoundingClientRect();
+    var d=Math.min(z.bottom-(sr.bottom-72),a.top-sr.top-90);
+    if(d>0)sel.transition().duration(260).call(zoom.translateBy,0,-d/T.k);
+  }
+}
+function toggleNotes(line){
+  var card=line.closest('.card'),ns=line.dataset.nk.split(' ').map(function(k){return card.querySelector('[id="nt-'+k+'"]');});
+  if(NP.length&&ns.every(function(n){return NP.indexOf(n)>=0;}))closeNotes();else openNotes(ns,true);
 }
 function tableH(b){
   var h='<figure class="tb"><table><thead><tr>'+b.head.map(function(x){return '<th>'+esc(x)+'</th>';}).join('')+'</tr></thead><tbody>';
@@ -1062,6 +1103,7 @@ function snapAll(){
 var snapRaf=0;
 function snapSoon(){if(!snapRaf)snapRaf=requestAnimationFrame(function(){snapRaf=0;snapAll();});}
 function build(){
+  NP=[];
   stops.forEach(function(f){f();});stops=[];jobs=[];
   setMode();
   scSave();
@@ -1111,6 +1153,8 @@ function fly(v,instant,after){
 }
 function flyTo(id,nk,instant){
   setCur(id,instant);
+  var nt0=noteEl(id,nk);
+  if(nt0&&nt0.closest('.cb'))openNotes([nt0]);else if(NP.length)closeNotes();
   fly(viewOf(id,nk),instant,function(){
     var v=viewOf(id,nk);
     if(Math.abs(v.x-T.x)>.75||Math.abs(v.y-T.y)>.75||Math.abs(v.k/T.k-1)>1e-3)zoom.transform(sel,d3.zoomIdentity.translate(v.x,v.y).scale(v.k));
@@ -1301,11 +1345,19 @@ document.addEventListener('click',function(ev){
   }
   if((el=t.closest('.pt,.wl,.wr'))&&(x=el.closest('.scn'))){ev.preventDefault();scOpen(x,el.getAttribute('data-p')||el.getAttribute('data-w'));return;}
   if(XP&&!t.closest('#xp,#play'))closeX();
+  if(t.closest('.nx')){closeNotes();return;}
+  if(!t.closest('.cb .note')){
+    if((el=t.closest('.cl.nl'))&&!el.closest('figure.allnotes')){
+      var s0=window.getSelection?window.getSelection():null;
+      if(!(s0&&!s0.isCollapsed&&String(s0).trim())){ev.preventDefault();toggleNotes(el);return;}
+    }
+    if(NP.length)closeNotes();
+  }
   if((el=t.closest('.sx'))){var sn=el.closest('.snip'),hk=sn.dataset.k;Array.prototype.forEach.call(sn.parentNode.querySelectorAll('a.ref.on'),function(a){if(a.dataset.k===hk)a.classList.remove('on');});sn.remove();ev.stopPropagation();return;}
   if((el=t.closest('a.ref'))){ev.preventDefault();toggleSnip(el);return;}
   if((el=t.closest('a.cm'))){ev.preventDefault();toggleCommit(el);return;}
   if((el=t.closest('.q'))){el.classList.toggle('open');return;}
-  if((el=t.closest('.tgl'))){var on=el.closest('figure').classList.toggle('nonotes');el.textContent=on?'显示批注':'只看代码';return;}
+  if((el=t.closest('.tgl'))){closeNotes();var on=el.closest('figure').classList.toggle('allnotes');el.textContent=on?'收起批注':'展开全部批注';return;}
   if((el=t.closest('a'))){if(el.getAttribute('href')===location.hash){ev.preventDefault();route();}return;}
   if(t.closest('.snip,button,summary'))return;
   var s=window.getSelection?window.getSelection():null;
@@ -1316,6 +1368,7 @@ document.addEventListener('keydown',function(ev){
   if(ev.altKey||ev.ctrlKey||ev.metaKey||!cur)return;
   var tg=ev.target&&ev.target.tagName,k=ev.key;
   if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT')return;
+  if(k==='Escape'&&NP.length){closeNotes();ev.preventDefault();return;}
   if(XP&&(k==='ArrowRight'||k==='ArrowLeft')){var xo=XP.rec.order;openX(XP.rec,xo[(xo.indexOf(XP.id)+(k==='ArrowRight'?1:-1)+xo.length)%xo.length]);}
   else if(XP&&k==='Escape')closeX();
   else if(SCS[cur]&&(k==='.'||k===','||k==='。'||k==='，'))scStep(SCS[cur],SCS[cur].step+((k==='.'||k==='。')?1:-1));

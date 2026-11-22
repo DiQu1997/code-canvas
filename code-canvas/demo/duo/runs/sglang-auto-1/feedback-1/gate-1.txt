@@ -1,0 +1,10 @@
+redis-eviction-v1.html         没变       结论：没有控制台错误，没有横向溢出  [shot.js root main pool.demo loop.take]
+redis-eviction-v2-zoom.html    有变化      36 PASS / 0 FAIL  [shot_zoom.js]
+redis-eviction-v3-scene.html   有变化      41 PASS / 0 FAIL  [shot_scene.js]
+sglang-request-v3-scene.html   有变化      31 PASS / 0 FAIL  [shot_scene.js]
+sglang-request-v4-dive.html    有变化      308 PASS / 0 FAIL  [shot_scene.js --all]
+sglang-request-v5-auto.html    有变化      832 PASS / 0 FAIL  [shot_scene.js --all]
+
+已把 6 个重建页面拷回 demo 目录
+
+回归（全档）：6 个页面，全部通过
