@@ -42,6 +42,8 @@ AGENTS = os.path.join(HERE, 'agents')
 STAGE = os.path.join(HERE, 'canvas')
 SPOT = os.path.join(HERE, 'check', 'spot_manuscript.py')
 TOOLROOT = os.path.abspath(os.path.join(HERE, '..', '..'))      # code-canvas/（工具和舞台）
+sys.path.insert(0, os.path.join(HERE, 'check'))
+import agent_report  # noqa: E402  从 stream-json 里取 agent 的报告（result 只是最后一条文字，可能不是报告）
 
 DEFAULT_MODELS = dict(research_top='opus', present_top='opus', research_dive='sonnet', present_dive='opus')
 # 预估（美元，按以往实测往高取）：只用于「这一步还启不启动」的预算判断
@@ -195,7 +197,8 @@ def run_agent(step, prompt, role, model, resume=None, base_cost=0.0, held=None):
                cost_session_total=round(cost_total, 4), secs=secs,
                turns=res.get('num_turns'), tools=ntool, session=res.get('session_id'),
                models=sorted((res.get('modelUsage') or {}).keys()))
-    write(os.path.join(OUT, 'logs', step + '.reply.md'), res.get('result') or '（没有最终回复）')
+    reply = agent_report.report(os.path.join(OUT, 'logs', step + '.jsonl')) or res.get('result') or '（没有最终回复）'
+    write(os.path.join(OUT, 'logs', step + '.reply.md'), reply)
     write(result_path(step), json.dumps(rec, ensure_ascii=False, indent=1))
     log('%s %s：$%.2f，%d 分 %d 秒，%s 次工具调用，模型 %s' % (
         '完成' if rec['ok'] else '失败', step, cost, secs // 60, secs % 60, ntool, ','.join(rec['models']) or '?'))
@@ -280,8 +283,8 @@ def read_dives(unfilled):
             notes.append('丢弃一条：id 不合格 %r' % sid)
         elif sid in seen:
             notes.append('丢弃一条：id 重复 %s' % sid)
-        elif sid not in unfilled:
-            notes.append('丢弃 %s：顶层里没有这个未填槽位' % sid)
+        elif sid not in unfilled and not (done_before('research-' + sid) or done_before('present-' + sid)):
+            notes.append('丢弃 %s：顶层里没有这个未填槽位' % sid)   # 接着上次跑时，已经做过的框槽位是填上的，照样算
         else:
             seen.add(sid)
             ok.append(it)
