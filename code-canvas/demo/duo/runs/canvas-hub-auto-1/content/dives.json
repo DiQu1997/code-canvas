@@ -1,0 +1,50 @@
+[
+  {"id": "dive_agent",
+   "title": "生成 agent",
+   "part": "agent",
+   "priority": 1,
+   "why": "整条路上唯一「动脑子」、耗时最长的一步，顶层只能说它读 SKILL.md、交 canvas.json；它里面有一套目标 + 8 个判断 + 自查循环 + 新读者挑错的机制，读者最想知道 JSON 是怎么被想出来的。",
+   "ask": [
+     "agent 拿到提示词之后，一般先做什么、再做什么？哪些是规定死的，哪些是它自己判断的？",
+     "SKILL 里那 8 个判断分别是什么？拿 nano-vllm +「讲讲调度器怎么工作」举例，会怎么答、写进 meta.judgment 长什么样？",
+     "canvas.json 里一张卡、一根线、一步推演各长什么样？col / band 是怎么定出来的？",
+     "extract.py 机械产出什么？agent 是照抄它，还是只拿来当材料？",
+     "reader_check 怎么起第二个 claude、只给它看什么、挑出的问题怎么回到 agent 手里？",
+     "agent 自己跑 validate / check_refs 时，报错了会怎样？它怎么判断「做完了」？",
+     "为什么交付契约里有些事「不可商量」，其它都交给 agent 判断？"
+   ],
+   "anchors": ["code-canvas/SKILL.md:11-14", "code-canvas/SKILL.md:18-33", "code-canvas/SKILL.md:35-67", "code-canvas/SKILL.md:69-90", "code-canvas/SKILL.md:115-123", "code-canvas/SKILL.md:133-146", "code-canvas/extract.py:2-9", "code-canvas/reader_check.py:54", "code-canvas/reader_check.py:60-61", "code-canvas/reader_check.py:69", "code-canvas/serve.py:659-669", "code-canvas/demo/nano-vllm.json:47-49"],
+   "sections": "§2.4、§3 第 4–5 步、§5 第 1、9 条、§7"},
+  {"id": "dive_render",
+   "title": "读者浏览器",
+   "part": "view",
+   "priority": 2,
+   "why": "「画布不是 agent 画的」是最大的误会，像素其实是浏览器里的 layout() 排出来的；里面有量宽、分列、band 定 y、同列下推、连线锚到行、按步走镜头一整套机制，顶层只给得出 x=40、y=720 两个数。",
+   "ask": [
+     "卡片的「自然宽度」是怎么量出来的？800px 上限碰到了会怎样？",
+     "col 怎么变成 x？col 1 的 x 具体等于多少，跟哪些卡有关？",
+     "band 怎么变成 y？同一列里两张卡撞上时怎么往下推？",
+     "连线是怎么锚到某张卡的某一行上的？",
+     "按 ▶ 时 setStep 具体做了什么：展开哪些卡、点亮哪些行、镜头怎么算？",
+     "手机上是同一套排法吗？",
+     "页面怎么知道 hub 在不在线、问答是怎么接上的？"
+   ],
+   "anchors": ["code-canvas/template/canvas.html:740", "code-canvas/template/canvas.html:1031", "code-canvas/template/canvas.html:1034-1042", "code-canvas/template/canvas.html:1064-1068", "code-canvas/template/canvas.html:1075", "code-canvas/template/canvas.html:1077-1080", "code-canvas/template/canvas.html:1287", "code-canvas/template/canvas.html:1689-1721", "code-canvas/template/canvas.html:1801", "code-canvas/template/canvas.html:2895-2896"],
+   "sections": "§2.7、§3 第 7 步、§5 第 1 条"},
+  {"id": "dive_post",
+   "title": "服务端收尾",
+   "part": "post",
+   "priority": 3,
+   "why": "顶层只说了「embed → check_refs → validate 全过才入库」，但这三个零件各自有一套规则（行漂移修正、依据核对与降级、validate 的 ERROR 规则集和沙盘真跑），决定了什么样的画布会被拦下、什么会被悄悄修改。",
+   "ask": [
+     "embed_context 怎么把卡里的代码对到源文件？对不上时「行漂移修正」怎么找到新行号？",
+     "卡路径是相对某个子目录写的时候，embed 怎么猜仓库根？",
+     "check_refs 怎么判一条依据是真是假？剔光之后为什么是「降级成推断」而不是拒收？",
+     "validate 的 ERROR 和 warn 各查什么？哪些情况会让 nano-vllm 这张画布被拦下（rc=4）？",
+     "「沙盘真跑」是什么：hub 机器上实际运行了什么？",
+     "为什么 embed 要在 validate 前面？",
+     "render 失败时库里会留下什么？"
+   ],
+   "anchors": ["code-canvas/serve.py:608-637", "code-canvas/embed_context.py:22-23", "code-canvas/embed_context.py:35-51", "code-canvas/embed_context.py:69-81", "code-canvas/embed_context.py:85-87", "code-canvas/check_refs.py:8", "code-canvas/check_refs.py:18-35", "code-canvas/check_refs.py:72-74", "code-canvas/validate.py:2-7", "code-canvas/validate.py:88-101", "code-canvas/validate.py:126-136", "code-canvas/validate.py:563-565", "code-canvas/validate.py:658-662", "code-canvas/render.py:19-25"],
+   "sections": "§2.5、§3 第 6 步、§5 第 2–3 条、§9"}
+]

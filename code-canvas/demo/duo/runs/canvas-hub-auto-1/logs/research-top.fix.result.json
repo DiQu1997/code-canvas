@@ -1,0 +1,17 @@
+{
+ "step": "research-top.fix",
+ "role": "research",
+ "model_req": "opus",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 0.4722,
+ "cost_session_total": 4.2208,
+ "secs": 51,
+ "turns": 6,
+ "tools": 5,
+ "session": "99089cfe-2740-4b84-affc-8daa1c42751d",
+ "models": [
+  "claude-opus-5-5"
+ ]
+}

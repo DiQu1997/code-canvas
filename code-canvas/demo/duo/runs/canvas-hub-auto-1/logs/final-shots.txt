@@ -1,0 +1,805 @@
+
+—— 顶层 ——
+PASS [桌面] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面] 打开的这一页有机器图
+PASS [桌面] 用的是桌面那套坐标
+PASS [桌面] 整张机器图在推演条上方、一屏看全
+PASS [桌面] 点「为什么」切到为什么图层
+PASS [桌面] 点「易混点」切到易混点图层
+PASS [桌面] 点部件 → 说明卡打开
+PASS [桌面] 被点的部件没被说明卡挡住
+PASS [桌面] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面] → 键翻到下一张说明卡
+PASS [桌面] Esc 关掉说明卡
+PASS [桌面] 点 ▶ 进入第 1 步
+PASS [桌面] 推演时有部件 / 连线被点亮
+PASS [桌面] , 键退一步
+PASS [桌面] 推演时机器图仍在推演条上方
+PASS [桌面] 「钻进去」指到的 8 个页面都有内容（不是「未展开」的空页）
+PASS [桌面] 说明卡「gate」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面] 点「钻进去」→ 到了下层「src_generate」
+PASS [桌面] 到了下层，上一层的说明卡收起来了
+PASS [桌面] 能回到这张图
+INFO [桌面] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面] 没有 JS 报错
+PASS [手机] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+PASS [手机] 打开的这一页有机器图
+PASS [手机] 用的是手机那套坐标（m / mw / mh）
+PASS [手机] 机器图左右不出屏
+PASS [手机] 推演条不出屏
+PASS [手机] 点部件 → 说明卡从底部升起
+PASS [手机] 被点的部件露在说明卡上方
+PASS [手机] 说明卡不超过屏幕六成高
+PASS [手机] 点 ✕ 关掉说明卡
+PASS [手机] 点「为什么」切图层
+PASS [手机] 点 ▶ 进入第 1 步
+PASS [手机] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机] 推演条不超过半屏
+PASS [手机] 「钻进去」指到的 8 个页面都有内容（不是「未展开」的空页）
+PASS [手机] 说明卡「gate」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机] 点「钻进去」→ 到了下层「src_generate」
+PASS [手机] 到了下层，上一层的说明卡收起来了
+PASS [手机] 能回到这张图
+INFO [手机] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机] 没有 JS 报错
+
+—— 下层节点 dive_agent ——
+PASS [桌面 · dive_agent] 打开的是要查的节点
+PASS [桌面 · dive_agent] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · dive_agent] 打开的这一页有机器图
+PASS [桌面 · dive_agent] 用的是桌面那套坐标
+PASS [桌面 · dive_agent] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · dive_agent] 点「为什么」切到为什么图层
+PASS [桌面 · dive_agent] 点「易混点」切到易混点图层
+PASS [桌面 · dive_agent] 点部件 → 说明卡打开
+PASS [桌面 · dive_agent] 被点的部件没被说明卡挡住
+PASS [桌面 · dive_agent] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · dive_agent] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · dive_agent] → 键翻到下一张说明卡
+PASS [桌面 · dive_agent] Esc 关掉说明卡
+PASS [桌面 · dive_agent] 点 ▶ 进入第 1 步
+PASS [桌面 · dive_agent] 推演时有部件 / 连线被点亮
+PASS [桌面 · dive_agent] , 键退一步
+PASS [桌面 · dive_agent] 推演时机器图仍在推演条上方
+PASS [桌面 · dive_agent] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · dive_agent] 说明卡「prompt」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · dive_agent] 点「钻进去」→ 到了下层「dive_agent.prompt」
+PASS [桌面 · dive_agent] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · dive_agent] 能回到这张图
+INFO [桌面 · dive_agent] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · dive_agent] 没有 JS 报错
+PASS [手机 · dive_agent] 打开的是要查的节点
+PASS [手机 · dive_agent] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+PASS [手机 · dive_agent] 打开的这一页有机器图
+PASS [手机 · dive_agent] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · dive_agent] 机器图左右不出屏
+PASS [手机 · dive_agent] 推演条不出屏
+PASS [手机 · dive_agent] 点部件 → 说明卡从底部升起
+PASS [手机 · dive_agent] 被点的部件露在说明卡上方
+PASS [手机 · dive_agent] 说明卡不超过屏幕六成高
+PASS [手机 · dive_agent] 点 ✕ 关掉说明卡
+PASS [手机 · dive_agent] 点「为什么」切图层
+PASS [手机 · dive_agent] 点 ▶ 进入第 1 步
+PASS [手机 · dive_agent] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · dive_agent] 推演条不超过半屏
+PASS [手机 · dive_agent] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · dive_agent] 说明卡「prompt」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · dive_agent] 点「钻进去」→ 到了下层「dive_agent.prompt」
+PASS [手机 · dive_agent] 到了下层，上一层的说明卡收起来了
+PASS [手机 · dive_agent] 能回到这张图
+INFO [手机 · dive_agent] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · dive_agent] 没有 JS 报错
+
+—— 下层节点 dive_render ——
+PASS [桌面 · dive_render] 打开的是要查的节点
+PASS [桌面 · dive_render] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · dive_render] 打开的这一页有机器图
+PASS [桌面 · dive_render] 用的是桌面那套坐标
+PASS [桌面 · dive_render] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · dive_render] 点「为什么」切到为什么图层
+PASS [桌面 · dive_render] 点「易混点」切到易混点图层
+PASS [桌面 · dive_render] 点部件 → 说明卡打开
+PASS [桌面 · dive_render] 被点的部件没被说明卡挡住
+PASS [桌面 · dive_render] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · dive_render] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · dive_render] → 键翻到下一张说明卡
+PASS [桌面 · dive_render] Esc 关掉说明卡
+PASS [桌面 · dive_render] 点 ▶ 进入第 1 步
+PASS [桌面 · dive_render] 推演时有部件 / 连线被点亮
+PASS [桌面 · dive_render] , 键退一步
+PASS [桌面 · dive_render] 推演时机器图仍在推演条上方
+PASS [桌面 · dive_render] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · dive_render] 说明卡「measure」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · dive_render] 点「钻进去」→ 到了下层「dive_render.layout」
+PASS [桌面 · dive_render] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · dive_render] 能回到这张图
+INFO [桌面 · dive_render] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · dive_render] 没有 JS 报错
+PASS [手机 · dive_render] 打开的是要查的节点
+PASS [手机 · dive_render] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+PASS [手机 · dive_render] 打开的这一页有机器图
+PASS [手机 · dive_render] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · dive_render] 机器图左右不出屏
+PASS [手机 · dive_render] 推演条不出屏
+PASS [手机 · dive_render] 点部件 → 说明卡从底部升起
+PASS [手机 · dive_render] 被点的部件露在说明卡上方
+PASS [手机 · dive_render] 说明卡不超过屏幕六成高
+PASS [手机 · dive_render] 点 ✕ 关掉说明卡
+PASS [手机 · dive_render] 点「为什么」切图层
+PASS [手机 · dive_render] 点 ▶ 进入第 1 步
+PASS [手机 · dive_render] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · dive_render] 推演条不超过半屏
+PASS [手机 · dive_render] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · dive_render] 说明卡「measure」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · dive_render] 点「钻进去」→ 到了下层「dive_render.layout」
+PASS [手机 · dive_render] 到了下层，上一层的说明卡收起来了
+PASS [手机 · dive_render] 能回到这张图
+INFO [手机 · dive_render] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · dive_render] 没有 JS 报错
+
+—— 下层节点 dive_post ——
+PASS [桌面 · dive_post] 打开的是要查的节点
+PASS [桌面 · dive_post] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · dive_post] 打开的这一页有机器图
+PASS [桌面 · dive_post] 用的是桌面那套坐标
+PASS [桌面 · dive_post] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · dive_post] 点「为什么」切到为什么图层
+PASS [桌面 · dive_post] 点「易混点」切到易混点图层
+PASS [桌面 · dive_post] 点部件 → 说明卡打开
+PASS [桌面 · dive_post] 被点的部件没被说明卡挡住
+PASS [桌面 · dive_post] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · dive_post] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · dive_post] → 键翻到下一张说明卡
+PASS [桌面 · dive_post] Esc 关掉说明卡
+PASS [桌面 · dive_post] 点 ▶ 进入第 1 步
+PASS [桌面 · dive_post] 推演时有部件 / 连线被点亮
+PASS [桌面 · dive_post] , 键退一步
+PASS [桌面 · dive_post] 推演时机器图仍在推演条上方
+PASS [桌面 · dive_post] 「钻进去」指到的 5 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · dive_post] 说明卡「embed」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · dive_post] 点「钻进去」→ 到了下层「dive_post.embed」
+PASS [桌面 · dive_post] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · dive_post] 能回到这张图
+INFO [桌面 · dive_post] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · dive_post] 没有 JS 报错
+PASS [手机 · dive_post] 打开的是要查的节点
+PASS [手机 · dive_post] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [手机 · dive_post] 打开的这一页有机器图
+PASS [手机 · dive_post] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · dive_post] 机器图左右不出屏
+PASS [手机 · dive_post] 推演条不出屏
+PASS [手机 · dive_post] 点部件 → 说明卡从底部升起
+PASS [手机 · dive_post] 被点的部件露在说明卡上方
+PASS [手机 · dive_post] 说明卡不超过屏幕六成高
+PASS [手机 · dive_post] 点 ✕ 关掉说明卡
+PASS [手机 · dive_post] 点「为什么」切图层
+PASS [手机 · dive_post] 点 ▶ 进入第 1 步
+PASS [手机 · dive_post] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · dive_post] 推演条不超过半屏
+PASS [手机 · dive_post] 「钻进去」指到的 5 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · dive_post] 说明卡「embed」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · dive_post] 点「钻进去」→ 到了下层「dive_post.embed」
+PASS [手机 · dive_post] 到了下层，上一层的说明卡收起来了
+PASS [手机 · dive_post] 能回到这张图
+INFO [手机 · dive_post] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · dive_post] 没有 JS 报错
+
+—— 下层节点 src_generate ——
+PASS [桌面 · src_generate] 打开的是要查的节点
+PASS [桌面 · src_generate] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · src_generate] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · src_generate] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_generate] 没有 JS 报错
+PASS [桌面 · src_generate] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [桌面 · src_generate] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · src_generate] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · src_generate] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · src_generate] 便签贴着被点的那几行
+PASS [桌面 · src_generate] 便签整个在屏幕里
+PASS [桌面 · src_generate] 点便签上的 ✕ 收起
+PASS [桌面 · src_generate] 批注便签没有 JS 报错
+PASS [手机 · src_generate] 打开的是要查的节点
+PASS [手机 · src_generate] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_generate] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · src_generate] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_generate] 没有 JS 报错
+PASS [手机 · src_generate] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [手机 · src_generate] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · src_generate] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · src_generate] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · src_generate] 便签贴着被点的那几行
+PASS [手机 · src_generate] 便签整个在屏幕里
+PASS [手机 · src_generate] 点便签上的 ✕ 收起
+PASS [手机 · src_generate] 批注便签没有 JS 报错
+
+—— 下层节点 src_spawn ——
+PASS [桌面 · src_spawn] 打开的是要查的节点
+PASS [桌面 · src_spawn] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · src_spawn] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · src_spawn] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_spawn] 没有 JS 报错
+PASS [桌面 · src_spawn] 代码批注默认收起，不夹在代码中间（16 条）
+PASS [桌面 · src_spawn] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · src_spawn] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · src_spawn] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · src_spawn] 便签贴着被点的那几行
+PASS [桌面 · src_spawn] 便签整个在屏幕里
+PASS [桌面 · src_spawn] 点便签上的 ✕ 收起
+PASS [桌面 · src_spawn] 批注便签没有 JS 报错
+PASS [手机 · src_spawn] 打开的是要查的节点
+PASS [手机 · src_spawn] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_spawn] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · src_spawn] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_spawn] 没有 JS 报错
+PASS [手机 · src_spawn] 代码批注默认收起，不夹在代码中间（16 条）
+PASS [手机 · src_spawn] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · src_spawn] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · src_spawn] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · src_spawn] 便签贴着被点的那几行
+PASS [手机 · src_spawn] 便签整个在屏幕里
+PASS [手机 · src_spawn] 点便签上的 ✕ 收起
+PASS [手机 · src_spawn] 批注便签没有 JS 报错
+
+—— 下层节点 src_cache ——
+PASS [桌面 · src_cache] 打开的是要查的节点
+PASS [桌面 · src_cache] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · src_cache] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · src_cache] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_cache] 没有 JS 报错
+PASS [桌面 · src_cache] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [桌面 · src_cache] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · src_cache] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · src_cache] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · src_cache] 便签贴着被点的那几行
+PASS [桌面 · src_cache] 便签整个在屏幕里
+PASS [桌面 · src_cache] 点便签上的 ✕ 收起
+PASS [桌面 · src_cache] 批注便签没有 JS 报错
+PASS [手机 · src_cache] 打开的是要查的节点
+PASS [手机 · src_cache] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_cache] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · src_cache] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_cache] 没有 JS 报错
+PASS [手机 · src_cache] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [手机 · src_cache] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · src_cache] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · src_cache] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · src_cache] 便签贴着被点的那几行
+PASS [手机 · src_cache] 便签整个在屏幕里
+PASS [手机 · src_cache] 点便签上的 ✕ 收起
+PASS [手机 · src_cache] 批注便签没有 JS 报错
+
+—— 下层节点 src_jobs ——
+PASS [桌面 · src_jobs] 打开的是要查的节点
+PASS [桌面 · src_jobs] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · src_jobs] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · src_jobs] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_jobs] 没有 JS 报错
+PASS [桌面 · src_jobs] 代码批注默认收起，不夹在代码中间（4 条）
+PASS [桌面 · src_jobs] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · src_jobs] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · src_jobs] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · src_jobs] 便签贴着被点的那几行
+PASS [桌面 · src_jobs] 便签整个在屏幕里
+PASS [桌面 · src_jobs] 点便签上的 ✕ 收起
+PASS [桌面 · src_jobs] 批注便签没有 JS 报错
+PASS [手机 · src_jobs] 打开的是要查的节点
+PASS [手机 · src_jobs] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_jobs] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · src_jobs] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_jobs] 没有 JS 报错
+PASS [手机 · src_jobs] 代码批注默认收起，不夹在代码中间（4 条）
+PASS [手机 · src_jobs] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · src_jobs] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · src_jobs] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · src_jobs] 便签贴着被点的那几行
+PASS [手机 · src_jobs] 便签整个在屏幕里
+PASS [手机 · src_jobs] 点便签上的 ✕ 收起
+PASS [手机 · src_jobs] 批注便签没有 JS 报错
+
+—— 下层节点 src_post ——
+PASS [桌面 · src_post] 打开的是要查的节点
+PASS [桌面 · src_post] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · src_post] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · src_post] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · src_post] 没有 JS 报错
+PASS [桌面 · src_post] 代码批注默认收起，不夹在代码中间（4 条）
+PASS [桌面 · src_post] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · src_post] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · src_post] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · src_post] 便签贴着被点的那几行
+PASS [桌面 · src_post] 便签整个在屏幕里
+PASS [桌面 · src_post] 点便签上的 ✕ 收起
+PASS [桌面 · src_post] 批注便签没有 JS 报错
+PASS [手机 · src_post] 打开的是要查的节点
+PASS [手机 · src_post] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · src_post] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · src_post] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · src_post] 没有 JS 报错
+PASS [手机 · src_post] 代码批注默认收起，不夹在代码中间（4 条）
+PASS [手机 · src_post] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · src_post] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · src_post] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · src_post] 便签贴着被点的那几行
+PASS [手机 · src_post] 便签整个在屏幕里
+PASS [手机 · src_post] 点便签上的 ✕ 收起
+PASS [手机 · src_post] 批注便签没有 JS 报错
+
+—— 下层节点 dive_agent.prompt ——
+PASS [桌面 · dive_agent.prompt] 打开的是要查的节点
+PASS [桌面 · dive_agent.prompt] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_agent.prompt] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · dive_agent.prompt] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_agent.prompt] 没有 JS 报错
+PASS [桌面 · dive_agent.prompt] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [桌面 · dive_agent.prompt] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_agent.prompt] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_agent.prompt] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_agent.prompt] 便签贴着被点的那几行
+PASS [桌面 · dive_agent.prompt] 便签整个在屏幕里
+PASS [桌面 · dive_agent.prompt] 点便签上的 ✕ 收起
+PASS [桌面 · dive_agent.prompt] 批注便签没有 JS 报错
+PASS [手机 · dive_agent.prompt] 打开的是要查的节点
+PASS [手机 · dive_agent.prompt] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_agent.prompt] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · dive_agent.prompt] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_agent.prompt] 没有 JS 报错
+PASS [手机 · dive_agent.prompt] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [手机 · dive_agent.prompt] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_agent.prompt] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_agent.prompt] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_agent.prompt] 便签贴着被点的那几行
+PASS [手机 · dive_agent.prompt] 便签整个在屏幕里
+PASS [手机 · dive_agent.prompt] 点便签上的 ✕ 收起
+PASS [手机 · dive_agent.prompt] 批注便签没有 JS 报错
+
+—— 下层节点 dive_agent.judge ——
+PASS [桌面 · dive_agent.judge] 打开的是要查的节点
+PASS [桌面 · dive_agent.judge] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_agent.judge] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · dive_agent.judge] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_agent.judge] 没有 JS 报错
+PASS [桌面 · dive_agent.judge] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [桌面 · dive_agent.judge] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_agent.judge] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_agent.judge] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_agent.judge] 便签贴着被点的那几行
+PASS [桌面 · dive_agent.judge] 便签整个在屏幕里
+PASS [桌面 · dive_agent.judge] 点便签上的 ✕ 收起
+PASS [桌面 · dive_agent.judge] 批注便签没有 JS 报错
+PASS [手机 · dive_agent.judge] 打开的是要查的节点
+PASS [手机 · dive_agent.judge] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_agent.judge] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · dive_agent.judge] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_agent.judge] 没有 JS 报错
+PASS [手机 · dive_agent.judge] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [手机 · dive_agent.judge] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_agent.judge] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_agent.judge] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_agent.judge] 便签贴着被点的那几行
+PASS [手机 · dive_agent.judge] 便签整个在屏幕里
+PASS [手机 · dive_agent.judge] 点便签上的 ✕ 收起
+PASS [手机 · dive_agent.judge] 批注便签没有 JS 报错
+
+—— 下层节点 dive_agent.extract ——
+PASS [桌面 · dive_agent.extract] 打开的是要查的节点
+PASS [桌面 · dive_agent.extract] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_agent.extract] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · dive_agent.extract] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_agent.extract] 没有 JS 报错
+PASS [桌面 · dive_agent.extract] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · dive_agent.extract] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_agent.extract] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_agent.extract] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_agent.extract] 便签贴着被点的那几行
+PASS [桌面 · dive_agent.extract] 便签整个在屏幕里
+PASS [桌面 · dive_agent.extract] 点便签上的 ✕ 收起
+PASS [桌面 · dive_agent.extract] 批注便签没有 JS 报错
+PASS [手机 · dive_agent.extract] 打开的是要查的节点
+PASS [手机 · dive_agent.extract] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_agent.extract] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · dive_agent.extract] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_agent.extract] 没有 JS 报错
+PASS [手机 · dive_agent.extract] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · dive_agent.extract] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_agent.extract] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_agent.extract] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_agent.extract] 便签贴着被点的那几行
+PASS [手机 · dive_agent.extract] 便签整个在屏幕里
+PASS [手机 · dive_agent.extract] 点便签上的 ✕ 收起
+PASS [手机 · dive_agent.extract] 批注便签没有 JS 报错
+
+—— 下层节点 dive_agent.tools ——
+PASS [桌面 · dive_agent.tools] 打开的是要查的节点
+PASS [桌面 · dive_agent.tools] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_agent.tools] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · dive_agent.tools] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_agent.tools] 没有 JS 报错
+PASS [桌面 · dive_agent.tools] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [桌面 · dive_agent.tools] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_agent.tools] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_agent.tools] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_agent.tools] 便签贴着被点的那几行
+PASS [桌面 · dive_agent.tools] 便签整个在屏幕里
+PASS [桌面 · dive_agent.tools] 点便签上的 ✕ 收起
+PASS [桌面 · dive_agent.tools] 批注便签没有 JS 报错
+PASS [手机 · dive_agent.tools] 打开的是要查的节点
+PASS [手机 · dive_agent.tools] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_agent.tools] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · dive_agent.tools] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_agent.tools] 没有 JS 报错
+PASS [手机 · dive_agent.tools] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [手机 · dive_agent.tools] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_agent.tools] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_agent.tools] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_agent.tools] 便签贴着被点的那几行
+PASS [手机 · dive_agent.tools] 便签整个在屏幕里
+PASS [手机 · dive_agent.tools] 点便签上的 ✕ 收起
+PASS [手机 · dive_agent.tools] 批注便签没有 JS 报错
+
+—— 下层节点 dive_agent.reader ——
+PASS [桌面 · dive_agent.reader] 打开的是要查的节点
+PASS [桌面 · dive_agent.reader] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_agent.reader] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · dive_agent.reader] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_agent.reader] 没有 JS 报错
+PASS [桌面 · dive_agent.reader] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [桌面 · dive_agent.reader] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_agent.reader] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_agent.reader] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_agent.reader] 便签贴着被点的那几行
+PASS [桌面 · dive_agent.reader] 便签整个在屏幕里
+PASS [桌面 · dive_agent.reader] 点便签上的 ✕ 收起
+PASS [桌面 · dive_agent.reader] 批注便签没有 JS 报错
+PASS [手机 · dive_agent.reader] 打开的是要查的节点
+PASS [手机 · dive_agent.reader] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [手机 · dive_agent.reader] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · dive_agent.reader] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_agent.reader] 没有 JS 报错
+PASS [手机 · dive_agent.reader] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [手机 · dive_agent.reader] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_agent.reader] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_agent.reader] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_agent.reader] 便签贴着被点的那几行
+PASS [手机 · dive_agent.reader] 便签整个在屏幕里
+PASS [手机 · dive_agent.reader] 点便签上的 ✕ 收起
+PASS [手机 · dive_agent.reader] 批注便签没有 JS 报错
+
+—— 下层节点 dive_agent.contract ——
+PASS [桌面 · dive_agent.contract] 打开的是要查的节点
+PASS [桌面 · dive_agent.contract] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_agent.contract] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · dive_agent.contract] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_agent.contract] 没有 JS 报错
+PASS [桌面 · dive_agent.contract] 代码批注默认收起，不夹在代码中间（10 条）
+PASS [桌面 · dive_agent.contract] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_agent.contract] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_agent.contract] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_agent.contract] 便签贴着被点的那几行
+PASS [桌面 · dive_agent.contract] 便签整个在屏幕里
+PASS [桌面 · dive_agent.contract] 点便签上的 ✕ 收起
+PASS [桌面 · dive_agent.contract] 批注便签没有 JS 报错
+PASS [手机 · dive_agent.contract] 打开的是要查的节点
+PASS [手机 · dive_agent.contract] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_agent.contract] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · dive_agent.contract] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_agent.contract] 没有 JS 报错
+PASS [手机 · dive_agent.contract] 代码批注默认收起，不夹在代码中间（10 条）
+PASS [手机 · dive_agent.contract] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_agent.contract] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_agent.contract] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_agent.contract] 便签贴着被点的那几行
+PASS [手机 · dive_agent.contract] 便签整个在屏幕里
+PASS [手机 · dive_agent.contract] 点便签上的 ✕ 收起
+PASS [手机 · dive_agent.contract] 批注便签没有 JS 报错
+
+—— 下层节点 dive_render.layout ——
+PASS [桌面 · dive_render.layout] 打开的是要查的节点
+PASS [桌面 · dive_render.layout] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_render.layout] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · dive_render.layout] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_render.layout] 没有 JS 报错
+PASS [桌面 · dive_render.layout] 代码批注默认收起，不夹在代码中间（12 条）
+PASS [桌面 · dive_render.layout] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_render.layout] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_render.layout] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_render.layout] 便签贴着被点的那几行
+PASS [桌面 · dive_render.layout] 便签整个在屏幕里
+PASS [桌面 · dive_render.layout] 点便签上的 ✕ 收起
+PASS [桌面 · dive_render.layout] 批注便签没有 JS 报错
+PASS [手机 · dive_render.layout] 打开的是要查的节点
+PASS [手机 · dive_render.layout] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+INFO [手机 · dive_render.layout] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · dive_render.layout] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_render.layout] 没有 JS 报错
+PASS [手机 · dive_render.layout] 代码批注默认收起，不夹在代码中间（12 条）
+PASS [手机 · dive_render.layout] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_render.layout] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_render.layout] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_render.layout] 便签贴着被点的那几行
+PASS [手机 · dive_render.layout] 便签整个在屏幕里
+PASS [手机 · dive_render.layout] 点便签上的 ✕ 收起
+PASS [手机 · dive_render.layout] 批注便签没有 JS 报错
+
+—— 下层节点 dive_render.push ——
+PASS [桌面 · dive_render.push] 打开的是要查的节点
+PASS [桌面 · dive_render.push] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_render.push] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · dive_render.push] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_render.push] 没有 JS 报错
+PASS [桌面 · dive_render.push] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [桌面 · dive_render.push] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_render.push] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_render.push] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_render.push] 便签贴着被点的那几行
+PASS [桌面 · dive_render.push] 便签整个在屏幕里
+PASS [桌面 · dive_render.push] 点便签上的 ✕ 收起
+PASS [桌面 · dive_render.push] 批注便签没有 JS 报错
+PASS [手机 · dive_render.push] 打开的是要查的节点
+PASS [手机 · dive_render.push] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+INFO [手机 · dive_render.push] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · dive_render.push] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_render.push] 没有 JS 报错
+PASS [手机 · dive_render.push] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [手机 · dive_render.push] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_render.push] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_render.push] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_render.push] 便签贴着被点的那几行
+PASS [手机 · dive_render.push] 便签整个在屏幕里
+PASS [手机 · dive_render.push] 点便签上的 ✕ 收起
+PASS [手机 · dive_render.push] 批注便签没有 JS 报错
+
+—— 下层节点 dive_render.anchor ——
+PASS [桌面 · dive_render.anchor] 打开的是要查的节点
+PASS [桌面 · dive_render.anchor] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_render.anchor] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · dive_render.anchor] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_render.anchor] 没有 JS 报错
+PASS [桌面 · dive_render.anchor] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [桌面 · dive_render.anchor] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_render.anchor] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_render.anchor] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_render.anchor] 便签贴着被点的那几行
+PASS [桌面 · dive_render.anchor] 便签整个在屏幕里
+PASS [桌面 · dive_render.anchor] 点便签上的 ✕ 收起
+PASS [桌面 · dive_render.anchor] 批注便签没有 JS 报错
+PASS [手机 · dive_render.anchor] 打开的是要查的节点
+PASS [手机 · dive_render.anchor] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_render.anchor] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · dive_render.anchor] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_render.anchor] 没有 JS 报错
+PASS [手机 · dive_render.anchor] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [手机 · dive_render.anchor] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_render.anchor] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_render.anchor] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_render.anchor] 便签贴着被点的那几行
+PASS [手机 · dive_render.anchor] 便签整个在屏幕里
+PASS [手机 · dive_render.anchor] 点便签上的 ✕ 收起
+PASS [手机 · dive_render.anchor] 批注便签没有 JS 报错
+
+—— 下层节点 dive_render.step ——
+PASS [桌面 · dive_render.step] 打开的是要查的节点
+PASS [桌面 · dive_render.step] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_render.step] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · dive_render.step] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_render.step] 没有 JS 报错
+PASS [桌面 · dive_render.step] 代码批注默认收起，不夹在代码中间（7 条）
+PASS [桌面 · dive_render.step] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_render.step] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_render.step] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_render.step] 便签贴着被点的那几行
+PASS [桌面 · dive_render.step] 便签整个在屏幕里
+PASS [桌面 · dive_render.step] 点便签上的 ✕ 收起
+PASS [桌面 · dive_render.step] 批注便签没有 JS 报错
+PASS [手机 · dive_render.step] 打开的是要查的节点
+PASS [手机 · dive_render.step] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+INFO [手机 · dive_render.step] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · dive_render.step] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_render.step] 没有 JS 报错
+PASS [手机 · dive_render.step] 代码批注默认收起，不夹在代码中间（7 条）
+PASS [手机 · dive_render.step] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_render.step] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_render.step] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_render.step] 便签贴着被点的那几行
+PASS [手机 · dive_render.step] 便签整个在屏幕里
+PASS [手机 · dive_render.step] 点便签上的 ✕ 收起
+PASS [手机 · dive_render.step] 批注便签没有 JS 报错
+
+—— 下层节点 dive_render.cam ——
+PASS [桌面 · dive_render.cam] 打开的是要查的节点
+PASS [桌面 · dive_render.cam] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_render.cam] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · dive_render.cam] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_render.cam] 没有 JS 报错
+PASS [桌面 · dive_render.cam] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · dive_render.cam] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_render.cam] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_render.cam] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_render.cam] 便签贴着被点的那几行
+PASS [桌面 · dive_render.cam] 便签整个在屏幕里
+PASS [桌面 · dive_render.cam] 点便签上的 ✕ 收起
+PASS [桌面 · dive_render.cam] 批注便签没有 JS 报错
+PASS [手机 · dive_render.cam] 打开的是要查的节点
+PASS [手机 · dive_render.cam] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+INFO [手机 · dive_render.cam] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · dive_render.cam] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_render.cam] 没有 JS 报错
+PASS [手机 · dive_render.cam] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · dive_render.cam] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_render.cam] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_render.cam] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_render.cam] 便签贴着被点的那几行
+PASS [手机 · dive_render.cam] 便签整个在屏幕里
+PASS [手机 · dive_render.cam] 点便签上的 ✕ 收起
+PASS [手机 · dive_render.cam] 批注便签没有 JS 报错
+
+—— 下层节点 dive_render.mobile ——
+PASS [桌面 · dive_render.mobile] 打开的是要查的节点
+PASS [桌面 · dive_render.mobile] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_render.mobile] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · dive_render.mobile] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_render.mobile] 没有 JS 报错
+PASS [桌面 · dive_render.mobile] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · dive_render.mobile] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_render.mobile] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_render.mobile] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_render.mobile] 便签贴着被点的那几行
+PASS [桌面 · dive_render.mobile] 便签整个在屏幕里
+PASS [桌面 · dive_render.mobile] 点便签上的 ✕ 收起
+PASS [桌面 · dive_render.mobile] 批注便签没有 JS 报错
+PASS [手机 · dive_render.mobile] 打开的是要查的节点
+PASS [手机 · dive_render.mobile] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_render.mobile] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · dive_render.mobile] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_render.mobile] 没有 JS 报错
+PASS [手机 · dive_render.mobile] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · dive_render.mobile] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_render.mobile] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_render.mobile] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_render.mobile] 便签贴着被点的那几行
+PASS [手机 · dive_render.mobile] 便签整个在屏幕里
+PASS [手机 · dive_render.mobile] 点便签上的 ✕ 收起
+PASS [手机 · dive_render.mobile] 批注便签没有 JS 报错
+
+—— 下层节点 dive_post.shell ——
+PASS [桌面 · dive_post.shell] 打开的是要查的节点
+PASS [桌面 · dive_post.shell] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_post.shell] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · dive_post.shell] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_post.shell] 没有 JS 报错
+PASS [桌面 · dive_post.shell] 代码批注默认收起，不夹在代码中间（15 条）
+PASS [桌面 · dive_post.shell] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_post.shell] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_post.shell] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_post.shell] 便签贴着被点的那几行
+PASS [桌面 · dive_post.shell] 便签整个在屏幕里
+PASS [桌面 · dive_post.shell] 点便签上的 ✕ 收起
+PASS [桌面 · dive_post.shell] 批注便签没有 JS 报错
+PASS [手机 · dive_post.shell] 打开的是要查的节点
+PASS [手机 · dive_post.shell] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_post.shell] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · dive_post.shell] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_post.shell] 没有 JS 报错
+PASS [手机 · dive_post.shell] 代码批注默认收起，不夹在代码中间（15 条）
+PASS [手机 · dive_post.shell] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_post.shell] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_post.shell] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_post.shell] 便签贴着被点的那几行
+PASS [手机 · dive_post.shell] 便签整个在屏幕里
+PASS [手机 · dive_post.shell] 点便签上的 ✕ 收起
+PASS [手机 · dive_post.shell] 批注便签没有 JS 报错
+
+—— 下层节点 dive_post.embed ——
+PASS [桌面 · dive_post.embed] 打开的是要查的节点
+PASS [桌面 · dive_post.embed] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_post.embed] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · dive_post.embed] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_post.embed] 没有 JS 报错
+PASS [桌面 · dive_post.embed] 代码批注默认收起，不夹在代码中间（18 条）
+PASS [桌面 · dive_post.embed] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_post.embed] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_post.embed] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_post.embed] 便签贴着被点的那几行
+PASS [桌面 · dive_post.embed] 便签整个在屏幕里
+PASS [桌面 · dive_post.embed] 点便签上的 ✕ 收起
+PASS [桌面 · dive_post.embed] 批注便签没有 JS 报错
+PASS [手机 · dive_post.embed] 打开的是要查的节点
+PASS [手机 · dive_post.embed] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_post.embed] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · dive_post.embed] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_post.embed] 没有 JS 报错
+PASS [手机 · dive_post.embed] 代码批注默认收起，不夹在代码中间（18 条）
+PASS [手机 · dive_post.embed] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_post.embed] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_post.embed] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_post.embed] 便签贴着被点的那几行
+PASS [手机 · dive_post.embed] 便签整个在屏幕里
+PASS [手机 · dive_post.embed] 点便签上的 ✕ 收起
+PASS [手机 · dive_post.embed] 批注便签没有 JS 报错
+
+—— 下层节点 dive_post.refs ——
+PASS [桌面 · dive_post.refs] 打开的是要查的节点
+PASS [桌面 · dive_post.refs] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_post.refs] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · dive_post.refs] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_post.refs] 没有 JS 报错
+PASS [桌面 · dive_post.refs] 代码批注默认收起，不夹在代码中间（15 条）
+PASS [桌面 · dive_post.refs] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_post.refs] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_post.refs] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_post.refs] 便签贴着被点的那几行
+PASS [桌面 · dive_post.refs] 便签整个在屏幕里
+PASS [桌面 · dive_post.refs] 点便签上的 ✕ 收起
+PASS [桌面 · dive_post.refs] 批注便签没有 JS 报错
+PASS [手机 · dive_post.refs] 打开的是要查的节点
+PASS [手机 · dive_post.refs] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [手机 · dive_post.refs] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · dive_post.refs] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_post.refs] 没有 JS 报错
+PASS [手机 · dive_post.refs] 代码批注默认收起，不夹在代码中间（15 条）
+PASS [手机 · dive_post.refs] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_post.refs] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_post.refs] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_post.refs] 便签贴着被点的那几行
+PASS [手机 · dive_post.refs] 便签整个在屏幕里
+PASS [手机 · dive_post.refs] 点便签上的 ✕ 收起
+PASS [手机 · dive_post.refs] 批注便签没有 JS 报错
+
+—— 下层节点 dive_post.val ——
+PASS [桌面 · dive_post.val] 打开的是要查的节点
+PASS [桌面 · dive_post.val] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_post.val] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [桌面 · dive_post.val] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_post.val] 没有 JS 报错
+PASS [桌面 · dive_post.val] 代码批注默认收起，不夹在代码中间（12 条）
+PASS [桌面 · dive_post.val] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_post.val] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_post.val] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_post.val] 便签贴着被点的那几行
+PASS [桌面 · dive_post.val] 便签整个在屏幕里
+PASS [桌面 · dive_post.val] 点便签上的 ✕ 收起
+PASS [桌面 · dive_post.val] 批注便签没有 JS 报错
+PASS [手机 · dive_post.val] 打开的是要查的节点
+PASS [手机 · dive_post.val] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [手机 · dive_post.val] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [手机 · dive_post.val] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_post.val] 没有 JS 报错
+PASS [手机 · dive_post.val] 代码批注默认收起，不夹在代码中间（12 条）
+PASS [手机 · dive_post.val] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_post.val] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_post.val] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_post.val] 便签贴着被点的那几行
+PASS [手机 · dive_post.val] 便签整个在屏幕里
+PASS [手机 · dive_post.val] 点便签上的 ✕ 收起
+PASS [手机 · dive_post.val] 批注便签没有 JS 报错
+
+—— 下层节点 dive_post.run ——
+PASS [桌面 · dive_post.run] 打开的是要查的节点
+PASS [桌面 · dive_post.run] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · dive_post.run] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · dive_post.run] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · dive_post.run] 没有 JS 报错
+PASS [桌面 · dive_post.run] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [桌面 · dive_post.run] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · dive_post.run] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · dive_post.run] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · dive_post.run] 便签贴着被点的那几行
+PASS [桌面 · dive_post.run] 便签整个在屏幕里
+PASS [桌面 · dive_post.run] 点便签上的 ✕ 收起
+PASS [桌面 · dive_post.run] 批注便签没有 JS 报错
+PASS [手机 · dive_post.run] 打开的是要查的节点
+PASS [手机 · dive_post.run] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · dive_post.run] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · dive_post.run] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · dive_post.run] 没有 JS 报错
+PASS [手机 · dive_post.run] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [手机 · dive_post.run] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · dive_post.run] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · dive_post.run] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · dive_post.run] 便签贴着被点的那几行
+PASS [手机 · dive_post.run] 便签整个在屏幕里
+PASS [手机 · dive_post.run] 点便签上的 ✕ 收起
+PASS [手机 · dive_post.run] 批注便签没有 JS 报错
+
+交互自检 698 PASS / 0 FAIL；排版问题 0 条
+截图在 /tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/canvas-hub-1/out/final/shots

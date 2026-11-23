@@ -1,0 +1,39 @@
+锚点 136 处（去重 120），通过 135，不通过 1；其中 1 处写的是省略前缀的路径（按唯一后缀匹配）
+  BAD 底稿第 322 行  engine/llm_engine.py:49  —— 文件不在 HEAD
+提交 5 个，通过 5，不通过 0
+疑似引文 65 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 33，找不到 32
+  ??? 底稿第 19 行  band 2 → y = 720
+  ??? 底稿第 45 行  setStep(#sN 或 0, false)
+  ??? 底稿第 91 行  place: {corner: 'nw'}
+  ??? 底稿第 91 行  hasLeftNotes = true
+  ??? 底稿第 92 行  leftNoteCols = {1}
+  ??? 底稿第 100 行  160 + band × 280
+  ??? 底稿第 110 行  preempt.y = max(720, 1060+60) = 1120
+  ??? 底稿第 110 行  postprocess.y = max(1000, 1154+60) = 1214
+  ??? 底稿第 117 行  from: {card, line, side?}
+  ??? 底稿第 117 行  to: {card, line?, side?}
+  ??? 底稿第 156 行  wires: ['w-sched']
+  ??? 底稿第 156 行  focus: ['schedule','n-chunk','step']
+  ??? 底稿第 156 行  w-canalloc / w-alloc / d-cached / s-pool
+  ??? 底稿第 156 行  schedule / can_allocate / allocate / kv-pool
+  ??? 底稿第 162 行  wires: [w-sched, w-run, w-post, d-token]
+  ??? 底稿第 162 行  lines: [[step,2],[step,4],[step,5]]
+  ??? 底稿第 162 行  focus: [step, schedule, run, postprocess]
+  ??? 底稿第 170 行  centerOn(wx, wy, s)
+  ??? 底稿第 170 行  cam.x = innerWidth/2 − wx·s
+  ??? 底稿第 170 行  cam.y = (innerHeight−70)/2 − wy·s
+  ??? 底稿第 176 行  sc = min(宽/(w+140), (高−170)/(h+140), 1.15)
+  ??? 底稿第 184 行  sc = min(1400/860, 730/224, 1.15) = 1.15
+  ??? 底稿第 185 行  sc ≈ 1400/(1670+140) ≈ 0.77
+  ??? 底稿第 203 行  {"ok": true, "html": …, "cli": …}
+  ??? 底稿第 204 行  fetch('ask', {method:'POST', body: {prompt, card, block, question}})
+  ??? 底稿第 215 行  w0=800, w1=800, w2=640
+  ??? 底稿第 215 行  colX = {0:370, 1:1720, 2:2750, 3:3620}
+  ??? 底稿第 216 行  s = min(1400/3960, 790/1260)×.98 ≈ 0.35
+  ??? 底稿第 241 行  relayoutColumns / placeNotes / fitRegions / sizeWorld
+  ??? 底稿第 254 行  wpos / visibleProxy / resolveAnchor
+  ??? 底稿第 296 行  syncStreamMode / drawWires / fitAll
+  ??? 底稿第 335 行  innerHeight − 70
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

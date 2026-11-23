@@ -1,0 +1,40 @@
+锚点 219 处（去重 192），通过 218，不通过 1；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+  BAD 底稿第 299 行  engine/llm_engine.py:49  —— 文件不在 HEAD
+提交 10 个，通过 9，不通过 1
+  BAD 不是一个 commit: 155c1586
+疑似引文 43 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 11，找不到 32
+  ??? 底稿第 55 行  <id>.prompt / .log / .status / .meta.json / .result.json / .timing.json
+  ??? 底稿第 56 行  meta / regions / cards / wires / notes / steps / files
+  ??? 底稿第 56 行  overview / scenarios / boxes / gaps / objects
+  ??? 底稿第 64 行  subprocess.Popen(["bash","-c",script], start_new_session=True)
+  ??? 底稿第 66 行  claude -p ... "$(cat <id>.prompt)"
+  ??? 底稿第 66 行  $(cat <id>.prompt)
+  ??? 底稿第 82 行  {ask, name?, git_url}
+  ??? 底稿第 82 行  preview / zoom / engine / model
+  ??? 底稿第 110 行  echo $rc > status
+  ??? 底稿第 113 行  T0=...; { prep; } >> log && cd <缓存> && { gen; } || { 记 clone 耗时; echo $rc > status; }
+  ??? 底稿第 115 行  Popen(["bash","-c",script], cwd=..., start_new_session=True)
+  ??? 底稿第 167 行  [ -f <workdir>/canvas.json ]
+  ??? 底稿第 168 行  embed_context.py canvas.json <仓库>
+  ??? 底稿第 169 行  check_refs.py canvas.json <仓库>
+  ??? 底稿第 171 行  {"git_url": ...}
+  ??? 底稿第 172 行  echo $rc > <id>.status
+  ??? 底稿第 236 行  160 + band × 280
+  ??? 底稿第 259 行  preview / zoom / engine
+  ??? 底稿第 262 行  src = {"kind": "git", "git_url": ".../nano-vllm"}
+  ??? 底稿第 263 行  name = "nano-vllm"
+  ??? 底稿第 264 行  engine = "claude"
+  ??? 底稿第 267 行  job_id = j20261123-101530-482
+  ??? 底稿第 271 行  rm -rf; git clone --depth 1 ... && touch nano-vllm-155c1586.ready
+  ??? 底稿第 273 行  {"id": "j20261123-101530-482", "name": "nano-vllm", "ask": "讲讲调度器怎么工作", "source": "https://github.com/GeeeekExplorer/nano-vllm", "mode": "deep", "pid"
+  ??? 底稿第 274 行  {"ok": true, "job": {...}}
+  ??? 底稿第 286 行  meta.judgment / overview / scenarios / boxes / gaps / objects
+  ??? 底稿第 299 行  {"id": "step", "name": "LLMEngine.step()", "file": "engine/llm_engine.py:49", "layout": {"col": 0, "band": 0}, "code": "def step(self):\n    seqs, is_
+  ??? 底稿第 303 行  focus = [step, schedule, run, postprocess]
+  ??? 底稿第 303 行  wires = [w-sched, w-run, w-post, d-token]
+  ??? 底稿第 303 行  lines = [[step,2],[step,4],[step,5]]
+  ??? 底稿第 310 行  {"git_url": "https://github.com/GeeeekExplorer/nano-vllm"}
+  ??? 底稿第 406 行  cp ... && render ... || rc=6
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

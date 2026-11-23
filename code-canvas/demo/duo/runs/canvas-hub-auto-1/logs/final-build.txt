@@ -1,0 +1,32 @@
+
+机器图 → /tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/runs/canvas-hub-1/out/final/scene.html（746 KB）
+部件 34  连线 40  说明卡 74  推演 43 步；锚点条目 494  提交 9
+下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：
+      src_generate · /generate 源码
+      src_spawn · spawn_generate 源码
+      src_cache · 仓库缓存源码
+      src_jobs · list_jobs 源码
+      src_post · post_pass 源码
+      dive_agent · 生成 agent 里面
+        dive_agent.prompt · 提示词源码
+        dive_agent.judge · 8 个判断原文
+        dive_agent.extract · extract 源码
+        dive_agent.tools · 自查工具源码
+        dive_agent.reader · reader_check 源码
+        dive_agent.contract · 契约和执法
+      dive_render · 浏览器排版
+        dive_render.layout · layout() 源码
+        dive_render.push · 下推源码
+        dive_render.anchor · 锚点源码
+        dive_render.step · setStep 源码
+        dive_render.cam · 镜头源码
+        dive_render.mobile · 手机与初始化
+      dive_post · 服务端收尾里面
+        dive_post.shell · 收尾那串 shell
+        dive_post.embed · embed 源码
+        dive_post.refs · check_refs 源码
+        dive_post.val · validate 源码
+        dive_post.run · 沙盘真跑源码
+已填槽位 3：dive_agent←content_dive_agent dive_render←content_dive_render dive_post←content_dive_post
+未填槽位 0：（无）
+WARN 0 条

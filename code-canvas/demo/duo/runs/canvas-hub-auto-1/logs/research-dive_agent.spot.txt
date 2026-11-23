@@ -1,0 +1,20 @@
+锚点 165 处（去重 142），通过 165，不通过 0；其中 18 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 5 个，通过 5，不通过 0
+疑似引文 23 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 9，找不到 14
+  ??? 底稿第 60 行  head + task_line + tail
+  ??? 底稿第 79 行  2) python3 {skill}/embed_context.py {w} <仓库根>
+  ??? 底稿第 112 行  waiting / running 队列
+  ??? 底稿第 160 行  name: "Scheduler.schedule()"
+  ??? 底稿第 160 行  layout: {col:1, band:0}
+  ??? 底稿第 161 行  from: {card:"step", line:2}
+  ??? 底稿第 161 行  to: {card:"schedule"}
+  ??? 底稿第 162 行  focus: [step, schedule, run, postprocess]
+  ??? 底稿第 162 行  wires: [w-sched, w-run, w-post, d-token]
+  ??? 底稿第 162 行  lines: [[step,2],[step,4],[step,5]]
+  ??? 底稿第 183 行  N errors, M warnings
+  ??? 底稿第 211 行  claude -p <提示词> --model sonnet --allowedTools Read --output-format text
+  ??? 底稿第 229 行  --allowedTools Read
+  ??? 底稿第 265 行  wrote …  (N cards, M wires)
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

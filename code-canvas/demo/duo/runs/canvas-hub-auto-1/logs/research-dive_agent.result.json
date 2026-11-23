@@ -1,0 +1,17 @@
+{
+ "step": "research-dive_agent",
+ "role": "research",
+ "model_req": "sonnet",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 2.0174,
+ "cost_session_total": 2.0174,
+ "secs": 552,
+ "turns": 46,
+ "tools": 45,
+ "session": "00b35464-e0de-4ee8-8f46-d38b43655988",
+ "models": [
+  "claude-sonnet-5-5"
+ ]
+}

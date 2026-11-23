@@ -1,0 +1,19 @@
+锚点 125 处（去重 110），通过 123，不通过 2；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+  BAD 底稿第 151 行  engine/scheduler.py:72  —— 文件不在 HEAD
+  BAD 底稿第 151 行  engine/scheduler.py:75  —— 文件不在 HEAD
+提交 7 个，通过 7，不通过 0
+疑似引文 20 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 9，找不到 11
+  ??? 底稿第 38 行  echo $rc > .status
+  ??? 底稿第 92 行  grep -n "err(" validate.py
+  ??? 底稿第 104 行  stdout.strip() != expected.strip()
+  ??? 底稿第 131 行  cp {w} {hj} && {render} {hj} {hh} >> {lg} 2>&1 && { {sidecar}:; } || rc=6
+  ??? 底稿第 141 行  w = /home/ubuntu/hub/.jobs/j20261123-101530-482/canvas.json
+  ??? 底稿第 141 行  R = /home/ubuntu/hub/.repos/nano-vllm-155c1586
+  ??? 底稿第 148 行  0 errors, K warnings
+  ??? 底稿第 160 行  ["engine/scheduler.py", 94, "preempt"]
+  ??? 底稿第 160 行  ["engine/scheduler.py", 88, "preempt"]
+  ??? 底稿第 176 行  if validate; then cp && render && { sidecar :; } || rc=6; else rc=4; fi
+  ??? 底稿第 182 行  lines[max(0, 行-4):行+3]
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

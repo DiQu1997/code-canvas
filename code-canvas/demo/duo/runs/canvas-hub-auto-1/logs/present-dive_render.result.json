@@ -1,0 +1,17 @@
+{
+ "step": "present-dive_render",
+ "role": "present",
+ "model_req": "opus",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 3.5472,
+ "cost_session_total": 3.5472,
+ "secs": 1053,
+ "turns": 36,
+ "tools": 35,
+ "session": "5dc2cb36-e1ef-4a25-b72b-2fe4b39c01c7",
+ "models": [
+  "claude-opus-5-5"
+ ]
+}
