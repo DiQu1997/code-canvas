@@ -57,6 +57,7 @@ python3 tests/video_test.py                             # 12 PASS（视频脚本
 | serve.py | 单画布问答桥 / --hub 常驻服务（生成/问答/下载/删除；只绑 tailscale IP） |
 | hooks/ | 计划闭环闸门（**已验证、未挂载**——作者裁决：耗 token，等日用价值明确） |
 | eval/run.py | 零上下文考试（改 SKILL.md 必跑一张考卷对基线；不许为过题加提示） |
+| demo/duo/ | 研究员 + 讲解员（duo）：run.py 自动调度、revise.py 按反馈改版、install_skill.py 装成 canvas-duo skill（不上 hub 的仓库在本机跑）。demo/duo/SKILL.md 是调度员规程，不是上面考卷管的那份 SKILL.md |
 
 ## 质量闸门（每次交付）
 

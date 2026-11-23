@@ -383,9 +383,11 @@ def main():
             raise SystemExit('--models 里不认识的角色：%s（可用：%s）' % (k, ' '.join(DEFAULT_MODELS)))
         A.models[k] = v
     OUT, REPO = os.path.abspath(A.out), os.path.abspath(A.repo)
-    groot = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
-    if OUT.startswith(groot + os.sep):
-        raise SystemExit('--out 要放在代码仓库外面（agent 的工作目录在仓库里会读到给开发者看的 AGENTS.md）')
+    from outdir import problems as out_problems
+    bad = out_problems(OUT, REPO, HERE)
+    if bad:
+        raise SystemExit('--out 不能放这里：\n  ' + '\n  '.join(bad) +
+                         '\n（agent 的工作目录就是 --out，它会读到上级里写给别人的 CLAUDE.md / AGENTS.md）')
     CONTENT = os.path.join(OUT, 'content')
     for d in (OUT, CONTENT, os.path.join(OUT, 'logs'), os.path.join(OUT, 'research'), os.path.join(OUT, 'out')):
         if not os.path.isdir(d):

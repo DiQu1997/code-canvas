@@ -10,7 +10,8 @@
 //          ⑤ 每个节点打开后先查「量到的位置 = 点得中的位置」（见 geom）—— 这条是查舞台自己的，报 FAIL 不是内容的错
 //   --dsf2   按两倍屏幕密度跑（截图给人看时用；交互和 ⑤ 在两种密度下都该过）
 // 只在无头 Chromium 里跑：iOS Safari 的手势和渲染这里验不到。
-const { chromium } = require('playwright');
+// 找不到 playwright 包 / 它带的浏览器时，和 tests/ 一样用环境变量指：CANVAS_TEST_PW（包路径）、CANVAS_TEST_CHROMIUM（浏览器可执行文件）
+const { chromium } = require(process.env.CANVAS_TEST_PW || 'playwright');
 const path = require('path'), fs = require('fs');
 const argv = process.argv.slice(2), pos = [], flags = {};
 for (let i = 0; i < argv.length; i++) {
@@ -331,7 +332,7 @@ async function phone(browser) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(process.env.CANVAS_TEST_CHROMIUM ? { executablePath: process.env.CANVAS_TEST_CHROMIUM } : {});
   let subs = [], rest = [];      // 下层节点：带机器图的 / 不带的（源码页、文字页）
   try {
     const pg = await browser.newPage(); await pg.goto(base); await pg.waitForSelector('.nf.cur');

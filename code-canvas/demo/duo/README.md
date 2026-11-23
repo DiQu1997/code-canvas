@@ -797,6 +797,50 @@ python3 -I revise.py --run <运行目录> --feedback "<作者原话>" [--image <
   3. `--check` 量不到小图里被省略号截断的值，只有看截图才发现。
   4. 讲解员报告和产物之间没有机械核对，所以「说放进了说明卡、其实没放」这种情况查不出来。
 
+### 在别处跑：canvas-duo skill（2026-11-23）
+
+作者：「我需要一个类似的 skill 在别的地方 run，主要比如那些不好拿上 hub 的 repo」。做法：把 duo 装成一个 Claude Code skill（`canvas-duo`）。
+在那个仓库里开 Claude Code，说「用 canvas-duo 讲讲 …」。那台机器上的 Claude 只当调度员（预检 → 报价等点头 → 后台开跑 → 盯进度 → 验收如实报），
+内容仍全部由 `run.py` 起的 agent 做。
+
+```bash
+python3 code-canvas/demo/duo/install_skill.py            # 复制到 ~/.claude/skills/canvas-duo（自包含约 0.9 MB，可整个拷到别的机器）
+python3 code-canvas/demo/duo/install_skill.py --link     # 本机开发用：软链到本目录，git pull 后跟着更新
+python3 code-canvas/demo/duo/install_skill.py --update   # 已装过：覆盖更新（不删多出来的文件）
+```
+
+- **新增 / 改动**：
+  - `SKILL.md`：调度员的规程。
+  - `install_skill.py`：只装跑一单要的东西，即 `run.py`、`preflight.py`、`agents/`、`canvas/`、`check/`。
+    不装 `revise.py`：它的把关要回归语料和本仓库的 git。
+  - `preflight.py`：开跑前的预检，逐条打 OK / WARN / FAIL。
+  - `check/outdir.py`：运行目录的规矩，`run.py` 和预检共用。
+  - `shot_scene.js` 两行：认 `CANVAS_TEST_PW` / `CANVAS_TEST_CHROMIUM`，和 `tests/` 的约定一样，只影响启动浏览器，页面产物不变。
+- **为什么改运行目录的检查**：原来 `run.py` 拒的是「在本工具所在的代码仓库里」，判断依据是从脚本位置往上数三层。
+  装到 `~/.claude/skills/canvas-duo/` 以后，往上数三层是家目录，家目录下的一切都会被拒。
+  改成按原理判断：agent 的工作目录就是 `--out`，claude 会读它和每一层上级的 CLAUDE.md / AGENTS.md。
+  所以只拒「在被讲仓库里」「在工具目录里」「上级有这些文件」三种。在本仓库里跑照样被拒（根目录有 AGENTS.md），已验证。
+- **预检查什么**：
+  - python ≥ 3.8；
+  - 仓库有 HEAD；工作区干净，不干净报 WARN（构建和核对读 HEAD，agent 读工作区）；
+  - 运行目录的位置；
+  - node、playwright、浏览器真能启动；
+  - claude 版本支持 `--max-budget-usd` / `stream-json` / `--resume`；
+  - `--probe` 真起一次 claude，在运行目录里读仓库外的一个文件，验证登录和无人值守的读权限。实测 $0.04，第一次冷启动曾超过 $0.10，所以上限设 $0.50。
+- **验证过的**（本容器）：
+  - 复制安装、软链安装；
+  - 预检全绿；8 种失败情况各自报对：运行目录在仓库里、上级有 CLAUDE.md、工作区脏、不是 git、找不到 playwright、浏览器路径错、找不到 claude；
+  - `--probe` 真跑；
+  - 从安装出来的副本用假 claude 跑完整条管线：顶层 + 2 个下钻 + 顶层修正 + 装配，strict 0 WARN，`--all` 132 PASS / 0 FAIL；
+  - `run.py` 拒绝放在仓库里的运行目录，也没建出目录；
+  - 舞台回归快档 8 页全过、字节不变。
+- **没验证过的（如实）**：
+  - 没在作者的 Mac 上装过、跑过。作者 Mac 上 playwright 是挂在 `code-canvas/node_modules` 的软链，复制安装的副本找不到它：
+    预检会报 FAIL，要用 `CANVAS_TEST_PW` 指过去，或者用 `--link` 安装（node 按真实路径找包，能找到）。
+    浏览器多半也要 `CANVAS_TEST_CHROMIUM`，同 AGENTS.md 里测试的设置。
+  - agent 在 claude 的 Bash 里跑 `node shot_scene.js` 时，环境变量会不会传下去：按 claude 的行为应该会，但没在 Mac 上真跑过一单。
+  - 在别的机器上真花钱跑一整单（$25–45）没做过。
+
 ## 成本（v1，如实）
 
 | 环节 | 报告的 token | 工具调用 | 耗时 |

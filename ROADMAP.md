@@ -529,3 +529,10 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
     - 一份补充底稿 embed 文件数（4）和顶层（5）对不上，讲解员只是回避了，没对齐；
     - 舞台锚点不认 `.html` / `.mjs`，逼讲解员把测试证据降成推断。
   - 产物：`demo/duo/canvas-hub-v1-auto.html`、`demo/duo/runs/canvas-hub-auto-1/`。
+- **2026-11-23**：**duo 装成 skill：canvas-duo（在不上 hub 的仓库里本机跑）**（分支 `claude/magical-newton-bvtxzo`）。
+  - **新增**：`install_skill.py`（复制 / 软链 / 覆盖更新）、`SKILL.md`（调度员规程：预检 → 报价等点头 → 后台开跑 → 盯进度 → 验收如实报，不碰内容）、
+    `preflight.py`（含 `--probe` 真起一次 claude，实测 $0.04）。
+  - **改动**：`run.py` 的运行目录检查改成按原理判断（不在被讲仓库、不在工具目录、上级没有 CLAUDE.md / AGENTS.md），抽到 `check/outdir.py`；
+    `shot_scene.js` 认 `CANVAS_TEST_PW` / `CANVAS_TEST_CHROMIUM`。
+  - **验证**：复制安装的副本用假 claude 跑通整条管线（`--all` 132 PASS）；预检 8 种失败各自报对；回归快档 8 页全过。
+  - **如实**：没在作者 Mac 上装过，复制安装要用 `CANVAS_TEST_PW` 指 playwright，或者用 `--link` 安装；别的机器上真跑一单没做过。
