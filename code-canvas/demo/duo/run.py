@@ -52,7 +52,7 @@ ESTIMATE = {'research': dict(fable=20, opus=10, sonnet=5, haiku=1),
 CAP_FACTOR = 2.5            # 单个 agent 的硬上限 = 预估 × 这个数（claude --max-budget-usd）
 AGENT_TIMEOUT = 60 * 60     # 单个 agent 最长跑多久（秒）
 TOOLS_OK = 'Bash,Read,Write,Edit,Glob,Grep,TodoWrite'
-TOOLS_NO = 'Agent,Task,WebFetch,WebSearch'
+TOOLS_NO = 'Agent,Task,WebFetch,WebSearch,Skill'   # Skill：机器上装了 canvas-duo 时，别让干活的 agent 自己再去调它
 
 A = None                    # 命令行参数
 OUT = REPO = CONTENT = HEAD = ''
