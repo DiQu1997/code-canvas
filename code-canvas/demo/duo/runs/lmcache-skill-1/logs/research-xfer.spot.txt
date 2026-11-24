@@ -1,0 +1,27 @@
+锚点 209 处（去重 180），通过 209，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 11 个，通过 11，不通过 0
+疑似引文 74 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 53，找不到 21
+  ??? 底稿第 111 行  (句柄, retrieve_succeeded)
+  ??? 底稿第 115 行  start = 320 // 256 * 256 = 256
+  ??? 底稿第 115 行  skip_first_n_tokens = 320 − 256 = 64
+  ??? 底稿第 147 行  token*spt + layer*chunk*spt + kv*nl*chunk*spt
+  ??? 底稿第 148 行  block_id*scalars_per_block + kv*nb*scalars_per_block
+  ??? 底稿第 151 行  (kv_size, total_blocks, nl)
+  ??? 底稿第 152 行  obj_idx = flat/16
+  ??? 底稿第 152 行  block_idx_in_object = flat%16
+  ??? 底稿第 152 行  block_idx_in_object * bs
+  ??? 底稿第 174 行  submit_callback_to_stream(cupy_stream, "finish_write", l1_owners)
+  ??? 底稿第 199 行  stored_count = 0
+  ??? 底稿第 220 行  skip_first_n_tokens = num_vllm_hit_tokens − start_token_idx
+  ??? 底稿第 226 行  effective_start = max(批起点 token, skip)
+  ??? 底稿第 226 行  skip_tokens_in_chunk = 64
+  ??? 底稿第 227 行  calculate_num_blocks(64) = 64×slots/tpb // bs = 4
+  ??? 底稿第 229 行  first = skip_tokens_in_chunk // chunk
+  ??? 底稿第 243 行  to avoid deadlocks with the implicit CUDA driver lock
+  ??? 底稿第 332 行  _next_slot % _num_workers
+  ??? 底稿第 339 行  Store is not batched, so we always use batch_idx=0
+  ??? 底稿第 364 行  batch_size=1, skip=0
+  ??? 底稿第 364 行  batch_size=4, skip=N
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

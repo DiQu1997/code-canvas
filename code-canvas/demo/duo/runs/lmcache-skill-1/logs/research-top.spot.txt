@@ -1,0 +1,34 @@
+锚点 270 处（去重 246），通过 270，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 15 个，通过 15，不通过 0
+疑似引文 89 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 61，找不到 28
+  ??? 底稿第 119 行  kv_role = kv_both
+  ??? 底稿第 142 行  get_num_new_matched_tokens(A, num_computed_tokens=0)
+  ??? 底稿第 145 行  IPCCacheServerKey(worker_id=None, start=0, end=768, token_bytes=1000×4 字节)
+  ??? 底稿第 149 行  hash_i = blake3(hash_{i-1} ‖ chunk_i)
+  ??? 底稿第 157 行  update_state_after_alloc(A, blocks, 0)
+  ??? 底稿第 157 行  PREFETCHING → READY
+  ??? 底稿第 162 行  computed_tokens = max(1000 + max(0,0), 0+1000) = 1000
+  ??? 底稿第 163 行  allocated_tokens = 63 × 16 = 1008
+  ??? 底稿第 164 行  min(1000 总 token, 1008, 1000) = 1000
+  ??? 底稿第 165 行  num_staging = 1000 − 0 = 1000
+  ??? 底稿第 166 行  LoadStoreOp(start=0, end=768, block_ids=[[b0..b47]])
+  ??? 底稿第 190 行  1000 − 768 = 232 < 256
+  ??? 底稿第 204 行  [h0', h1', h2', h3']
+  ??? 底稿第 204 行  h0'=h0, h1'=h1, h2'=h2
+  ??? 底稿第 210 行  num_lmcache_hit_tokens = 768
+  ??? 底稿第 210 行  num_stored_tokens = 768
+  ??? 底稿第 211 行  need_to_load = 768 − 0 = 768
+  ??? 底稿第 214 行  update_state_after_alloc(B, blocks, 768)
+  ??? 底稿第 215 行  PREFETCHING → WAITING_FOR_LOAD
+  ??? 底稿第 216 行  free_end = num_vllm_hit_tokens = 0
+  ??? 底稿第 219 行  skip_first_n_tokens = 0
+  ??? 底稿第 233 行  num_computed_tokens = 768
+  ??? 底稿第 236 行  computed = 432 + max(0, 768) = 1200
+  ??? 底稿第 236 行  allocated = 75 × 16 = 1200
+  ??? 底稿第 236 行  num_staging = 1200 − 768 = 432
+  ??? 底稿第 381 行  instances (read and write) with configurable timeouts to prevent deadlocks from crashed clients.”（
+  ??? 底稿第 388 行  cannot disagree about what a lookup locked.”（
+  ??? 底稿第 476 行  A hybrid model stores each chunk of a request as several objects: one per *object group* (full attention, sliding window, recurrent state, ...) and on
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

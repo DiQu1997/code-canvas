@@ -536,3 +536,14 @@ AI 写代码时代，作者对仓库的认知不退化成"agent 的转述"。控
     `shot_scene.js` 认 `CANVAS_TEST_PW` / `CANVAS_TEST_CHROMIUM`。
   - **验证**：复制安装的副本用假 claude 跑通整条管线（`--all` 132 PASS）；预检 8 种失败各自报对；回归快档 8 页全过。
   - **如实**：没在作者 Mac 上装过，复制安装要用 `CANVAS_TEST_PW` 指 playwright，或者用 `--link` 安装；别的机器上真跑一单没做过。
+- **2026-11-24**：**canvas-duo skill 实测：真调度员 + LMCache**（分支 `claude/magical-newton-bvtxzo`）。
+  - **怎么试**：在 LMCache 克隆（`b27f6bd9`）里起一个全新 `claude -p`（opus），只说「用 canvas-duo 讲讲：…」；报价后回一个「跑」，之后不再插话。
+  - **调度员**：五步照 SKILL.md 做了，问题一字没改；后台开跑并挂后台等待，跑完自己验收（读报告、读 5 份回复、核 4 条源码）；没碰内容。花 $1.08 + probe $0.14。
+    它报的每个数和 report.md 对上，4 条抽查我复核都成立。
+  - **成品**：`demo/duo/lmcache-kv-v1-skill.html`。$39.33 / 104 分钟。顶层 7 框 12 步，下钻 xfer / l1 / sched，3 个源码页。
+    strict 0 WARN，`--all` 596 PASS / 0 FAIL。我另核 5 处源码说法，都对；回归语料加 `lm1`，重建字节不变。
+  - **如实**：
+    - 2 倍像素密度下顶层多 1 条排版问题（gpu 框小图），1 倍密度自检看不到，是舞台自检的盲区；
+    - 「下一页」卡错位、英文线标断词、L1 量表「0 / 16384」易被误读成容量，都没修；
+    - 104 分钟超出 SKILL.md 原写的 60–90，已改成 80–105；
+    - 还是没在 Mac 上跑过。

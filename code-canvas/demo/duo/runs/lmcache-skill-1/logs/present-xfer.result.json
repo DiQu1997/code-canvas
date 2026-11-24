@@ -1,0 +1,17 @@
+{
+ "step": "present-xfer",
+ "role": "present",
+ "model_req": "opus",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 4.2351,
+ "cost_session_total": 4.2351,
+ "secs": 1074,
+ "turns": 46,
+ "tools": 45,
+ "session": "3df41389-68b2-4ec8-ab84-667ca4c89e03",
+ "models": [
+  "claude-opus-5-5"
+ ]
+}

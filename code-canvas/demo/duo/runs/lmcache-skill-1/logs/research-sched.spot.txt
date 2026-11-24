@@ -1,0 +1,31 @@
+锚点 263 处（去重 219），通过 263，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 12 个，通过 12，不通过 0
+疑似引文 88 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 63，找不到 25
+  ??? 底稿第 23 行  free_end = num_vllm_hit_tokens = 0
+  ??? 底稿第 35 行  LMCacheMPRequestMetadata.GetStoreMetadata / GetRetrieveMetadata
+  ??? 底稿第 36 行  _lookups: dict[request_id, LookupState]
+  ??? 底稿第 59 行  PREFETCHING / WAITING_FOR_LOAD / READY / BYPASS_LMCACHE
+  ??? 底稿第 96 行  get_num_new_matched_tokens(A, 0)
+  ??? 底稿第 98 行  update_state_after_alloc(A, 63 个 block, 0)
+  ??? 底稿第 99 行  num_stored 0→768
+  ??? 底稿第 110 行  get_num_new_matched_tokens(B, 0)
+  ??? 底稿第 112 行  update_state_after_alloc(B, 48 个 block, 768)
+  ??? 底稿第 116 行  num_stored 768→1024
+  ??? 底稿第 120 行  B 的 tracker 在 WAITING_FOR_LOAD
+  ??? 底稿第 158 行  lookup_tokens // chunk * chunk
+  ??? 底稿第 159 行  320//16*16//256*256 = 256
+  ??? 底稿第 181 行  max(252, 112+188=300)=300
+  ??? 底稿第 185 行  computed=max(512+0, 512)=512
+  ??? 底稿第 215 行  free_end = num_lmcache_hit_tokens
+  ??? 底稿第 220 行  num_vllm_hit_tokens=128 < apc_covered_tokens=256
+  ??? 底稿第 223 行  FREE(start=0, end=128, extra_ranges=((256,768),))
+  ??? 底稿第 229 行  delay_free = tracker.store_scheduled
+  ??? 底稿第 250 行  need_to_load = 768 − 0 − 1 = 767
+  ??? 底稿第 309 行  max(0, ret − num_computed_tokens)
+  ??? 底稿第 347 行  max(vllm, lmcache)
+  ??? 底稿第 347 行  max(…, engine_computed)
+  ??? 底稿第 348 行  break the request's stored-prefix chain
+  ??? 底稿第 392 行  num_vllm_hit / num_lmcache_hit / num_stored / allocated_block_ids / state
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

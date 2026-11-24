@@ -839,7 +839,88 @@ python3 code-canvas/demo/duo/install_skill.py --update   # 已装过：覆盖更
     预检会报 FAIL，要用 `CANVAS_TEST_PW` 指过去，或者用 `--link` 安装（node 按真实路径找包，能找到）。
     浏览器多半也要 `CANVAS_TEST_CHROMIUM`，同 AGENTS.md 里测试的设置。
   - agent 在 claude 的 Bash 里跑 `node shot_scene.js` 时，环境变量会不会传下去：按 claude 的行为应该会，但没在 Mac 上真跑过一单。
-  - 在别的机器上真花钱跑一整单（$25–45）没做过。
+  - 在别的机器上真花钱跑一整单（$25–45）没做过。（2026-11-24：在本容器里用真调度员真跑了一整单 LMCache，见下节；Mac 仍没验证）
+
+### skill 实测：真调度员 + LMCache（2026-11-24）
+
+作者：「你实验过这个 skill 吗，比如用 vllm 或者 lmcache 的代码库，spawn 一个 claude agent with this skill 试试效果」。
+
+**怎么试的**
+- `install_skill.py` 复制安装到 `~/.claude/skills/canvas-duo`，来源提交 `0ba1408`。
+- 在 LMCache 克隆里起一个**全新的** `claude -p`（opus），对它说：「用 canvas-duo 讲讲：LMCache 是怎么把 KV cache 存下来、下一个请求又怎么取回来复用的，一步步讲」。
+  - LMCache 在 `b27f6bd9`，Apache-2.0，公开仓库。
+  - 调度员能用的工具：Skill / Bash / Read / Glob / Grep / Write / Edit。
+  - 预算上限：第一轮 $3，第二轮 $6。
+- 它报完价停下来等我；我用 `--resume` 回一个字「跑」。之后**再没插话**，它跑完后自己做了验收。
+- 两轮的原文要点在 `runs/lmcache-skill-1/dispatcher.md`。
+
+**调度员的表现：五步都照 SKILL.md 做了，没越界**
+- 第一轮（$0.37）：
+  - 自己调起 skill，仓库根、运行目录、成品名都按默认取；
+  - 跑预检加 `--probe`：8 OK / 0 WARN / 0 FAIL，probe 花 $0.144；
+  - 报价：三次历史花费、预算上限、计费方式、代码会发给 Claude、HTML 嵌源码别外传、三种省钱选项（含「sonnet 顶层没验证过」）；
+  - 然后停下等点头。问题一字没改。
+  - 它还自己指出：这一单比它本会话 $3 的上限高一个量级，请确认钱能用。
+- 第二轮：
+  - nohup 后台开跑，再挂一个后台等待（`pgrep` 循环，60 秒一次），回一段进度说明。
+  - 等待结束后**自己接着做验收**，共 7 次工具调用：
+    - 读 report.md、final-shots、各份 spot；
+    - 读 5 份讲解员回复和 4 份 framework-issues；
+    - 去源码 grep 核对 4 条说法。
+  - **没碰** research/、content/、HTML。
+  - 发现：`claude -p` 模式下有后台任务没结束时，进程不退，等任务结束后模型会被再叫起来接着干，所以「无人值守调度」真能闭环。
+- 调度员合计 **$1.08**（两轮累计，`total_cost_usd` 在 resume 时累加），probe $0.14。
+
+**我对调度员报告的核对**
+- 每步花费、用时、模型，和 report.md 逐行对上。
+- 结构描述对上：顶层 7 框分两组、推演 12 步、下钻 3 个；其余 3 个框挂的是源码页。
+- 机械结果对上：底稿 4 份通过（l1 返工一次）；strict 0 WARN；`--all` 596 PASS / 0 FAIL。
+- 讲解员自认的短处转述得完整，没删难听的。
+- 它抽查的 4 条，我在源码里逐条复核，都成立，页面上也确实有这 4 条：
+  - 读锁 300 秒、写锁 600 秒：`distributed/config.py:429-433`；
+  - 淘汰水位 0.8、删除比例 0.2；
+  - 转正在 `l1_manager/base.py:649`；
+  - 32 KiB 以下不走 direct copy：`multiprocess/object_group_transfer/direct_copy.py:42`。
+- 唯一瑕疵：direct_copy 的路径少写了 `lmcache/v1/multiprocess/` 前缀。
+
+**成品：我自己的抽查**（另挑了 5 处，都对上了）
+- 查找区间 1000 → `[0, 768)`：`vllm_multi_process_adapter.py:857-863` 向下取整到 256。
+  - 只在 `save_unfull_chunk` 关闭时成立，而它默认就是 False（`lmcache_mp_connector.py:684-686`）。
+  - `reserve_last_token` 让 1000 变 999，结果仍是 768。
+- 一块 = 16 个 vLLM block：`adapter:685`，256 // 16。token 打包 4 字节：`token_codec.py:19`。
+- 每块 36 MiB：按底稿 §4.1 标「设」的 Qwen3-8B 形状算，256 token × K/V 两份 × 36 层 × 8 个 KV 头 × 128 维 × 2 字节 = 36 MiB，算得对。
+- 顶层按 xfer 意见改的 RETRIEVE 顺序已经落进页面：先等 event（`lmcache_driven_transfer.py:1269-1272`），再定好要放的锁（`:1314-1318`），最后 `unsafe_read`（`:1330`），和源码一致。
+- L1 淘汰：每秒醒一次，用量 ≥ 0.8 才动（`eviction_controller.py:165-176`）；删 `int(被跟踪的 key 数 × 0.2)` 个，按个数不按内存（`eviction_policy/lru.py:168`）。所以例子里 456 个删 91 个对。
+- 便签核对 3 PASS / 0 FAIL（全页 197 条代码批注）。
+- 回归快档重建字节不变，24 PASS。
+
+**我自己看出来的问题（没改，如实记）**
+- 用 2 倍像素密度重跑 `--check`，顶层多报 1 条排版问题：「gpu 框里的小图放不下（为什么图层）」。1 倍密度是 0 条。
+  - 讲解员只在 1 倍密度下自检，高清屏手机上这个框会挤。
+  - 截图看「注册一次，之后只传编号」折成两行，贴着底边，还没有压到别的东西。
+  - 这是舞台自检的盲区。
+- 页面底部「下一页」卡错位：桌面左侧有一条空的蓝色描边条，手机上在浮动导航后面露出竖排的字。讲解员已经报过。
+- L1 页淘汰线程的量表写着「0 / 16384 MiB」。16384 是 80% 红线，不是总量（总量 20480），读者容易当成容量。这是 `g_gauge` 的显示方式，算舞台问题。
+- 线标 `STORE/RETRIEV E+event` 从词中间断行。讲解员已经报过。
+
+**花费**
+
+| 部分 | 花费 | 用时 |
+|---|---|---|
+| run.py 整单（10 步，见 `runs/lmcache-skill-1/report.md`） | $39.33 | 104 分钟 |
+| 调度员两轮 | $1.08 | — |
+| 预检 probe | $0.14 | — |
+| **合计** | **$40.55** | |
+
+- 比 vllm（$32.64 / 87 分钟）、canvas hub（$25.17 / 78 分钟）都贵、都慢。
+- 顶层研究员一步就 $10.30、20 分钟、128 次工具调用：LMCache 的主路跨 vLLM 和服务进程两边。
+- SKILL.md 原来写「60–90 分钟」，这单超了，已经改成 80–105 分钟。
+
+**产物**：`lmcache-kv-v1-skill.html`；运行记录 `runs/lmcache-skill-1/`（底稿、内容、报告、各 agent 的交代和回复）。回归语料加了 `lm1`（corpus 名 `lmcache`）。
+
+**这次之后改的东西**
+- SKILL.md / preflight.py 里 probe 的花费改成实测范围「$0.04–0.15」。
+- 报价里加上这单，变成四次真跑的记录；时长改成 80–105 分钟。
 
 ## 成本（v1，如实）
 

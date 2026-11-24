@@ -1,0 +1,17 @@
+{
+ "step": "present-top.fix",
+ "role": "present",
+ "model_req": "opus",
+ "ok": true,
+ "subtype": "success",
+ "rc": 0,
+ "cost": 1.8415,
+ "cost_session_total": 5.3836,
+ "secs": 86,
+ "turns": 9,
+ "tools": 8,
+ "session": "aa4f4e62-a7df-412d-a5c1-1f12e45ede86",
+ "models": [
+  "claude-opus-5-5"
+ ]
+}

@@ -1,0 +1,21 @@
+锚点 98 处（去重 83），通过 95，不通过 3；其中 33 处写的是省略前缀的路径（按唯一后缀匹配）
+  BAD 底稿第 155 行  config.py:495  —— 路径有歧义（9 个同名）
+  BAD 底稿第 183 行  memory_management.py:1289  —— 路径有歧义（2 个同名）
+  BAD 底稿第 297 行  config.py:495  —— 路径有歧义（9 个同名）
+提交 11 个，通过 11，不通过 0
+疑似引文 58 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 46，找不到 12
+  ??? 底稿第 6 行  路径缩写：`L1B` = `lmcache/v1/distributed/l1_manager/base.py`；`SM` = `lmcache/v1/distributed/storage_manager.py`；`PC` = `lmcache/v1/distributed/storage_con
+  ??? 底稿第 46 行  allocate(layout, n)
+  ??? 底稿第 57 行  int(456 × 0.2) = 91
+  ??? 底稿第 71 行  reserve_write(..., tag="storage_manager")
+  ??? 底稿第 79 行  _staging = {h0:{"storage_manager":…}, h1:…, h2:…}
+  ??? 底稿第 79 行  _staging_bytes = 108 MiB
+  ??? 底稿第 114 行  reserve_read(row.keys, row.num_kv_readers)
+  ??? 底稿第 155 行  int(len(self._order) × ratio)
+  ??? 底稿第 164 行  will check again and safely reject a key that became locked between the check and the actual deletion.” 淘汰线程调
+  ??? 底稿第 177 行  int(456×0.2) = 91
+  ??? 底稿第 184 行  (OUT_OF_MEMORY, [])
+  ??? 底稿第 239 行  counter > 0 && now < expiration
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====
