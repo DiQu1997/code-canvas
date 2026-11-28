@@ -1,0 +1,28 @@
+
+机器图 → /root/canvas-duo-runs/LMCache-l1data-20261128/out/final/scene.html（924 KB）
+部件 28  连线 34  说明卡 62  推演 47 步；锚点条目 792  提交 13
+下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：
+      sched · 调度侧连接器里面
+        sched.tracker · 账本的字段
+        sched.ask · 「问」的源码
+        sched.lookup · 查询链的源码
+        sched.alloc · 分配回调与取单
+        sched.store · 存单的算术
+        sched.finish · 结束与延迟回收
+      worker_src · worker 侧：发取 / 发存
+      lookup_src · LOOKUP 的关键几段
+      hash_src · 滚动哈希源码
+      xfer · 传输模块里面
+        xfer.store · STORE 源码
+        xfer.retrieve · RETRIEVE 源码
+        xfer.copy · 拷贝路径源码
+        xfer.cb · 流回调链源码
+        xfer.pool · 亲和池源码
+      l1 · L1 存储里面
+        l1.write · 写入：预留与转正
+        l1.read · 读锁与 TTLLock
+        l1.prefetch · 预取：查 + 上锁
+        l1.evict · 淘汰一圈
+已填槽位 3：sched←content_sched xfer←content_xfer l1←content_l1
+未填槽位 0：（无）
+WARN 0 条

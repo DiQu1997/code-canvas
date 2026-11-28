@@ -1,0 +1,25 @@
+锚点 205 处（去重 179），通过 205，不通过 0；其中 0 处写的是省略前缀的路径（按唯一后缀匹配）
+提交 10 个，通过 10，不通过 0
+疑似引文 78 条（反引号 / 引号 / 引用块里的英文原话，含代码片段），逐字找到 59，找不到 19
+  ??? 底稿第 29 行  reserve_write / finish_write / submit_prefetch_task / unsafe_read / finish_read_prefetched
+  ??? 底稿第 52 行  memory_obj / write_lock / read_lock / is_temporary / staging_charge
+  ??? 底稿第 79 行  StorageManager.reserve_write(keys, layout_desc)
+  ??? 底稿第 81 行  self._memory_manager.allocate(layout_desc, 3)
+  ??? 底稿第 103 行  reserve_read(row.keys, row.num_kv_readers)
+  ??? 底稿第 146 行  instances (read and write) with configurable timeouts to prevent deadlocks from crashed clients.”（
+  ??? 底稿第 147 行  --l1-read-ttl-seconds / --l1-write-ttl-seconds
+  ??? 底稿第 161 行  get_eviction_actions(0.2, key_eligible_filter=l1.is_key_evictable)
+  ??? 底稿第 167 行  target_count = int(len(_order) × ratio)
+  ??? 底稿第 173 行  will check again and safely reject a key that became locked between the check and the actual deletion.”（
+  ??? 底稿第 181 行  on_keys_created / on_keys_touched
+  ??? 底稿第 185 行  delete → _reclaim_staging
+  ??? 底稿第 196 行  (OUT_OF_MEMORY, None)
+  ??? 底稿第 268 行  _lock_l1_keys → _plan_load → _finish_request
+  ??? 底稿第 269 行  they are released when the request finishes.”（
+  ??? 底稿第 273 行  key_groups / fetching_policy / lock_mode
+  ??? 底稿第 273 行  hit_cells / l1_owners
+  ??? 底稿第 333 行  reserve_write / finish_write / unsafe_read / finish_read
+  ??? 底稿第 333 行  submit_prefetch_task / query_prefetch_status
+  （找不到 ≠ 一定是编的：可能是跨行原话、行内代码拼写、或作者自己举的例子——逐条人工看）
+
+==== 随机抽 0 个锚点，对着底稿读 ====

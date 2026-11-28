@@ -18,6 +18,8 @@
   {"name": "ch1", "corpus": "codecanvas", "content": "runs/canvas-hub-auto-1/content", "strict": true,
    "pages": [{"file": "scene.html", "html": "canvas-hub-v1-auto.html", "quick": ["shot_scene.js", "--node", "src_post"], "full": ["shot_scene.js", "--all"]}]},
   {"name": "lm1", "corpus": "lmcache", "content": "runs/lmcache-skill-1/content", "strict": true,
-   "pages": [{"file": "scene.html", "html": "lmcache-kv-v1-skill.html", "quick": ["shot_scene.js", "--node", "hash_src"], "full": ["shot_scene.js", "--all"]}]}
+   "pages": [{"file": "scene.html", "html": "lmcache-kv-v1-skill.html", "quick": ["shot_scene.js", "--node", "hash_src"], "full": ["shot_scene.js", "--all"]}]},
+  {"name": "lm2", "corpus": "lmcache", "content": "runs/lmcache-l1data-1/content", "strict": true,
+   "pages": [{"file": "scene.html", "html": "lmcache-kv-v1-l1data.html", "quick": ["shot_scene.js", "--node", "l1.write"], "full": ["shot_scene.js", "--all"]}]}
  ]
 }

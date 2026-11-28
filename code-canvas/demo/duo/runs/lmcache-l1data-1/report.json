@@ -1,0 +1,232 @@
+{
+ "question": "LMCache 是怎么把 KV cache 存下来、下一个请求又怎么取回来复用的，一步步讲",
+ "repo": "/tmp/claude-0/-home-user-code-canvas/f73966bb-7be3-5269-bc4d-ca2eebd0fcae/scratchpad/corpus5/LMCache",
+ "head": "b27f6bd9e2",
+ "models": {
+  "research_top": "opus",
+  "present_top": "opus",
+  "research_dive": "sonnet",
+  "present_dive": "opus"
+ },
+ "budget": 55.0,
+ "steps": [
+  {
+   "step": "research-top",
+   "role": "research",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 10.3038,
+   "cost_session_total": 10.3038,
+   "secs": 1244,
+   "turns": 129,
+   "tools": 128,
+   "session": "0bc57335-2cc3-432e-b46f-f4c278662de8",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "present-top",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.5421,
+   "cost_session_total": 3.5421,
+   "secs": 882,
+   "turns": 36,
+   "tools": 35,
+   "session": "aa4f4e62-a7df-412d-a5c1-1f12e45ede86",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-xfer",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.7134,
+   "cost_session_total": 3.7134,
+   "secs": 937,
+   "turns": 90,
+   "tools": 89,
+   "session": "a832e20c-8d30-453e-897a-e84bcec1061c",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "present-xfer",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 4.2351,
+   "cost_session_total": 4.2351,
+   "secs": 1074,
+   "turns": 46,
+   "tools": 45,
+   "session": "3df41389-68b2-4ec8-ab84-667ca4c89e03",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-l1",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.3551,
+   "cost_session_total": 3.3551,
+   "secs": 701,
+   "turns": 81,
+   "tools": 80,
+   "session": "59b04389-6c54-41f5-8759-fd6844b463f2",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "present-l1",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 4.2637,
+   "cost_session_total": 4.2637,
+   "secs": 1163,
+   "turns": 42,
+   "tools": 41,
+   "session": "7bfa4b89-47e5-47e3-b819-cdcdd9890552",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "research-sched",
+   "role": "research",
+   "model_req": "sonnet",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 3.2953,
+   "cost_session_total": 3.2953,
+   "secs": 765,
+   "turns": 72,
+   "tools": 71,
+   "session": "8c13e4a5-c014-4768-9023-6f9548061fa4",
+   "models": [
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "step": "present-sched",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 4.7947,
+   "cost_session_total": 4.7947,
+   "secs": 1227,
+   "turns": 4,
+   "tools": 41,
+   "session": "1af2fefb-2466-4752-b725-9efa6c5f105a",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  },
+  {
+   "step": "present-top.fix",
+   "role": "present",
+   "model_req": "opus",
+   "ok": true,
+   "subtype": "success",
+   "rc": 0,
+   "cost": 1.8415,
+   "cost_session_total": 5.3836,
+   "secs": 86,
+   "turns": 9,
+   "tools": 8,
+   "session": "aa4f4e62-a7df-412d-a5c1-1f12e45ede86",
+   "models": [
+    "claude-opus-5-5"
+   ]
+  }
+ ],
+ "dives": [
+  {
+   "id": "xfer",
+   "title": "传输模块",
+   "why": "这是 KV 真正被搬动的地方：一次 STORE / RETRIEVE 里有自己的 CUDA 流、跨进程 event、staging 对象、流回调和亲和线程，状态随时间在变，顶层只能讲到顺序。",
+   "research": "核对通过",
+   "content": true
+  },
+  {
+   "id": "l1",
+   "title": "L1 存储",
+   "why": "里面有一套对象状态机（staging → ready → read_locked）、带 TTL 的读写锁、读者计数和后台淘汰，正是「存下来、锁住、不被挤掉」的机制所在，顶层只画了结果。",
+   "research": "核对通过",
+   "content": true
+  },
+  {
+   "id": "sched",
+   "title": "调度侧连接器",
+   "why": "每个请求的 tracker 状态机、「查多少 / 存多少」的算术、LOOKUP 的异步轮询状态和放锁时机都在这里，跨多个调度步才走完，读者最容易在这里迷路。",
+   "research": "核对通过",
+   "content": true
+  }
+ ],
+ "research_top": "核对通过",
+ "dive_requests": [
+  {
+   "id": "xfer",
+   "title": "传输模块",
+   "why": "这是 KV 真正被搬动的地方：一次 STORE / RETRIEVE 里有自己的 CUDA 流、跨进程 event、staging 对象、流回调和亲和线程，状态随时间在变，顶层只能讲到顺序。"
+  },
+  {
+   "id": "l1",
+   "title": "L1 存储",
+   "why": "里面有一套对象状态机（staging → ready → read_locked）、带 TTL 的读写锁、读者计数和后台淘汰，正是「存下来、锁住、不被挤掉」的机制所在，顶层只画了结果。"
+  },
+  {
+   "id": "sched",
+   "title": "调度侧连接器",
+   "why": "每个请求的 tracker 状态机、「查多少 / 存多少」的算术、LOOKUP 的异步轮询状态和放锁时机都在这里，跨多个调度步才走完，读者最容易在这里迷路。"
+  }
+ ],
+ "dive_notes": [],
+ "top_fixes": [
+  "top-fixes-l1.md",
+  "top-fixes-sched.md",
+  "top-fixes-xfer.md"
+ ],
+ "fatal": null,
+ "build": {
+  "rc": 0,
+  "warn": 0,
+  "unfilled": [],
+  "tail": "\n机器图 → /root/canvas-duo-runs/LMCache-l1data-20261128/out/final/scene.html（924 KB）\n部件 28  连线 34  说明卡 62  推演 47 步；锚点条目 792  提交 13\n下面这些节点可以钻进去（part / wire 的 to= 用这些 id；标「未展开」的是空页，别指过去）：\n      sched · 调度侧连接器里面\n        sched.tracker · 账本的字段\n        sched.ask · 「问」的源码\n        sched.lookup · 查询链的源码\n        sched.alloc · 分配回调与取单\n        sched.store · 存单的算术\n        sched.finish · 结束与延迟回收\n      worker_src · worker 侧：发取 / 发存\n      lookup_src · LOOKUP 的关键几段\n      hash_src · 滚动哈希源码\n      xfer · 传输模块里面\n        xfer.store · STORE 源码\n        xfer.retrieve · RETRIEVE 源码\n        xfer.copy · 拷贝路径源码\n        xfer.cb · 流回调链源码\n        xfer.pool · 亲和池源码\n      l1 · L1 存储里面\n        l1.write · 写入：预留与转正\n        l1.read · 读锁与 TTLLock\n        l1.prefetch · 预取：查 + 上锁\n        l1.evict · 淘汰一圈\n已填槽位 3：sched←content_sched xfer←content_xfer l1←content_l1\n未填槽位 0：（无）\nWARN 0 条\n"
+ },
+ "shots": {
+  "rc": 0,
+  "fail": 0,
+  "fail_lines": [],
+  "summary": [
+   "交互自检 566 PASS / 0 FAIL；排版问题 0 条"
+  ]
+ },
+ "page": "/root/canvas-duo-runs/LMCache-l1data-20261128/LMCache-canvas.html",
+ "spent": 39.34,
+ "wall_min": 36.7
+}

@@ -1,0 +1,663 @@
+
+—— 顶层 ——
+PASS [桌面] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面] 打开的这一页有机器图
+PASS [桌面] 用的是桌面那套坐标
+PASS [桌面] 整张机器图在推演条上方、一屏看全
+PASS [桌面] 点「为什么」切到为什么图层
+PASS [桌面] 点「易混点」切到易混点图层
+PASS [桌面] 点部件 → 说明卡打开
+PASS [桌面] 被点的部件没被说明卡挡住
+PASS [桌面] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面] → 键翻到下一张说明卡
+PASS [桌面] Esc 关掉说明卡
+PASS [桌面] 点 ▶ 进入第 1 步
+PASS [桌面] 推演时有部件 / 连线被点亮
+PASS [桌面] , 键退一步
+PASS [桌面] 推演时机器图仍在推演条上方
+PASS [桌面] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [桌面] 说明卡「sched」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面] 点「钻进去」→ 到了下层「sched」
+PASS [桌面] 到了下层，上一层的说明卡收起来了
+PASS [桌面] 能回到这张图
+INFO [桌面] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面] 没有 JS 报错
+PASS [手机] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [手机] 打开的这一页有机器图
+PASS [手机] 用的是手机那套坐标（m / mw / mh）
+PASS [手机] 机器图左右不出屏
+PASS [手机] 推演条不出屏
+PASS [手机] 点部件 → 说明卡从底部升起
+PASS [手机] 被点的部件露在说明卡上方
+PASS [手机] 说明卡不超过屏幕六成高
+PASS [手机] 点 ✕ 关掉说明卡
+PASS [手机] 点「为什么」切图层
+PASS [手机] 点 ▶ 进入第 1 步
+PASS [手机] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机] 推演条不超过半屏
+PASS [手机] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [手机] 说明卡「sched」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机] 点「钻进去」→ 到了下层「sched」
+PASS [手机] 到了下层，上一层的说明卡收起来了
+PASS [手机] 能回到这张图
+INFO [手机] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机] 没有 JS 报错
+
+—— 下层节点 sched ——
+PASS [桌面 · sched] 打开的是要查的节点
+PASS [桌面 · sched] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · sched] 打开的这一页有机器图
+PASS [桌面 · sched] 用的是桌面那套坐标
+PASS [桌面 · sched] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · sched] 点「为什么」切到为什么图层
+PASS [桌面 · sched] 点「易混点」切到易混点图层
+PASS [桌面 · sched] 点部件 → 说明卡打开
+PASS [桌面 · sched] 被点的部件没被说明卡挡住
+PASS [桌面 · sched] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · sched] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · sched] → 键翻到下一张说明卡
+PASS [桌面 · sched] Esc 关掉说明卡
+PASS [桌面 · sched] 点 ▶ 进入第 1 步
+PASS [桌面 · sched] 推演时有部件 / 连线被点亮
+PASS [桌面 · sched] , 键退一步
+PASS [桌面 · sched] 推演时机器图仍在推演条上方
+PASS [桌面 · sched] 「钻进去」指到的 7 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · sched] 说明卡「tracker」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · sched] 点「钻进去」→ 到了下层「sched.tracker」
+PASS [桌面 · sched] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · sched] 能回到这张图
+INFO [桌面 · sched] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · sched] 没有 JS 报错
+PASS [手机 · sched] 打开的是要查的节点
+PASS [手机 · sched] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+PASS [手机 · sched] 打开的这一页有机器图
+PASS [手机 · sched] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · sched] 机器图左右不出屏
+PASS [手机 · sched] 推演条不出屏
+PASS [手机 · sched] 点部件 → 说明卡从底部升起
+PASS [手机 · sched] 被点的部件露在说明卡上方
+PASS [手机 · sched] 说明卡不超过屏幕六成高
+PASS [手机 · sched] 点 ✕ 关掉说明卡
+PASS [手机 · sched] 点「为什么」切图层
+PASS [手机 · sched] 点 ▶ 进入第 1 步
+PASS [手机 · sched] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · sched] 推演条不超过半屏
+PASS [手机 · sched] 「钻进去」指到的 7 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · sched] 说明卡「tracker」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · sched] 点「钻进去」→ 到了下层「sched.tracker」
+PASS [手机 · sched] 到了下层，上一层的说明卡收起来了
+PASS [手机 · sched] 能回到这张图
+INFO [手机 · sched] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · sched] 没有 JS 报错
+
+—— 下层节点 xfer ——
+PASS [桌面 · xfer] 打开的是要查的节点
+PASS [桌面 · xfer] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · xfer] 打开的这一页有机器图
+PASS [桌面 · xfer] 用的是桌面那套坐标
+PASS [桌面 · xfer] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · xfer] 点「为什么」切到为什么图层
+PASS [桌面 · xfer] 点「易混点」切到易混点图层
+PASS [桌面 · xfer] 点部件 → 说明卡打开
+PASS [桌面 · xfer] 被点的部件没被说明卡挡住
+PASS [桌面 · xfer] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · xfer] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · xfer] → 键翻到下一张说明卡
+PASS [桌面 · xfer] Esc 关掉说明卡
+PASS [桌面 · xfer] 点 ▶ 进入第 1 步
+PASS [桌面 · xfer] 推演时有部件 / 连线被点亮
+PASS [桌面 · xfer] , 键退一步
+PASS [桌面 · xfer] 推演时机器图仍在推演条上方
+PASS [桌面 · xfer] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · xfer] 说明卡「worker」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · xfer] 点「钻进去」→ 到了下层「worker_src」
+PASS [桌面 · xfer] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · xfer] 能回到这张图
+INFO [桌面 · xfer] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · xfer] 没有 JS 报错
+PASS [手机 · xfer] 打开的是要查的节点
+PASS [手机 · xfer] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+PASS [手机 · xfer] 打开的这一页有机器图
+PASS [手机 · xfer] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · xfer] 机器图左右不出屏
+PASS [手机 · xfer] 推演条不出屏
+PASS [手机 · xfer] 点部件 → 说明卡从底部升起
+PASS [手机 · xfer] 被点的部件露在说明卡上方
+PASS [手机 · xfer] 说明卡不超过屏幕六成高
+PASS [手机 · xfer] 点 ✕ 关掉说明卡
+PASS [手机 · xfer] 点「为什么」切图层
+PASS [手机 · xfer] 点 ▶ 进入第 1 步
+PASS [手机 · xfer] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · xfer] 推演条不超过半屏
+PASS [手机 · xfer] 「钻进去」指到的 6 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · xfer] 说明卡「worker」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · xfer] 点「钻进去」→ 到了下层「worker_src」
+PASS [手机 · xfer] 到了下层，上一层的说明卡收起来了
+PASS [手机 · xfer] 能回到这张图
+INFO [手机 · xfer] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · xfer] 没有 JS 报错
+
+—— 下层节点 l1 ——
+PASS [桌面 · l1] 打开的是要查的节点
+PASS [桌面 · l1] 量到的位置就是点得中的位置（抽了 6 个元素，上下左右各扫一遍）
+PASS [桌面 · l1] 打开的这一页有机器图
+PASS [桌面 · l1] 用的是桌面那套坐标
+PASS [桌面 · l1] 整张机器图在推演条上方、一屏看全
+PASS [桌面 · l1] 点「为什么」切到为什么图层
+PASS [桌面 · l1] 点「易混点」切到易混点图层
+PASS [桌面 · l1] 点部件 → 说明卡打开
+PASS [桌面 · l1] 被点的部件没被说明卡挡住
+PASS [桌面 · l1] 说明卡有 干什么 / 怎么设计 / 为什么 三栏
+PASS [桌面 · l1] 点线上的标签 → 换成这条线的说明卡
+PASS [桌面 · l1] → 键翻到下一张说明卡
+PASS [桌面 · l1] Esc 关掉说明卡
+PASS [桌面 · l1] 点 ▶ 进入第 1 步
+PASS [桌面 · l1] 推演时有部件 / 连线被点亮
+PASS [桌面 · l1] , 键退一步
+PASS [桌面 · l1] 推演时机器图仍在推演条上方
+PASS [桌面 · l1] 「钻进去」指到的 4 个页面都有内容（不是「未展开」的空页）
+PASS [桌面 · l1] 说明卡「xfer」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [桌面 · l1] 点「钻进去」→ 到了下层「l1.write」
+PASS [桌面 · l1] 到了下层，上一层的说明卡收起来了
+PASS [桌面 · l1] 能回到这张图
+INFO [桌面 · l1] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [桌面 · l1] 没有 JS 报错
+PASS [手机 · l1] 打开的是要查的节点
+PASS [手机 · l1] 量到的位置就是点得中的位置（抽了 3 个元素，上下左右各扫一遍）
+PASS [手机 · l1] 打开的这一页有机器图
+PASS [手机 · l1] 用的是手机那套坐标（m / mw / mh）
+PASS [手机 · l1] 机器图左右不出屏
+PASS [手机 · l1] 推演条不出屏
+PASS [手机 · l1] 点部件 → 说明卡从底部升起
+PASS [手机 · l1] 被点的部件露在说明卡上方
+PASS [手机 · l1] 说明卡不超过屏幕六成高
+PASS [手机 · l1] 点 ✕ 关掉说明卡
+PASS [手机 · l1] 点「为什么」切图层
+PASS [手机 · l1] 点 ▶ 进入第 1 步
+PASS [手机 · l1] 每一步的主角（focus 的第一个）都在推演条上方看得见
+PASS [手机 · l1] 推演条不超过半屏
+PASS [手机 · l1] 「钻进去」指到的 4 个页面都有内容（不是「未展开」的空页）
+PASS [手机 · l1] 说明卡「xfer」里的「钻进去」按钮点得到（没被别的东西挡住）
+PASS [手机 · l1] 点「钻进去」→ 到了下层「l1.write」
+PASS [手机 · l1] 到了下层，上一层的说明卡收起来了
+PASS [手机 · l1] 能回到这张图
+INFO [手机 · l1] 这一页没有钉在代码行上的批注，「批注收起 / 点开」没查
+PASS [手机 · l1] 没有 JS 报错
+
+—— 下层节点 sched.tracker ——
+PASS [桌面 · sched.tracker] 打开的是要查的节点
+PASS [桌面 · sched.tracker] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.tracker] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · sched.tracker] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.tracker] 没有 JS 报错
+PASS [桌面 · sched.tracker] 代码批注默认收起，不夹在代码中间（10 条）
+PASS [桌面 · sched.tracker] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.tracker] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.tracker] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.tracker] 便签贴着被点的那几行
+PASS [桌面 · sched.tracker] 便签整个在屏幕里
+PASS [桌面 · sched.tracker] 点便签上的 ✕ 收起
+PASS [桌面 · sched.tracker] 批注便签没有 JS 报错
+PASS [手机 · sched.tracker] 打开的是要查的节点
+PASS [手机 · sched.tracker] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.tracker] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · sched.tracker] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.tracker] 没有 JS 报错
+PASS [手机 · sched.tracker] 代码批注默认收起，不夹在代码中间（10 条）
+PASS [手机 · sched.tracker] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.tracker] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.tracker] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.tracker] 便签贴着被点的那几行
+PASS [手机 · sched.tracker] 便签整个在屏幕里
+PASS [手机 · sched.tracker] 点便签上的 ✕ 收起
+PASS [手机 · sched.tracker] 批注便签没有 JS 报错
+
+—— 下层节点 sched.ask ——
+PASS [桌面 · sched.ask] 打开的是要查的节点
+PASS [桌面 · sched.ask] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.ask] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · sched.ask] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.ask] 没有 JS 报错
+PASS [桌面 · sched.ask] 代码批注默认收起，不夹在代码中间（18 条）
+PASS [桌面 · sched.ask] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.ask] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.ask] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.ask] 便签贴着被点的那几行
+PASS [桌面 · sched.ask] 便签整个在屏幕里
+PASS [桌面 · sched.ask] 点便签上的 ✕ 收起
+PASS [桌面 · sched.ask] 批注便签没有 JS 报错
+PASS [手机 · sched.ask] 打开的是要查的节点
+PASS [手机 · sched.ask] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.ask] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · sched.ask] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.ask] 没有 JS 报错
+PASS [手机 · sched.ask] 代码批注默认收起，不夹在代码中间（18 条）
+PASS [手机 · sched.ask] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.ask] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.ask] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.ask] 便签贴着被点的那几行
+PASS [手机 · sched.ask] 便签整个在屏幕里
+PASS [手机 · sched.ask] 点便签上的 ✕ 收起
+PASS [手机 · sched.ask] 批注便签没有 JS 报错
+
+—— 下层节点 sched.lookup ——
+PASS [桌面 · sched.lookup] 打开的是要查的节点
+PASS [桌面 · sched.lookup] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.lookup] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · sched.lookup] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.lookup] 没有 JS 报错
+PASS [桌面 · sched.lookup] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [桌面 · sched.lookup] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.lookup] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.lookup] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.lookup] 便签贴着被点的那几行
+PASS [桌面 · sched.lookup] 便签整个在屏幕里
+PASS [桌面 · sched.lookup] 点便签上的 ✕ 收起
+PASS [桌面 · sched.lookup] 批注便签没有 JS 报错
+PASS [手机 · sched.lookup] 打开的是要查的节点
+PASS [手机 · sched.lookup] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.lookup] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · sched.lookup] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.lookup] 没有 JS 报错
+PASS [手机 · sched.lookup] 代码批注默认收起，不夹在代码中间（14 条）
+PASS [手机 · sched.lookup] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.lookup] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.lookup] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.lookup] 便签贴着被点的那几行
+PASS [手机 · sched.lookup] 便签整个在屏幕里
+PASS [手机 · sched.lookup] 点便签上的 ✕ 收起
+PASS [手机 · sched.lookup] 批注便签没有 JS 报错
+
+—— 下层节点 sched.alloc ——
+PASS [桌面 · sched.alloc] 打开的是要查的节点
+PASS [桌面 · sched.alloc] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.alloc] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · sched.alloc] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.alloc] 没有 JS 报错
+PASS [桌面 · sched.alloc] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [桌面 · sched.alloc] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.alloc] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.alloc] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.alloc] 便签贴着被点的那几行
+PASS [桌面 · sched.alloc] 便签整个在屏幕里
+PASS [桌面 · sched.alloc] 点便签上的 ✕ 收起
+PASS [桌面 · sched.alloc] 批注便签没有 JS 报错
+PASS [手机 · sched.alloc] 打开的是要查的节点
+PASS [手机 · sched.alloc] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.alloc] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · sched.alloc] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.alloc] 没有 JS 报错
+PASS [手机 · sched.alloc] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [手机 · sched.alloc] 有批注的行染色、可点、行尾有「注」标记
+INFO [手机 · sched.alloc] 当前屏里没有带批注的代码行，「点开便签」没查
+
+—— 下层节点 sched.store ——
+PASS [桌面 · sched.store] 打开的是要查的节点
+PASS [桌面 · sched.store] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.store] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · sched.store] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.store] 没有 JS 报错
+PASS [桌面 · sched.store] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [桌面 · sched.store] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.store] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.store] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.store] 便签贴着被点的那几行
+PASS [桌面 · sched.store] 便签整个在屏幕里
+PASS [桌面 · sched.store] 点便签上的 ✕ 收起
+PASS [桌面 · sched.store] 批注便签没有 JS 报错
+PASS [手机 · sched.store] 打开的是要查的节点
+PASS [手机 · sched.store] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.store] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · sched.store] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.store] 没有 JS 报错
+PASS [手机 · sched.store] 代码批注默认收起，不夹在代码中间（11 条）
+PASS [手机 · sched.store] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.store] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.store] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.store] 便签贴着被点的那几行
+PASS [手机 · sched.store] 便签整个在屏幕里
+PASS [手机 · sched.store] 点便签上的 ✕ 收起
+PASS [手机 · sched.store] 批注便签没有 JS 报错
+
+—— 下层节点 sched.finish ——
+PASS [桌面 · sched.finish] 打开的是要查的节点
+PASS [桌面 · sched.finish] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · sched.finish] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [桌面 · sched.finish] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · sched.finish] 没有 JS 报错
+PASS [桌面 · sched.finish] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · sched.finish] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · sched.finish] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · sched.finish] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · sched.finish] 便签贴着被点的那几行
+PASS [桌面 · sched.finish] 便签整个在屏幕里
+PASS [桌面 · sched.finish] 点便签上的 ✕ 收起
+PASS [桌面 · sched.finish] 批注便签没有 JS 报错
+PASS [手机 · sched.finish] 打开的是要查的节点
+PASS [手机 · sched.finish] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · sched.finish] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [手机 · sched.finish] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · sched.finish] 没有 JS 报错
+PASS [手机 · sched.finish] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · sched.finish] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · sched.finish] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · sched.finish] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · sched.finish] 便签贴着被点的那几行
+PASS [手机 · sched.finish] 便签整个在屏幕里
+PASS [手机 · sched.finish] 点便签上的 ✕ 收起
+PASS [手机 · sched.finish] 批注便签没有 JS 报错
+
+—— 下层节点 worker_src ——
+PASS [桌面 · worker_src] 打开的是要查的节点
+PASS [桌面 · worker_src] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+INFO [桌面 · worker_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · worker_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · worker_src] 没有 JS 报错
+PASS [桌面 · worker_src] 代码批注默认收起，不夹在代码中间（7 条）
+PASS [桌面 · worker_src] 有批注的行染色、可点、行尾有「注」标记
+INFO [桌面 · worker_src] 当前屏里没有带批注的代码行，「点开便签」没查
+PASS [手机 · worker_src] 打开的是要查的节点
+PASS [手机 · worker_src] 量到的位置就是点得中的位置（抽了 5 个元素，上下左右各扫一遍）
+INFO [手机 · worker_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · worker_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · worker_src] 没有 JS 报错
+PASS [手机 · worker_src] 代码批注默认收起，不夹在代码中间（7 条）
+PASS [手机 · worker_src] 有批注的行染色、可点、行尾有「注」标记
+INFO [手机 · worker_src] 当前屏里没有带批注的代码行，「点开便签」没查
+
+—— 下层节点 lookup_src ——
+PASS [桌面 · lookup_src] 打开的是要查的节点
+PASS [桌面 · lookup_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · lookup_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · lookup_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · lookup_src] 没有 JS 报错
+PASS [桌面 · lookup_src] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [桌面 · lookup_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · lookup_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · lookup_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · lookup_src] 便签贴着被点的那几行
+PASS [桌面 · lookup_src] 便签整个在屏幕里
+PASS [桌面 · lookup_src] 点便签上的 ✕ 收起
+PASS [桌面 · lookup_src] 批注便签没有 JS 报错
+PASS [手机 · lookup_src] 打开的是要查的节点
+PASS [手机 · lookup_src] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · lookup_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · lookup_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · lookup_src] 没有 JS 报错
+PASS [手机 · lookup_src] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [手机 · lookup_src] 有批注的行染色、可点、行尾有「注」标记
+INFO [手机 · lookup_src] 当前屏里没有带批注的代码行，「点开便签」没查
+
+—— 下层节点 hash_src ——
+PASS [桌面 · hash_src] 打开的是要查的节点
+PASS [桌面 · hash_src] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · hash_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · hash_src] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · hash_src] 没有 JS 报错
+PASS [桌面 · hash_src] 代码批注默认收起，不夹在代码中间（5 条）
+PASS [桌面 · hash_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · hash_src] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · hash_src] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · hash_src] 便签贴着被点的那几行
+PASS [桌面 · hash_src] 便签整个在屏幕里
+PASS [桌面 · hash_src] 点便签上的 ✕ 收起
+PASS [桌面 · hash_src] 批注便签没有 JS 报错
+PASS [手机 · hash_src] 打开的是要查的节点
+PASS [手机 · hash_src] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [手机 · hash_src] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · hash_src] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · hash_src] 没有 JS 报错
+PASS [手机 · hash_src] 代码批注默认收起，不夹在代码中间（5 条）
+PASS [手机 · hash_src] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · hash_src] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · hash_src] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · hash_src] 便签贴着被点的那几行
+PASS [手机 · hash_src] 便签整个在屏幕里
+PASS [手机 · hash_src] 点便签上的 ✕ 收起
+PASS [手机 · hash_src] 批注便签没有 JS 报错
+
+—— 下层节点 xfer.store ——
+PASS [桌面 · xfer.store] 打开的是要查的节点
+PASS [桌面 · xfer.store] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · xfer.store] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · xfer.store] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · xfer.store] 没有 JS 报错
+PASS [桌面 · xfer.store] 代码批注默认收起，不夹在代码中间（16 条）
+PASS [桌面 · xfer.store] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · xfer.store] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · xfer.store] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · xfer.store] 便签贴着被点的那几行
+PASS [桌面 · xfer.store] 便签整个在屏幕里
+PASS [桌面 · xfer.store] 点便签上的 ✕ 收起
+PASS [桌面 · xfer.store] 批注便签没有 JS 报错
+PASS [手机 · xfer.store] 打开的是要查的节点
+PASS [手机 · xfer.store] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · xfer.store] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · xfer.store] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · xfer.store] 没有 JS 报错
+PASS [手机 · xfer.store] 代码批注默认收起，不夹在代码中间（16 条）
+PASS [手机 · xfer.store] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · xfer.store] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · xfer.store] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · xfer.store] 便签贴着被点的那几行
+PASS [手机 · xfer.store] 便签整个在屏幕里
+PASS [手机 · xfer.store] 点便签上的 ✕ 收起
+PASS [手机 · xfer.store] 批注便签没有 JS 报错
+
+—— 下层节点 xfer.retrieve ——
+PASS [桌面 · xfer.retrieve] 打开的是要查的节点
+PASS [桌面 · xfer.retrieve] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · xfer.retrieve] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [桌面 · xfer.retrieve] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · xfer.retrieve] 没有 JS 报错
+PASS [桌面 · xfer.retrieve] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [桌面 · xfer.retrieve] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · xfer.retrieve] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · xfer.retrieve] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · xfer.retrieve] 便签贴着被点的那几行
+PASS [桌面 · xfer.retrieve] 便签整个在屏幕里
+PASS [桌面 · xfer.retrieve] 点便签上的 ✕ 收起
+PASS [桌面 · xfer.retrieve] 批注便签没有 JS 报错
+PASS [手机 · xfer.retrieve] 打开的是要查的节点
+PASS [手机 · xfer.retrieve] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · xfer.retrieve] 这一页没有机器图（源码页 / 文字页），只截图：代码块 1 段
+PASS [手机 · xfer.retrieve] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · xfer.retrieve] 没有 JS 报错
+PASS [手机 · xfer.retrieve] 代码批注默认收起，不夹在代码中间（8 条）
+PASS [手机 · xfer.retrieve] 有批注的行染色、可点、行尾有「注」标记
+INFO [手机 · xfer.retrieve] 当前屏里没有带批注的代码行，「点开便签」没查
+
+—— 下层节点 xfer.copy ——
+PASS [桌面 · xfer.copy] 打开的是要查的节点
+PASS [桌面 · xfer.copy] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · xfer.copy] 这一页没有机器图（源码页 / 文字页），只截图：代码块 6 段
+PASS [桌面 · xfer.copy] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · xfer.copy] 没有 JS 报错
+PASS [桌面 · xfer.copy] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [桌面 · xfer.copy] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · xfer.copy] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · xfer.copy] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · xfer.copy] 便签贴着被点的那几行
+PASS [桌面 · xfer.copy] 便签整个在屏幕里
+PASS [桌面 · xfer.copy] 点便签上的 ✕ 收起
+PASS [桌面 · xfer.copy] 批注便签没有 JS 报错
+PASS [手机 · xfer.copy] 打开的是要查的节点
+PASS [手机 · xfer.copy] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · xfer.copy] 这一页没有机器图（源码页 / 文字页），只截图：代码块 6 段
+PASS [手机 · xfer.copy] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · xfer.copy] 没有 JS 报错
+PASS [手机 · xfer.copy] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [手机 · xfer.copy] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · xfer.copy] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · xfer.copy] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · xfer.copy] 便签贴着被点的那几行
+PASS [手机 · xfer.copy] 便签整个在屏幕里
+PASS [手机 · xfer.copy] 点便签上的 ✕ 收起
+PASS [手机 · xfer.copy] 批注便签没有 JS 报错
+
+—— 下层节点 xfer.cb ——
+PASS [桌面 · xfer.cb] 打开的是要查的节点
+PASS [桌面 · xfer.cb] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · xfer.cb] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [桌面 · xfer.cb] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · xfer.cb] 没有 JS 报错
+PASS [桌面 · xfer.cb] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [桌面 · xfer.cb] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · xfer.cb] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · xfer.cb] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · xfer.cb] 便签贴着被点的那几行
+PASS [桌面 · xfer.cb] 便签整个在屏幕里
+PASS [桌面 · xfer.cb] 点便签上的 ✕ 收起
+PASS [桌面 · xfer.cb] 批注便签没有 JS 报错
+PASS [手机 · xfer.cb] 打开的是要查的节点
+PASS [手机 · xfer.cb] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · xfer.cb] 这一页没有机器图（源码页 / 文字页），只截图：代码块 3 段
+PASS [手机 · xfer.cb] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · xfer.cb] 没有 JS 报错
+PASS [手机 · xfer.cb] 代码批注默认收起，不夹在代码中间（9 条）
+PASS [手机 · xfer.cb] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · xfer.cb] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · xfer.cb] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · xfer.cb] 便签贴着被点的那几行
+PASS [手机 · xfer.cb] 便签整个在屏幕里
+PASS [手机 · xfer.cb] 点便签上的 ✕ 收起
+PASS [手机 · xfer.cb] 批注便签没有 JS 报错
+
+—— 下层节点 xfer.pool ——
+PASS [桌面 · xfer.pool] 打开的是要查的节点
+PASS [桌面 · xfer.pool] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · xfer.pool] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [桌面 · xfer.pool] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · xfer.pool] 没有 JS 报错
+PASS [桌面 · xfer.pool] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [桌面 · xfer.pool] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · xfer.pool] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · xfer.pool] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · xfer.pool] 便签贴着被点的那几行
+PASS [桌面 · xfer.pool] 便签整个在屏幕里
+PASS [桌面 · xfer.pool] 点便签上的 ✕ 收起
+PASS [桌面 · xfer.pool] 批注便签没有 JS 报错
+PASS [手机 · xfer.pool] 打开的是要查的节点
+PASS [手机 · xfer.pool] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · xfer.pool] 这一页没有机器图（源码页 / 文字页），只截图：代码块 2 段
+PASS [手机 · xfer.pool] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · xfer.pool] 没有 JS 报错
+PASS [手机 · xfer.pool] 代码批注默认收起，不夹在代码中间（6 条）
+PASS [手机 · xfer.pool] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · xfer.pool] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · xfer.pool] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · xfer.pool] 便签贴着被点的那几行
+PASS [手机 · xfer.pool] 便签整个在屏幕里
+PASS [手机 · xfer.pool] 点便签上的 ✕ 收起
+PASS [手机 · xfer.pool] 批注便签没有 JS 报错
+
+—— 下层节点 l1.write ——
+PASS [桌面 · l1.write] 打开的是要查的节点
+PASS [桌面 · l1.write] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · l1.write] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [桌面 · l1.write] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · l1.write] 没有 JS 报错
+PASS [桌面 · l1.write] 代码批注默认收起，不夹在代码中间（21 条）
+PASS [桌面 · l1.write] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · l1.write] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · l1.write] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · l1.write] 便签贴着被点的那几行
+PASS [桌面 · l1.write] 便签整个在屏幕里
+PASS [桌面 · l1.write] 点便签上的 ✕ 收起
+PASS [桌面 · l1.write] 批注便签没有 JS 报错
+PASS [手机 · l1.write] 打开的是要查的节点
+PASS [手机 · l1.write] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · l1.write] 这一页没有机器图（源码页 / 文字页），只截图：代码块 4 段
+PASS [手机 · l1.write] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · l1.write] 没有 JS 报错
+PASS [手机 · l1.write] 代码批注默认收起，不夹在代码中间（21 条）
+PASS [手机 · l1.write] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · l1.write] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · l1.write] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · l1.write] 便签贴着被点的那几行
+PASS [手机 · l1.write] 便签整个在屏幕里
+PASS [手机 · l1.write] 点便签上的 ✕ 收起
+PASS [手机 · l1.write] 批注便签没有 JS 报错
+
+—— 下层节点 l1.read ——
+PASS [桌面 · l1.read] 打开的是要查的节点
+PASS [桌面 · l1.read] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [桌面 · l1.read] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · l1.read] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · l1.read] 没有 JS 报错
+PASS [桌面 · l1.read] 代码批注默认收起，不夹在代码中间（15 条）
+PASS [桌面 · l1.read] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · l1.read] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · l1.read] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · l1.read] 便签贴着被点的那几行
+PASS [桌面 · l1.read] 便签整个在屏幕里
+PASS [桌面 · l1.read] 点便签上的 ✕ 收起
+PASS [桌面 · l1.read] 批注便签没有 JS 报错
+PASS [手机 · l1.read] 打开的是要查的节点
+PASS [手机 · l1.read] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · l1.read] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · l1.read] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · l1.read] 没有 JS 报错
+PASS [手机 · l1.read] 代码批注默认收起，不夹在代码中间（15 条）
+PASS [手机 · l1.read] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · l1.read] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · l1.read] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · l1.read] 便签贴着被点的那几行
+PASS [手机 · l1.read] 便签整个在屏幕里
+PASS [手机 · l1.read] 点便签上的 ✕ 收起
+PASS [手机 · l1.read] 批注便签没有 JS 报错
+
+—— 下层节点 l1.prefetch ——
+PASS [桌面 · l1.prefetch] 打开的是要查的节点
+PASS [桌面 · l1.prefetch] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · l1.prefetch] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · l1.prefetch] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · l1.prefetch] 没有 JS 报错
+PASS [桌面 · l1.prefetch] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [桌面 · l1.prefetch] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · l1.prefetch] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · l1.prefetch] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · l1.prefetch] 便签贴着被点的那几行
+PASS [桌面 · l1.prefetch] 便签整个在屏幕里
+PASS [桌面 · l1.prefetch] 点便签上的 ✕ 收起
+PASS [桌面 · l1.prefetch] 批注便签没有 JS 报错
+PASS [手机 · l1.prefetch] 打开的是要查的节点
+PASS [手机 · l1.prefetch] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · l1.prefetch] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · l1.prefetch] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · l1.prefetch] 没有 JS 报错
+PASS [手机 · l1.prefetch] 代码批注默认收起，不夹在代码中间（13 条）
+PASS [手机 · l1.prefetch] 有批注的行染色、可点、行尾有「注」标记
+PASS [手机 · l1.prefetch] 点带批注的行 → 批注便签弹出来、那几行加深
+PASS [手机 · l1.prefetch] 便签浮在代码上，不把下面的代码挤开
+PASS [手机 · l1.prefetch] 便签贴着被点的那几行
+PASS [手机 · l1.prefetch] 便签整个在屏幕里
+PASS [手机 · l1.prefetch] 点便签上的 ✕ 收起
+PASS [手机 · l1.prefetch] 批注便签没有 JS 报错
+
+—— 下层节点 l1.evict ——
+PASS [桌面 · l1.evict] 打开的是要查的节点
+PASS [桌面 · l1.evict] 量到的位置就是点得中的位置（抽了 2 个元素，上下左右各扫一遍）
+INFO [桌面 · l1.evict] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [桌面 · l1.evict] 这一页有内容（不是「未展开」的空页）
+PASS [桌面 · l1.evict] 没有 JS 报错
+PASS [桌面 · l1.evict] 代码批注默认收起，不夹在代码中间（17 条）
+PASS [桌面 · l1.evict] 有批注的行染色、可点、行尾有「注」标记
+PASS [桌面 · l1.evict] 单击带批注的行 → 批注便签弹出来、那几行加深
+PASS [桌面 · l1.evict] 便签浮在代码上，不把下面的代码挤开
+PASS [桌面 · l1.evict] 便签贴着被点的那几行
+PASS [桌面 · l1.evict] 便签整个在屏幕里
+PASS [桌面 · l1.evict] 点便签上的 ✕ 收起
+PASS [桌面 · l1.evict] 批注便签没有 JS 报错
+PASS [手机 · l1.evict] 打开的是要查的节点
+PASS [手机 · l1.evict] 量到的位置就是点得中的位置（抽了 1 个元素，上下左右各扫一遍）
+INFO [手机 · l1.evict] 这一页没有机器图（源码页 / 文字页），只截图：代码块 5 段
+PASS [手机 · l1.evict] 这一页有内容（不是「未展开」的空页）
+PASS [手机 · l1.evict] 没有 JS 报错
+PASS [手机 · l1.evict] 代码批注默认收起，不夹在代码中间（17 条）
+PASS [手机 · l1.evict] 有批注的行染色、可点、行尾有「注」标记
+INFO [手机 · l1.evict] 当前屏里没有带批注的代码行，「点开便签」没查
+
+交互自检 566 PASS / 0 FAIL；排版问题 0 条
+截图在 /root/canvas-duo-runs/LMCache-l1data-20261128/out/final/shots
